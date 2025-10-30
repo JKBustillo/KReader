@@ -8,6 +8,7 @@ import { getRecentFiles, clearRecentFiles, addRecentFile } from "./utils/recentF
 
 function App() {
   const [pages, setPages] = useState<string[]>([]);
+  const [currentPath, setCurrentPath] = useState<string>("");
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
   useEffect(() => {
@@ -21,6 +22,7 @@ function App() {
 
     if (!filePath) return;
 
+    setCurrentPath(filePath);
     const data = await readFile(filePath);
     const zip = await JSZip.loadAsync(data);
 
@@ -73,7 +75,7 @@ function App() {
   };
 
   if (pages.length > 0) {
-    return <Reader pages={pages} resetPages={resetPages} />;
+    return <Reader pages={pages} resetPages={resetPages} filePath={currentPath} />;
   }
 
   return (
