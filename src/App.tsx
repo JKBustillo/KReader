@@ -15,37 +15,8 @@ function App() {
     getRecentFiles().then(setRecentFiles);
   }, []);
 
-  const openCbz = async () => {
-    const filePath = await open({
-      filters: [{ name: "Comic book", extensions: ["cbz"] }],
-    });
-
-    if (!filePath) return;
-
-    setCurrentPath(filePath);
-    const data = await readFile(filePath);
-    const zip = await JSZip.loadAsync(data);
-
-    const entries = Object.keys(zip.files)
-      .filter((f) => /\.(jpg|jpeg|png)$/i.test(f))
-      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
-    const imgs: string[] = [];
-    for (const name of entries) {
-      const file = zip.file(name);
-      if (file) {
-        const blob = await file.async("blob");
-        imgs.push(URL.createObjectURL(blob));
-      }
-    }
-
-    const updated = await addRecentFile(filePath as string);
-    setRecentFiles(updated);
-
-    setPages(imgs);
-  };
-
-  const handleOpenRecent = async (path: string) => {
+  const handleOpen = async (path: string) => {
+    setCurrentPath(path);
     const data = await readFile(path);
     const zip = await JSZip.loadAsync(data);
 
@@ -63,6 +34,19 @@ function App() {
     }
 
     setPages(imgs);
+  };
+
+  const openCbz = async () => {
+    const filePath = await open({
+      filters: [{ name: "Comic book", extensions: ["cbz"] }],
+    });
+
+    if (!filePath) return;
+
+    await handleOpen(filePath);
+
+    const updated = await addRecentFile(filePath as string);
+    setRecentFiles(updated);
   };
 
   const handleClear = async () => {
@@ -111,7 +95,7 @@ function App() {
                 <li
                   key={path}
                   className="truncate cursor-pointer hover:text-blue-400"
-                  onClick={() => handleOpenRecent(path)}
+                  onClick={() => handleOpen(path)}
                 >
                   {path.split(/[\\/]/).pop()}
                 </li>

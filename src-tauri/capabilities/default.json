@@ -7,13 +7,16 @@
   ],
   "permissions": [
     "core:default",
+    "core:window:allow-set-title",
     "opener:default",
     "dialog:default",
     "fs:default",
     "store:default",
     {
       "identifier": "fs:default",
-      "allow": ["**/*"]
+      "allow": [
+        "**/*"
+      ]
     }
   ]
 }

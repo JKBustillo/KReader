@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Store } from "@tauri-apps/plugin-store";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 
 function Reader({
   pages,
@@ -26,6 +27,16 @@ function Reader({
       const savedPage = await s.get<number>(`${filePath}-page`);
       if (savedPage !== undefined) setPageIndex(savedPage);
     })();
+  }, [filePath]);
+
+  useEffect(() => {
+    const updateTitle = async () => {
+      const win = getCurrentWindow();
+      const fileName = filePath.split(/[/\\]/).pop() || "KReader1";
+      await win.setTitle(`${fileName} - KReader`);
+    };
+
+    updateTitle();
   }, [filePath]);
 
   useEffect(() => {
@@ -104,6 +115,8 @@ function Reader({
           }
           break;
         case "Escape":
+          const win = getCurrentWindow();
+          win.setTitle(`KReader`);
           resetPages();
           break;
         case "d":
