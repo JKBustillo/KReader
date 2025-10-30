@@ -33,7 +33,13 @@ function App() {
     setPages(imgs);
   };
 
-  if (pages.length > 0) return <Reader pages={pages} />;
+  const resetPages = () => {
+    setPages([]);
+  };
+
+  if (pages.length > 0)  {
+    return <Reader pages={pages} resetPages={resetPages} />;
+  }
 
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-[#1a1b1e] text-gray-200 font-sans">

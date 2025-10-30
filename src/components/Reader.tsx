@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-function Reader({ pages }: { pages: string[] }) {
+function Reader({ pages, resetPages }: { pages: string[], resetPages: () => void }) {
   const [pageIndex, setPageIndex] = useState(0);
   const [zoom, setZoom] = useState(1);
   const [doublePage, setDoublePage] = useState(false);
@@ -32,6 +32,8 @@ function Reader({ pages }: { pages: string[] }) {
         nextPage();
       } else if (e.key === "ArrowLeft") {
         prevPage();
+      } else if (e.key === "Escape") {
+        resetPages();
       } else if (e.key.toLowerCase() === "d") {
         setDoublePage((d) => !d);
       }
