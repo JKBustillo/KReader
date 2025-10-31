@@ -4,7 +4,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
 
 import Reader from "./components/Reader";
-import { getRecentFiles, clearRecentFiles, addRecentFile } from "./utils/recentFiles";
+import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
 
@@ -41,26 +41,35 @@ function App() {
   const handleOpen = async (path: string) => {
     setLoading(true);
 
-    setCurrentPath(path);
-    const data = await readFile(path);
-    const zip = await JSZip.loadAsync(data);
+    try {
+      setCurrentPath(path);
+      const data = await readFile(path);
+      const zip = await JSZip.loadAsync(data);
 
-    const imageEntries = Object.values(zip.files).filter(
-      (file) =>
-        !file.dir &&
-        /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
-    );
+      const imageEntries = Object.values(zip.files).filter(
+        (file) =>
+          !file.dir &&
+          /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
+      );
 
-    imageEntries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      imageEntries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
-    const images = await Promise.all(
-      imageEntries.map(async (file) => {
-        const blob = await file.async("blob");
-        return URL.createObjectURL(blob);
-      })
-    );
+      const images = await Promise.all(
+        imageEntries.map(async (file) => {
+          const blob = await file.async("blob");
+          return URL.createObjectURL(blob);
+        })
+      );
 
-    setPages(images);
+      const updated = await addRecentFile(path as string);
+      setRecentFiles(updated);
+
+      setPages(images);
+    } catch (error) {
+      const newRecentFiles = recentFiles.filter((p) => p !== path);
+      saveRecentFiles(newRecentFiles);
+      setRecentFiles(newRecentFiles);
+    }
     setLoading(false);
   };
 
@@ -72,13 +81,10 @@ function App() {
     if (!filePath) return;
 
     await handleOpen(filePath);
-
-    const updated = await addRecentFile(filePath as string);
-    setRecentFiles(updated);
   };
 
   const handleClear = async () => {
-    await clearRecentFiles();
+    await saveRecentFiles([]);
     setRecentFiles([]);
   };
 
@@ -101,7 +107,6 @@ function App() {
           break;
 
         case "x":
-          // 🔹 Cierra completamente la app
           getCurrentWindow().close();
           break;
 
@@ -123,7 +128,7 @@ function App() {
 
       const newPath = e.detail;
       if (newPath) {
-        await handleOpen(newPath); // tu función actual que extrae imágenes
+        await handleOpen(newPath);
       }
     };
 

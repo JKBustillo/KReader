@@ -16,7 +16,7 @@ export async function addRecentFile(path: string) {
   return updated;
 }
 
-export async function clearRecentFiles() {
-  await store.set("recentFiles", []);
+export async function saveRecentFiles(files: string[]) {
+  await store.set("recentFiles", files);
   await store.save();
 }

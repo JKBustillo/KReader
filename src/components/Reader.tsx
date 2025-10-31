@@ -20,7 +20,7 @@ function Reader({
   const [rtl, setRtl] = useState(false);
   const [showGap, setShowGap] = useState(true);
   const [showMoreInfo, setShowMoreInfo] = useState(false);
-  const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('smooth');
+  const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [store, setStore] = useState<Store | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -269,7 +269,7 @@ function Reader({
             src={src}
             alt={`Page ${pageIndex + i + 1}`}
             className={`${doublePage ? "max-w-[45vw]" : "max-w-[80vw]"
-              } max-h-[90vh] object-contain rounded shadow-md`}
+              } max-h-[100vh] object-contain rounded shadow-md`}
           />
         ))}
       </div>
