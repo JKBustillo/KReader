@@ -2,6 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { Store } from "@tauri-apps/plugin-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+import { readDir } from "@tauri-apps/plugin-fs";
+import { dirname, join } from "@tauri-apps/api/path";
+
 function Reader({
   pages,
   resetPages,
@@ -16,6 +19,8 @@ function Reader({
   const [doublePage, setDoublePage] = useState(false);
   const [rtl, setRtl] = useState(false);
   const [showGap, setShowGap] = useState(true);
+  const [showMoreInfo, setShowMoreInfo] = useState(false);
+  const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('smooth');
   const [store, setStore] = useState<Store | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -62,14 +67,47 @@ function Reader({
 
   useEffect(() => {
     if (containerRef.current) {
-      containerRef.current.scrollTo({ top: 0, behavior: "smooth" });
+      containerRef.current.scrollTo({ top: 0, behavior: smoothScroll });
     }
   }, [pageIndex]);
 
   const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
+    async (e: KeyboardEvent) => {
       const container = containerRef.current;
       const key = e.key;
+
+      if (e.ctrlKey && (key === "ArrowRight" || key === "ArrowLeft")) {
+        e.preventDefault();
+        try {
+          const dir = await dirname(filePath);
+          const files = await readDir(dir);
+
+
+          const cbzFiles = files.filter(e => e.name?.toLowerCase().endsWith(".cbz"));
+          const cbzList = await Promise.all(cbzFiles.map(e => join(dir, e.name!)));
+
+          const currentIndex = cbzList.findIndex(
+            (p) => p.endsWith(filePath.split(/[/\\]/).pop()!)
+          );
+
+          let newIndex = currentIndex;
+          if (key === "ArrowRight" && currentIndex < cbzFiles.length - 1)
+            newIndex++;
+          else if (key === "ArrowLeft" && currentIndex > 0)
+            newIndex--;
+
+          if (newIndex !== currentIndex) {
+            const newPath = cbzFiles[newIndex];
+            resetPages(); // Limpia páginas actuales
+            window.dispatchEvent(
+              new CustomEvent("openNewCbz", { detail: `${dir}\\${newPath.name}` })
+            ); // ⬅️ Emite evento global
+          }
+        } catch (err) {
+          console.error("Error al cambiar de cómic:", err);
+        }
+        return;
+      }
 
       switch (key) {
         case "+":
@@ -86,6 +124,7 @@ function Reader({
           rtl ? nextPage() : prevPage();
           break;
         case "PageDown":
+          e.preventDefault();
           if (container) {
             const atBottom =
               container.scrollTop + container.clientHeight >=
@@ -123,6 +162,10 @@ function Reader({
         case "D":
           setDoublePage((d) => !d);
           break;
+        case "i":
+        case "I":
+          setShowMoreInfo((d) => !d);
+          break;
         case "s":
         case "S":
           setRtl((r) => !r);
@@ -130,6 +173,10 @@ function Reader({
         case "g":
         case "G":
           setShowGap((g) => !g);
+          break;
+        case "j":
+        case "J":
+          setSmoothScroll(smoothScroll === 'smooth' ? 'instant' : 'smooth');
           break;
         case "Home":
           e.preventDefault();
@@ -144,7 +191,7 @@ function Reader({
           break;
       }
     },
-    [nextPage, prevPage, resetPages, rtl]
+    [nextPage, prevPage, resetPages, rtl, smoothScroll]
   );
 
   useEffect(() => {
@@ -228,9 +275,11 @@ function Reader({
       </div>
 
       <div className="fixed bottom-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded">
-        <div>{doublePage ? "📖 Doble página" : "📄 Una página"}</div>
-        <div>Orientación: {rtl ? "⇠ Derecha → Izquierda" : "⇢ Izquierda → Derecha"}</div>
-        <div>{showGap ? "Con separación" : "Sin separación"}</div>
+        {showMoreInfo && <>
+          <div>{doublePage ? "📖 Doble página" : "📄 Una página"}</div>
+          <div>Orientación: {rtl ? "⇠ Derecha → Izquierda" : "⇢ Izquierda → Derecha"}</div>
+          <div>{showGap ? "Con separación" : "Sin separación"}</div>
+        </>}
         <div>Página {pageIndex + 1} / {pages.length}</div>
       </div>
     </div>
