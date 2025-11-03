@@ -22,8 +22,10 @@ function Reader({
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [store, setStore] = useState<Store | null>(null);
+  const [isTallerThanViewport, setIsTallerThanViewport] = useState(false);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -66,15 +68,54 @@ function Reader({
   }, [doublePage]);
 
   useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.scrollTo({ top: 0, behavior: smoothScroll });
-    }
+    const container = containerRef.current;
+    if (!container) return;
+
+    const waitForImagesToLoad = async () => {
+      const images = Array.from(container.querySelectorAll("img"));
+      const unloaded = images.filter(img => !img.complete);
+
+      if (unloaded.length === 0) {
+        container.scrollTo({ top: 0, behavior: smoothScroll });
+        return;
+      }
+
+      await Promise.all(unloaded.map(img => new Promise(resolve => { img.onload = img.onerror = resolve; })));
+
+      container.scrollTo({ top: 0, behavior: smoothScroll });
+    };
+
+    waitForImagesToLoad();
   }, [pageIndex]);
+
+  useEffect(() => {
+    const preloadNextPages = () => {
+      const nextPages = doublePage
+        ? pages.slice(pageIndex + 2, pageIndex + 4)
+        : [pages[pageIndex + 1]];
+      nextPages.forEach((src) => {
+        if (src) {
+          const img = new Image();
+          img.src = src;
+        }
+      });
+    };
+
+    preloadNextPages();
+  }, [pageIndex, pages, doublePage]);
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
       const container = containerRef.current;
       const key = e.key;
+
+      const checkHeight = (zoom: number) => {
+        if (contentRef.current) {
+          const contentHeight = contentRef.current.offsetHeight * zoom;
+          const viewportHeight = window.innerHeight;
+          setIsTallerThanViewport(contentHeight > viewportHeight);
+        }
+      };
 
       if (e.ctrlKey && (key === "ArrowRight" || key === "ArrowLeft")) {
         e.preventDefault();
@@ -112,9 +153,18 @@ function Reader({
       switch (key) {
         case "+":
         case "=":
-          setZoom((z) => Math.min(z + 0.1, 3));
+          setZoom((z) => {
+            const newZoom = Math.min(z + 0.1, 3);
+            checkHeight(newZoom);
+            return newZoom;
+          });
           break;
         case "-":
+          setZoom((z) => {
+            const newZoom = Math.max(z - 0.1, 0.5);
+            checkHeight(newZoom);
+            return newZoom;
+          });
           setZoom((z) => Math.max(z - 0.1, 0.5));
           break;
         case "ArrowRight":
@@ -191,7 +241,7 @@ function Reader({
           break;
       }
     },
-    [nextPage, prevPage, resetPages, rtl, smoothScroll]
+    [nextPage, prevPage, resetPages, rtl, smoothScroll, zoom]
   );
 
   useEffect(() => {
@@ -242,24 +292,21 @@ function Reader({
     return () => container.removeEventListener("wheel", handleWheel);
   }, [nextPage, prevPage]);
 
+  const flexDirection = doublePage ? rtl ? "flex-row-reverse" : "flex-row" : "flex-col";
 
   return (
     <div
       ref={containerRef}
-      className="flex justify-center items-center bg-gray-900 text-white min-h-screen overflow-auto"
+      className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-gray-900 text-white min-h-screen overflow-auto`}
       style={{ scrollBehavior: "smooth" }}
     >
       <div
-        className={`flex ${doublePage
-          ? rtl
-            ? "flex-row-reverse"
-            : "flex-row"
-          : "flex-col"
-          } justify-center items-center`}
+        ref={contentRef}
+        className={`flex ${flexDirection} justify-center items-center`}
         style={{
           gap: showGap && doublePage ? "1rem" : "0",
           transform: `scale(${zoom})`,
-          transformOrigin: "center top",
+          transformOrigin: isTallerThanViewport ? "center top" : "center",
           transition: "transform 0.2s ease-in-out",
         }}
       >

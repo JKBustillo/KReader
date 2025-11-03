@@ -107,6 +107,7 @@ function App() {
           break;
 
         case "x":
+        case "X":
           getCurrentWindow().close();
           break;
 
