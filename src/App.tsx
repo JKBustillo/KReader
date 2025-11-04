@@ -2,11 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
+import * as pdfjsLib from "pdfjs-dist";
+import "pdfjs-dist/build/pdf.worker.mjs";
 
 import Reader from "./components/Reader";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { listen } from "@tauri-apps/api/event";
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -43,27 +47,60 @@ function App() {
 
     try {
       setCurrentPath(path);
-      const data = await readFile(path);
-      const zip = await JSZip.loadAsync(data);
+      const ext = path.split(".").pop()?.toLowerCase();
 
-      const imageEntries = Object.values(zip.files).filter(
-        (file) =>
-          !file.dir &&
-          /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
-      );
+      let images: string[] = [];
 
-      imageEntries.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+      if (ext === "cbz") {
+        // === CBZ ===
+        const data = await readFile(path);
+        const zip = await JSZip.loadAsync(data);
 
-      const images = await Promise.all(
-        imageEntries.map(async (file) => {
-          const blob = await file.async("blob");
-          return URL.createObjectURL(blob);
-        })
-      );
+        const imageEntries = Object.values(zip.files).filter(
+          (file) =>
+            !file.dir &&
+            /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
+        );
+
+        imageEntries.sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { numeric: true })
+        );
+
+        images = await Promise.all(
+          imageEntries.map(async (file) => {
+            const blob = await file.async("blob");
+            return URL.createObjectURL(blob);
+          })
+        );
+      }
+
+      else if (ext === "pdf") {
+        // === PDF ===
+        const data = await readFile(path);
+        const pdf = await pdfjsLib.getDocument({ data }).promise;
+        const numPages = pdf.numPages;
+
+        images = [];
+
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 2.0 });
+          const canvas = document.createElement("canvas");
+          const context = canvas.getContext("2d")!;
+          canvas.width = viewport.width;
+          canvas.height = viewport.height;
+          await page.render({ canvasContext: context, viewport, canvas }).promise;
+
+          images.push(canvas.toDataURL("image/png"));
+        }
+      }
+
+      else {
+        throw new Error("Formato no soportado");
+      }
 
       const updated = await addRecentFile(path as string);
       setRecentFiles(updated);
-
       setPages(images);
     } catch (error) {
       const newRecentFiles = recentFiles.filter((p) => p !== path);
@@ -75,7 +112,7 @@ function App() {
 
   const openCbz = async () => {
     const filePath = await open({
-      filters: [{ name: "Comic book", extensions: ["cbz"] }],
+      filters: [{ name: "Comics", extensions: ["cbz", "pdf"] }],
     });
 
     if (!filePath) return;
