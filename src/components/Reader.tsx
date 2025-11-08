@@ -23,6 +23,8 @@ function Reader({
   const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [store, setStore] = useState<Store | null>(null);
   const [isTallerThanViewport, setIsTallerThanViewport] = useState(false);
+  const [cascadeMode, setCascadeMode] = useState(false);
+  const [contentHeight, setContentHeight] = useState(0);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -32,7 +34,10 @@ function Reader({
       const s = await Store.load(".reading-progress.dat");
       setStore(s);
       const savedPage = await s.get<number>(`${filePath}-page`);
+      const savedCascade = await s.get<boolean>(`${filePath}-cascade`);
+
       if (savedPage !== undefined) setPageIndex(savedPage);
+      if (savedCascade !== undefined) setCascadeMode(savedCascade);
     })();
   }, [filePath]);
 
@@ -53,9 +58,14 @@ function Reader({
     }
   }, [pageIndex, store, filePath]);
 
-  const currentPages = doublePage
-    ? pages.slice(pageIndex, pageIndex + 2)
-    : [pages[pageIndex]];
+  useEffect(() => {
+    if (store) {
+      store.set(`${filePath}-cascade`, cascadeMode);
+      store.save();
+    }
+  }, [cascadeMode, store, filePath]);
+
+  const currentPages = cascadeMode ? pages : doublePage ? pages.slice(pageIndex, pageIndex + 2) : [pages[pageIndex]];
 
   const nextPage = useCallback(() => {
     setPageIndex((prev) =>
@@ -85,10 +95,16 @@ function Reader({
       container.scrollTo({ top: 0, behavior: smoothScroll });
     };
 
-    waitForImagesToLoad();
-  }, [pageIndex]);
+    waitForImagesToLoad().then(() => {
+      const content = contentRef.current;
+      setContentHeight(content?.offsetHeight || 0);
+    });
+
+  }, [pageIndex, cascadeMode]);
 
   useEffect(() => {
+    if (cascadeMode) return;
+
     const preloadNextPages = () => {
       const nextPages = doublePage
         ? pages.slice(pageIndex + 2, pageIndex + 4)
@@ -102,7 +118,7 @@ function Reader({
     };
 
     preloadNextPages();
-  }, [pageIndex, pages, doublePage]);
+  }, [pageIndex, pages, doublePage, cascadeMode]);
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
@@ -139,10 +155,10 @@ function Reader({
 
           if (newIndex !== currentIndex) {
             const newPath = cbzFiles[newIndex];
-            resetPages(); // Limpia páginas actuales
+            resetPages();
             window.dispatchEvent(
               new CustomEvent("openNewCbz", { detail: `${dir}\\${newPath.name}` })
-            ); // ⬅️ Emite evento global
+            );
           }
         } catch (err) {
           console.error("Error al cambiar de cómic:", err);
@@ -151,6 +167,10 @@ function Reader({
       }
 
       switch (key) {
+        case "c":
+        case "C":
+          setCascadeMode((c) => !c);
+          break;
         case "+":
         case "=":
           setZoom((z) => {
@@ -168,38 +188,46 @@ function Reader({
           setZoom((z) => Math.max(z - 0.1, 0.5));
           break;
         case "ArrowRight":
-          rtl ? prevPage() : nextPage();
+          if (!cascadeMode) rtl ? prevPage() : nextPage();
           break;
         case "ArrowLeft":
-          rtl ? nextPage() : prevPage();
+          if (!cascadeMode) rtl ? nextPage() : prevPage();
           break;
         case "PageDown":
-          e.preventDefault();
+          if (!cascadeMode) e.preventDefault();
+
           if (container) {
-            const atBottom =
-              container.scrollTop + container.clientHeight >=
-              container.scrollHeight - 10;
-            if (atBottom) {
-              nextPage();
-            } else {
+            const scrollDown = () => {
               container.scrollBy({
                 top: container.clientHeight * 0.9,
                 behavior: "smooth",
               });
+            }
+
+            const atBottom =
+              container.scrollTop + container.clientHeight >=
+              container.scrollHeight - 10;
+            if (atBottom) {
+              cascadeMode ? scrollDown() : nextPage();
+            } else {
+              scrollDown();
             }
           }
           break;
 
         case "PageUp":
           if (container) {
-            const atTop = container.scrollTop <= 10;
-            if (atTop) {
-              prevPage();
-            } else {
+            const scrollUp = () => {
               container.scrollBy({
                 top: -container.clientHeight * 0.9,
                 behavior: "smooth",
               });
+            }
+            const atTop = container.scrollTop <= 10;
+            if (atTop) {
+              cascadeMode ? scrollUp : prevPage();
+            } else {
+              scrollUp();
             }
           }
           break;
@@ -229,19 +257,23 @@ function Reader({
           setSmoothScroll(smoothScroll === 'smooth' ? 'instant' : 'smooth');
           break;
         case "Home":
-          e.preventDefault();
-          setPageIndex(0);
+          if (!cascadeMode) {
+            e.preventDefault();
+            setPageIndex(0);
+          }
           break;
         case "End":
-          e.preventDefault();
-          setPageIndex(pages.length - 1);
+          if (!cascadeMode) {
+            e.preventDefault();
+            setPageIndex(pages.length - 1);
+          }
           break;
 
         default:
           break;
       }
     },
-    [nextPage, prevPage, resetPages, rtl, smoothScroll, zoom]
+    [nextPage, prevPage, resetPages, rtl, smoothScroll, zoom, cascadeMode]
   );
 
   useEffect(() => {
@@ -256,7 +288,7 @@ function Reader({
     let isThrottled = false;
 
     const handleWheel = (e: WheelEvent) => {
-      if (!container || isThrottled) return;
+      if (!container || isThrottled || cascadeMode) return;
 
       const { scrollTop, scrollHeight, clientHeight } = container;
       const atBottom = scrollTop + clientHeight >= scrollHeight - 10;
@@ -292,40 +324,46 @@ function Reader({
     return () => container.removeEventListener("wheel", handleWheel);
   }, [nextPage, prevPage]);
 
-  const flexDirection = doublePage ? rtl ? "flex-row-reverse" : "flex-row" : "flex-col";
+  const flexDirection = cascadeMode ? "flex-col" : doublePage ? rtl ? "flex-row-reverse" : "flex-row" : "flex-col";
 
   return (
     <div
       ref={containerRef}
-      className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-gray-900 text-white min-h-screen overflow-auto`}
-      style={{ scrollBehavior: "smooth" }}
+      className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-gray-900 text-white min-h-screen ${cascadeMode ? 'none' : 'overflow-auto'}`}
+      style={{
+        scrollBehavior: "smooth",
+        height: contentHeight * zoom,
+      }}
     >
       <div
         ref={contentRef}
         className={`flex ${flexDirection} justify-center items-center`}
         style={{
-          gap: showGap && doublePage ? "1rem" : "0",
+          gap: showGap ? "1rem" : "0",
           transform: `scale(${zoom})`,
           transformOrigin: isTallerThanViewport ? "center top" : "center",
-          transition: "transform 0.2s ease-in-out",
+          transition: cascadeMode ? "none" : "transform 0.2s ease-in-out",
         }}
       >
         {currentPages.map((src, i) => (
           <img
             key={i}
             src={src}
-            alt={`Page ${pageIndex + i + 1}`}
-            className={`${doublePage ? "max-w-[45vw]" : "max-w-[80vw]"
-              } max-h-[100vh] object-contain rounded shadow-md`}
+            alt={`Page ${i + 1}`}
+            className={`${cascadeMode
+              ? "w-auto max-w-[95vw] max-h-[95vh]"
+              : `max-w-[${doublePage ? 45 : 80}vw] max-h-[100vh]`
+              } object-contain rounded shadow-md`}
           />
         ))}
       </div>
 
       <div className="fixed bottom-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded">
         {showMoreInfo && <>
-          <div>{doublePage ? "📖 Doble página" : "📄 Una página"}</div>
+          <div>{cascadeMode ? "🧩 Modo cascada" : doublePage ? "📖 Doble página" : "📄 Una página"}</div>
           <div>Orientación: {rtl ? "⇠ Derecha → Izquierda" : "⇢ Izquierda → Derecha"}</div>
           <div>{showGap ? "Con separación" : "Sin separación"}</div>
+          <div>Zoom: {Number(Math.fround(zoom).toFixed(2)) * 100}%</div>
         </>}
         <div>Página {pageIndex + 1} / {pages.length}</div>
       </div>
