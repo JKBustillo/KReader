@@ -96,8 +96,10 @@ function Reader({
     };
 
     waitForImagesToLoad().then(() => {
-      const content = contentRef.current;
-      setContentHeight(content?.offsetHeight || 0);
+      if (cascadeMode) {
+        const content = contentRef.current;
+        setContentHeight(content?.offsetHeight || 0);
+      }
     });
 
   }, [pageIndex, cascadeMode]);
@@ -332,7 +334,7 @@ function Reader({
       className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-gray-900 text-white min-h-screen ${cascadeMode ? 'none' : 'overflow-auto'}`}
       style={{
         scrollBehavior: "smooth",
-        height: contentHeight * zoom,
+        height: cascadeMode ? contentHeight * zoom : 'auto',
       }}
     >
       <div
