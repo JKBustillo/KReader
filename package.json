@@ -1,13 +1,14 @@
 {
   "name": "kreader",
   "private": true,
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "lint": "eslint src"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.1.16",
@@ -29,7 +30,12 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.6.0",
+    "baseline-browser-mapping": "^2.10.18",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
     "typescript": "~5.8.3",
+    "typescript-eslint": "^8.58.1",
     "vite": "^7.0.4"
   }
 }

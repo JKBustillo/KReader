@@ -31,18 +31,7 @@ function App() {
     return () => window.removeEventListener("dblclick", handleDoubleClick);
   }, []);
 
-  useEffect(() => {
-    const unlisten = listen<string>("openCbzFromSystem", async (event) => {
-      const path = event.payload;
-      await handleOpen(path);
-    });
-
-    return () => {
-      unlisten.then(f => f());
-    };
-  }, []);
-
-  const handleOpen = async (path: string) => {
+  const handleOpen = useCallback(async (path: string) => {
     setLoading(true);
 
     try {
@@ -102,13 +91,23 @@ function App() {
       const updated = await addRecentFile(path as string);
       setRecentFiles(updated);
       setPages(images);
-    } catch (error) {
+    } catch {
       const newRecentFiles = recentFiles.filter((p) => p !== path);
       saveRecentFiles(newRecentFiles);
       setRecentFiles(newRecentFiles);
     }
     setLoading(false);
-  };
+  }, [recentFiles]);
+
+  useEffect(() => {
+    const unlisten = listen<string>("openCbzFromSystem", async (event) => {
+      await handleOpen(event.payload);
+    });
+
+    return () => {
+      unlisten.then(f => f());
+    };
+  }, [handleOpen]);
 
   const openCbz = async () => {
     const filePath = await open({
@@ -163,27 +162,19 @@ function App() {
   useEffect(() => {
     const handleOpenNewCbz = async (event: Event) => {
       const e = event as CustomEvent<string>;
-
-      const newPath = e.detail;
-      if (newPath) {
-        await handleOpen(newPath);
-      }
+      if (e.detail) await handleOpen(e.detail);
     };
 
     window.addEventListener("openNewCbz", handleOpenNewCbz as EventListener);
     return () => window.removeEventListener("openNewCbz", handleOpenNewCbz as EventListener);
-  }, []);
+  }, [handleOpen]);
 
   if (loading) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-[#1a1b1e] text-gray-200 font-sans">
-        <div className="relative w-full h-full">
-          {loading && (
-            <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
-              <div className="w-10 h-10 border-4 border-gray-200 border-t-transparent rounded-full animate-spin" />
-              <span className="mt-4 text-white font-medium">Abriendo archivo...</span>
-            </div>
-          )}
+        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
+          <div className="w-10 h-10 border-4 border-gray-200 border-t-transparent rounded-full animate-spin" />
+          <span className="mt-4 text-white font-medium">Abriendo archivo...</span>
         </div>
       </div>
     );

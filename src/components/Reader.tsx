@@ -102,7 +102,7 @@ function Reader({
       }
     });
 
-  }, [pageIndex, cascadeMode]);
+  }, [pageIndex, cascadeMode, smoothScroll]);
 
   useEffect(() => {
     if (cascadeMode) return;
@@ -122,18 +122,17 @@ function Reader({
     preloadNextPages();
   }, [pageIndex, pages, doublePage, cascadeMode]);
 
+  const checkHeight = useCallback((zoom: number) => {
+    if (contentRef.current) {
+      const contentHeight = contentRef.current.offsetHeight * zoom;
+      setIsTallerThanViewport(contentHeight > window.innerHeight);
+    }
+  }, []);
+
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
       const container = containerRef.current;
       const key = e.key;
-
-      const checkHeight = (zoom: number) => {
-        if (contentRef.current) {
-          const contentHeight = contentRef.current.offsetHeight * zoom;
-          const viewportHeight = window.innerHeight;
-          setIsTallerThanViewport(contentHeight > viewportHeight);
-        }
-      };
 
       if (e.ctrlKey && (key === "ArrowRight" || key === "ArrowLeft")) {
         e.preventDefault();
@@ -187,13 +186,12 @@ function Reader({
             checkHeight(newZoom);
             return newZoom;
           });
-          setZoom((z) => Math.max(z - 0.1, 0.5));
           break;
         case "ArrowRight":
-          if (!cascadeMode) rtl ? prevPage() : nextPage();
+          if (!cascadeMode) { if (rtl) prevPage(); else nextPage(); }
           break;
         case "ArrowLeft":
-          if (!cascadeMode) rtl ? nextPage() : prevPage();
+          if (!cascadeMode) { if (rtl) nextPage(); else prevPage(); }
           break;
         case "PageDown":
           if (!cascadeMode) e.preventDefault();
@@ -210,7 +208,7 @@ function Reader({
               container.scrollTop + container.clientHeight >=
               container.scrollHeight - 10;
             if (atBottom) {
-              cascadeMode ? scrollDown() : nextPage();
+              if (cascadeMode) scrollDown(); else nextPage();
             } else {
               scrollDown();
             }
@@ -227,17 +225,18 @@ function Reader({
             }
             const atTop = container.scrollTop <= 10;
             if (atTop) {
-              cascadeMode ? scrollUp : prevPage();
+              if (cascadeMode) scrollUp(); else prevPage();
             } else {
               scrollUp();
             }
           }
           break;
-        case "Escape":
+        case "Escape": {
           const win = getCurrentWindow();
           win.setTitle(`KReader`);
           resetPages();
           break;
+        }
         case "d":
         case "D":
           setDoublePage((d) => !d);
@@ -275,7 +274,7 @@ function Reader({
           break;
       }
     },
-    [nextPage, prevPage, resetPages, rtl, smoothScroll, zoom, cascadeMode]
+    [nextPage, prevPage, resetPages, rtl, smoothScroll, cascadeMode, checkHeight, filePath, pages.length]
   );
 
   useEffect(() => {
@@ -324,7 +323,7 @@ function Reader({
     container.addEventListener("wheel", handleWheel, { passive: true });
 
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [nextPage, prevPage]);
+  }, [nextPage, prevPage, cascadeMode]);
 
   const flexDirection = cascadeMode ? "flex-col" : doublePage ? rtl ? "flex-row-reverse" : "flex-row" : "flex-col";
 
