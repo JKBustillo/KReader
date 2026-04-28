@@ -359,6 +359,43 @@ function Reader({
         ))}
       </div>
 
+      {/* Shortcuts panel — top right */}
+      <div className="fixed top-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded select-none">
+        {showMoreInfo ? (
+          <>
+            <div className="font-semibold mb-1 text-center tracking-wide">Atajos de teclado</div>
+            <table style={{ borderSpacing: "0 2px", borderCollapse: "separate" }}>
+              <tbody>
+                {[
+                  ["← / →", "Página anterior / siguiente"],
+                  ["PageUp / PageDown", "Desplazar o cambiar página"],
+                  ["Home / End", "Primera / última página"],
+                  ["Ctrl+← / →", "CBZ anterior / siguiente"],
+                  ["C", "Modo cascada"],
+                  ["D", "Doble página"],
+                  ["S", "Dirección RTL"],
+                  ["G", "Separación entre páginas"],
+                  ["+ / −", "Zoom"],
+                  ["J", "Scroll suave"],
+                  ["F", "Pantalla completa"],
+                  ["I", "Mostrar / ocultar atajos"],
+                  ["Escape", "Cerrar lector"],
+                  ["X", "Cerrar ventana"],
+                ].map(([key, desc]) => (
+                  <tr key={key}>
+                    <td className="pr-3 text-right font-mono text-yellow-300 whitespace-nowrap">{key}</td>
+                    <td className="text-gray-200 whitespace-nowrap">{desc}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        ) : (
+          <span className="font-mono">I — atajos</span>
+        )}
+      </div>
+
+      {/* Info panel — bottom right */}
       <div className="fixed bottom-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded">
         {showMoreInfo && <>
           <div>{cascadeMode ? "🧩 Modo cascada" : doublePage ? "📖 Doble página" : "📄 Una página"}</div>
