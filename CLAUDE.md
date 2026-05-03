@@ -68,6 +68,18 @@ Minimal — contains only the template `greet` command and registers the `tauri-
 | `F` | Toggle fullscreen |
 | `X` | Close window |
 
+## Versioning
+
+When bumping the version, update it in all three places:
+
+| File | Field |
+|------|-------|
+| `package.json` | `"version"` |
+| `src-tauri/tauri.conf.json` | `"version"` |
+| `src-tauri/Cargo.toml` | `version` (line 3) |
+
+All three must match. `Cargo.toml` is what Tauri uses for the installer binary version.
+
 ## Key dependencies
 
 - `pdfjs-dist` — PDF rendering; worker is loaded from cdnjs CDN (`GlobalWorkerOptions.workerSrc`).
