@@ -70,6 +70,11 @@ function App() {
         return;
       }
 
+      else if (ext === "cbr") {
+        // === CBR — extracción vía backend Rust ===
+        images = await invoke<string[]>("extract_cbr", { path });
+      }
+
       else {
         throw new Error("Formato no soportado");
       }
@@ -77,7 +82,8 @@ function App() {
       const updated = await addRecentFile(path as string);
       setRecentFiles(updated);
       setPages(images);
-    } catch {
+    } catch (err) {
+      console.error("[handleOpen] error:", err);
       const newRecentFiles = recentFiles.filter((p) => p !== path);
       saveRecentFiles(newRecentFiles);
       setRecentFiles(newRecentFiles);
@@ -93,7 +99,7 @@ function App() {
 
   const openCbz = async () => {
     const filePath = await open({
-      filters: [{ name: "Comics", extensions: ["cbz", "pdf"] }],
+      filters: [{ name: "Comics", extensions: ["cbz", "cbr", "pdf"] }],
     });
 
     if (!filePath) return;

@@ -77,7 +77,7 @@ function PDFReader({
       canvas.width = viewport.width;
       canvas.height = viewport.height;
 
-      const task = page.render({ canvasContext: ctx, viewport });
+      const task = page.render({ canvasContext: ctx, viewport, canvas });
       renderTaskRef.current = task;
 
       try {
