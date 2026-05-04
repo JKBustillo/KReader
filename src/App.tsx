@@ -2,19 +2,17 @@ import { useCallback, useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
-import * as pdfjsLib from "pdfjs-dist";
-import "pdfjs-dist/build/pdf.worker.mjs";
 
 import Reader from "./components/Reader";
+import PDFReader from "./components/PDFReader";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
 function App() {
   const [loading, setLoading] = useState(false);
   const [pages, setPages] = useState<string[]>([]);
+  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
 
@@ -64,24 +62,12 @@ function App() {
       }
 
       else if (ext === "pdf") {
-        // === PDF ===
         const data = await readFile(path);
-        const pdf = await pdfjsLib.getDocument({ data }).promise;
-        const numPages = pdf.numPages;
-
-        images = [];
-
-        for (let i = 1; i <= numPages; i++) {
-          const page = await pdf.getPage(i);
-          const viewport = page.getViewport({ scale: 2.0 });
-          const canvas = document.createElement("canvas");
-          const context = canvas.getContext("2d")!;
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-          await page.render({ canvasContext: context, viewport, canvas }).promise;
-
-          images.push(canvas.toDataURL("image/png"));
-        }
+        const updated = await addRecentFile(path);
+        setRecentFiles(updated);
+        setPdfData(data);
+        setLoading(false);
+        return;
       }
 
       else {
@@ -101,7 +87,7 @@ function App() {
 
   useEffect(() => {
     invoke<string | null>("get_startup_file").then((path) => {
-if (path) handleOpen(path);
+      if (path) handleOpen(path);
     });
   }, [handleOpen]);
 
@@ -122,6 +108,7 @@ if (path) handleOpen(path);
 
   const resetPages = () => {
     setPages([]);
+    setPdfData(null);
   };
 
   const handleKeyDown = useCallback(
@@ -174,6 +161,10 @@ if (path) handleOpen(path);
         </div>
       </div>
     );
+  }
+
+  if (pdfData !== null) {
+    return <PDFReader data={pdfData} filePath={currentPath} resetPages={resetPages} />;
   }
 
   if (pages.length > 0) {
