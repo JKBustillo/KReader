@@ -8,7 +8,7 @@ import "pdfjs-dist/build/pdf.worker.mjs";
 import Reader from "./components/Reader";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { listen } from "@tauri-apps/api/event";
+import { invoke } from "@tauri-apps/api/core";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -100,13 +100,9 @@ function App() {
   }, [recentFiles]);
 
   useEffect(() => {
-    const unlisten = listen<string>("openCbzFromSystem", async (event) => {
-      await handleOpen(event.payload);
+    invoke<string | null>("get_startup_file").then((path) => {
+if (path) handleOpen(path);
     });
-
-    return () => {
-      unlisten.then(f => f());
-    };
   }, [handleOpen]);
 
   const openCbz = async () => {
