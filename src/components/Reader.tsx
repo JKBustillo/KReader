@@ -138,31 +138,32 @@ function Reader({
         e.preventDefault();
         try {
           const dir = await dirname(filePath);
+          const currentExt = filePath.split(".").pop()?.toLowerCase() ?? "";
           const files = await readDir(dir);
 
+          const siblings = files
+            .filter(f => f.name?.toLowerCase().endsWith(`.${currentExt}`))
+            .sort((a, b) => a.name!.localeCompare(b.name!, undefined, { numeric: true }));
+          const siblingPaths = await Promise.all(siblings.map(f => join(dir, f.name!)));
 
-          const cbzFiles = files.filter(e => e.name?.toLowerCase().endsWith(".cbz"));
-          const cbzList = await Promise.all(cbzFiles.map(e => join(dir, e.name!)));
-
-          const currentIndex = cbzList.findIndex(
+          const currentIndex = siblingPaths.findIndex(
             (p) => p.endsWith(filePath.split(/[/\\]/).pop()!)
           );
 
           let newIndex = currentIndex;
-          if (key === "ArrowRight" && currentIndex < cbzFiles.length - 1)
+          if (key === "ArrowRight" && currentIndex < siblings.length - 1)
             newIndex++;
           else if (key === "ArrowLeft" && currentIndex > 0)
             newIndex--;
 
           if (newIndex !== currentIndex) {
-            const newPath = cbzFiles[newIndex];
             resetPages();
             window.dispatchEvent(
-              new CustomEvent("openNewCbz", { detail: `${dir}\\${newPath.name}` })
+              new CustomEvent("openNewCbz", { detail: siblingPaths[newIndex] })
             );
           }
         } catch (err) {
-          console.error("Error al cambiar de cómic:", err);
+          console.error("Error al cambiar de archivo:", err);
         }
         return;
       }
