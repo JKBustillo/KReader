@@ -38,7 +38,7 @@ function App() {
 
       let images: string[] = [];
 
-      if (ext === "cbz") {
+      if (ext === "cbz" || ext === "zip") {
         // === CBZ ===
         const data = await readFile(path);
         const zip = await JSZip.loadAsync(data);
@@ -70,8 +70,8 @@ function App() {
         return;
       }
 
-      else if (ext === "cbr") {
-        // === CBR — extracción vía backend Rust ===
+      else if (ext === "cbr" || ext === "rar") {
+        // === CBR/RAR — extracción vía backend Rust ===
         images = await invoke<string[]>("extract_cbr", { path });
       }
 
@@ -99,7 +99,7 @@ function App() {
 
   const openCbz = async () => {
     const filePath = await open({
-      filters: [{ name: "Comics", extensions: ["cbz", "cbr", "pdf"] }],
+      filters: [{ name: "Comics", extensions: ["cbz", "cbr", "zip", "rar", "pdf"] }],
     });
 
     if (!filePath) return;
