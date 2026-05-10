@@ -1,0 +1,44 @@
+{
+  "loading": "Opening file...",
+  "home": {
+    "subtitle": "Lightweight reader for CBZ / CBR / ZIP / RAR / PDF",
+    "openFile": "Open file",
+    "recent": "Recent",
+    "clear": "Clear"
+  },
+  "theme": {
+    "toLight": "Switch to light theme",
+    "toDark": "Switch to dark theme"
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "hint": "I — shortcuts",
+    "prevNext": "Previous / next page",
+    "scrollOrTurn": "Scroll or turn page",
+    "firstLast": "First / last page",
+    "prevNextFile": "Previous / next file",
+    "cascade": "Cascade mode",
+    "doublePage": "Double page",
+    "rtl": "RTL direction",
+    "gap": "Page gap",
+    "zoom": "Zoom",
+    "smoothScroll": "Smooth scroll",
+    "fullscreen": "Fullscreen",
+    "showHide": "Show / hide shortcuts",
+    "closeReader": "Close reader",
+    "closeWindow": "Close window"
+  },
+  "reader": {
+    "page": "Page",
+    "of": "/",
+    "zoom": "Zoom",
+    "modeCascade": "Cascade mode",
+    "modeDouble": "Double page",
+    "modeSingle": "Single page",
+    "orientation": "Orientation",
+    "rtl": "Right → Left",
+    "ltr": "Left → Right",
+    "withGap": "With gap",
+    "withoutGap": "Without gap"
+  }
+}

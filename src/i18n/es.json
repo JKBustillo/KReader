@@ -1,0 +1,44 @@
+{
+  "loading": "Abriendo archivo...",
+  "home": {
+    "subtitle": "Lector ligero para CBZ / CBR / ZIP / RAR / PDF",
+    "openFile": "Abrir archivo",
+    "recent": "Recientes",
+    "clear": "Limpiar"
+  },
+  "theme": {
+    "toLight": "Cambiar a tema claro",
+    "toDark": "Cambiar a tema oscuro"
+  },
+  "shortcuts": {
+    "title": "Atajos de teclado",
+    "hint": "I — atajos",
+    "prevNext": "Página anterior / siguiente",
+    "scrollOrTurn": "Desplazar o cambiar página",
+    "firstLast": "Primera / última página",
+    "prevNextFile": "Archivo anterior / siguiente",
+    "cascade": "Modo cascada",
+    "doublePage": "Doble página",
+    "rtl": "Dirección RTL",
+    "gap": "Separación entre páginas",
+    "zoom": "Zoom",
+    "smoothScroll": "Scroll suave",
+    "fullscreen": "Pantalla completa",
+    "showHide": "Mostrar / ocultar atajos",
+    "closeReader": "Cerrar lector",
+    "closeWindow": "Cerrar ventana"
+  },
+  "reader": {
+    "page": "Página",
+    "of": "/",
+    "zoom": "Zoom",
+    "modeCascade": "Modo cascada",
+    "modeDouble": "Doble página",
+    "modeSingle": "Una página",
+    "orientation": "Orientación",
+    "rtl": "Derecha → Izquierda",
+    "ltr": "Izquierda → Derecha",
+    "withGap": "Con separación",
+    "withoutGap": "Sin separación"
+  }
+}

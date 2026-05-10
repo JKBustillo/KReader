@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import i18n from "./i18n";
 import { open } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
@@ -17,11 +19,19 @@ function App() {
   const [currentPath, setCurrentPath] = useState<string>("");
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [theme, setTheme] = useState<Theme>(getTheme);
+  const [language, setLanguage] = useState(i18n.language);
+  const { t } = useTranslation();
 
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const handleToggleTheme = useCallback(() =>
     setTheme(t => t === 'dark' ? 'light' : 'dark'), []);
+
+  const handleSetLanguage = useCallback((lang: string) => {
+    i18n.changeLanguage(lang);
+    localStorage.setItem('kreader-language', lang);
+    setLanguage(lang);
+  }, []);
 
   useEffect(() => {
     getRecentFiles().then(setRecentFiles);
@@ -175,7 +185,7 @@ function App() {
       <div className="flex flex-col justify-center items-center min-h-screen bg-[var(--bg-primary)] font-sans">
         <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
           <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
-          <span className="mt-4 text-white font-medium">Abriendo archivo...</span>
+          <span className="mt-4 text-white font-medium">{t('loading')}</span>
         </div>
       </div>
     );
@@ -192,48 +202,66 @@ function App() {
   return (
     <div className="flex flex-col justify-center items-center min-h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans">
 
-      {/* Theme toggle */}
-      <button
-        onClick={handleToggleTheme}
-        title={theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
-        className="fixed top-4 right-4 text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
-      >
-        {theme === 'dark' ? (
-          // Sol
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7zm0-5a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 17a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zM4.22 4.22a1 1 0 0 1 1.42 0l.7.71a1 1 0 0 1-1.42 1.41l-.7-.7a1 1 0 0 1 0-1.42zm13.72 13.72a1 1 0 0 1 1.41 0l.71.7a1 1 0 1 1-1.41 1.42l-.71-.71a1 1 0 0 1 0-1.41zM3 11a1 1 0 0 1 0 2H2a1 1 0 1 1 0-2h1zm19 0a1 1 0 0 1 0 2h-1a1 1 0 1 1 0-2h1zM5.64 17.66a1 1 0 0 1 0 1.41l-.7.71a1 1 0 1 1-1.42-1.41l.71-.71a1 1 0 0 1 1.41 0zm13.72-13.72a1 1 0 0 1 0 1.42l-.71.7a1 1 0 0 1-1.41-1.41l.7-.71a1 1 0 0 1 1.42 0z"/>
-          </svg>
-        ) : (
-          // Luna
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
-          </svg>
-        )}
-      </button>
+      {/* Controls — top right */}
+      <div className="fixed top-4 right-4 flex items-center gap-3">
+        {/* Language toggle */}
+        <div className="flex items-center gap-1 text-xs">
+          <button
+            onClick={() => handleSetLanguage('es')}
+            className={`transition-colors ${language === 'es' ? 'text-[var(--text-primary)] font-semibold' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+          >
+            ES
+          </button>
+          <span className="text-[var(--text-muted)]">|</span>
+          <button
+            onClick={() => handleSetLanguage('en')}
+            className={`transition-colors ${language === 'en' ? 'text-[var(--text-primary)] font-semibold' : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)]'}`}
+          >
+            EN
+          </button>
+        </div>
+
+        {/* Theme toggle */}
+        <button
+          onClick={handleToggleTheme}
+          title={theme === 'dark' ? t('theme.toLight') : t('theme.toDark')}
+          className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] transition-colors"
+        >
+          {theme === 'dark' ? (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 7a5 5 0 1 0 0 10A5 5 0 0 0 12 7zm0-5a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 17a1 1 0 0 1 1 1v1a1 1 0 1 1-2 0v-1a1 1 0 0 1 1-1zM4.22 4.22a1 1 0 0 1 1.42 0l.7.71a1 1 0 0 1-1.42 1.41l-.7-.7a1 1 0 0 1 0-1.42zm13.72 13.72a1 1 0 0 1 1.41 0l.71.7a1 1 0 1 1-1.41 1.42l-.71-.71a1 1 0 0 1 0-1.41zM3 11a1 1 0 0 1 0 2H2a1 1 0 1 1 0-2h1zm19 0a1 1 0 0 1 0 2h-1a1 1 0 1 1 0-2h1zM5.64 17.66a1 1 0 0 1 0 1.41l-.7.71a1 1 0 1 1-1.42-1.41l.71-.71a1 1 0 0 1 1.41 0zm13.72-13.72a1 1 0 0 1 0 1.42l-.71.7a1 1 0 0 1-1.41-1.41l.7-.71a1 1 0 0 1 1.42 0z"/>
+            </svg>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>
+            </svg>
+          )}
+        </button>
+      </div>
 
       <div className="text-center">
         <h1 className="text-3xl font-semibold mb-6 tracking-wide">
           📚 KReader
         </h1>
         <p className="mb-8 text-[var(--text-secondary)]">
-          Lector ligero para CBZ / CBR / EPUB (en desarrollo)
+          {t('home.subtitle')}
         </p>
         <button
           onClick={openCbz}
           className="px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-indigo-500 hover:to-blue-500 transition-all duration-200 text-white font-medium shadow-md hover:shadow-lg"
         >
-          Abrir archivo
+          {t('home.openFile')}
         </button>
 
         {recentFiles.length > 0 && (
           <div className="mt-8 w-80">
             <div className="flex justify-between items-center mb-2">
-              <h2 className="text-lg font-semibold">Recientes</h2>
+              <h2 className="text-lg font-semibold">{t('home.recent')}</h2>
               <button
                 onClick={handleClear}
                 className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
-                Limpiar
+                {t('home.clear')}
               </button>
             </div>
 
@@ -251,9 +279,6 @@ function App() {
           </div>
         )}
       </div>
-      <footer className="absolute bottom-4 text-xs text-[var(--text-muted)]">
-        v0.3.4 — hecho con ❤️ en Tauri + React
-      </footer>
     </div>
   );
 }

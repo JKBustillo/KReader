@@ -1,7 +1,7 @@
 {
   "name": "kreader",
   "private": true,
-  "version": "0.4.0",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,11 +18,13 @@
     "@tauri-apps/plugin-opener": "^2",
     "@tauri-apps/plugin-store": "^2.4.1",
     "@tauri-apps/plugin-window": "^2.0.0-alpha.1",
+    "i18next": "^26.0.10",
     "jszip": "^3.10.1",
     "pdfjs-dist": "^5.4.394",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
     "react-hotkeys-hook": "^5.2.1",
+    "react-i18next": "^17.0.7",
     "tailwindcss": "^4.1.16"
   },
   "devDependencies": {

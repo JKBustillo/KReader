@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import * as pdfjsLib from "pdfjs-dist";
 import { TextLayer } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
@@ -27,6 +28,7 @@ function PDFReader({
   const textLayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     (async () => {
@@ -247,18 +249,18 @@ function PDFReader({
       <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showInfo ? (
           <>
-            <div className="font-semibold mb-1 text-center tracking-wide">Atajos de teclado</div>
+            <div className="font-semibold mb-1 text-center tracking-wide">{t('shortcuts.title')}</div>
             <table style={{ borderSpacing: "0 2px", borderCollapse: "separate" }}>
               <tbody>
                 {[
-                  ["← / →", "Página anterior / siguiente"],
-                  ["PageUp / PageDown", "Desplazar o cambiar página"],
-                  ["Home / End", "Primera / última página"],
-                  ["+ / −", "Zoom"],
-                  ["I", "Mostrar / ocultar atajos"],
-                  ["F", "Pantalla completa"],
-                  ["Escape", "Cerrar lector"],
-                  ["X", "Cerrar ventana"],
+                  ["← / →",          t('shortcuts.prevNext')],
+                  ["PageUp / PageDown", t('shortcuts.scrollOrTurn')],
+                  ["Home / End",      t('shortcuts.firstLast')],
+                  ["+ / −",          t('shortcuts.zoom')],
+                  ["I",              t('shortcuts.showHide')],
+                  ["F",              t('shortcuts.fullscreen')],
+                  ["Escape",         t('shortcuts.closeReader')],
+                  ["X",              t('shortcuts.closeWindow')],
                 ].map(([key, desc]) => (
                   <tr key={key}>
                     <td className="pr-3 text-right font-mono text-[var(--text-key)] whitespace-nowrap">
@@ -271,15 +273,15 @@ function PDFReader({
             </table>
           </>
         ) : (
-          <span className="font-mono">I — atajos</span>
+          <span className="font-mono">{t('shortcuts.hint')}</span>
         )}
       </div>
 
       {/* Bottom-right page info */}
       <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
-        {showInfo && <div>Zoom: {Math.round(scale * 100)}%</div>}
+        {showInfo && <div>{t('reader.zoom')}: {Math.round(scale * 100)}%</div>}
         <div>
-          Página {pageNum} / {numPages}
+          {t('reader.page')} {pageNum} {t('reader.of')} {numPages}
         </div>
       </div>
     </div>

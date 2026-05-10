@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Store } from "@tauri-apps/plugin-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
@@ -28,6 +29,7 @@ function Reader({
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const { t } = useTranslation();
 
   useEffect(() => {
     (async () => {
@@ -364,24 +366,24 @@ function Reader({
       <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showMoreInfo ? (
           <>
-            <div className="font-semibold mb-1 text-center tracking-wide">Atajos de teclado</div>
+            <div className="font-semibold mb-1 text-center tracking-wide">{t('shortcuts.title')}</div>
             <table style={{ borderSpacing: "0 2px", borderCollapse: "separate" }}>
               <tbody>
                 {[
-                  ["← / →", "Página anterior / siguiente"],
-                  ["PageUp / PageDown", "Desplazar o cambiar página"],
-                  ["Home / End", "Primera / última página"],
-                  ["Ctrl+← / →", "CBZ anterior / siguiente"],
-                  ["C", "Modo cascada"],
-                  ["D", "Doble página"],
-                  ["S", "Dirección RTL"],
-                  ["G", "Separación entre páginas"],
-                  ["+ / −", "Zoom"],
-                  ["J", "Scroll suave"],
-                  ["F", "Pantalla completa"],
-                  ["I", "Mostrar / ocultar atajos"],
-                  ["Escape", "Cerrar lector"],
-                  ["X", "Cerrar ventana"],
+                  ["← / →",          t('shortcuts.prevNext')],
+                  ["PageUp / PageDown", t('shortcuts.scrollOrTurn')],
+                  ["Home / End",      t('shortcuts.firstLast')],
+                  ["Ctrl+← / →",     t('shortcuts.prevNextFile')],
+                  ["C",              t('shortcuts.cascade')],
+                  ["D",              t('shortcuts.doublePage')],
+                  ["S",              t('shortcuts.rtl')],
+                  ["G",              t('shortcuts.gap')],
+                  ["+ / −",          t('shortcuts.zoom')],
+                  ["J",              t('shortcuts.smoothScroll')],
+                  ["F",              t('shortcuts.fullscreen')],
+                  ["I",              t('shortcuts.showHide')],
+                  ["Escape",         t('shortcuts.closeReader')],
+                  ["X",              t('shortcuts.closeWindow')],
                 ].map(([key, desc]) => (
                   <tr key={key}>
                     <td className="pr-3 text-right font-mono text-[var(--text-key)] whitespace-nowrap">{key}</td>
@@ -392,19 +394,19 @@ function Reader({
             </table>
           </>
         ) : (
-          <span className="font-mono">I — atajos</span>
+          <span className="font-mono">{t('shortcuts.hint')}</span>
         )}
       </div>
 
       {/* Info panel — bottom right */}
       <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showMoreInfo && <>
-          <div>{cascadeMode ? "🧩 Modo cascada" : doublePage ? "📖 Doble página" : "📄 Una página"}</div>
-          <div>Orientación: {rtl ? "⇠ Derecha → Izquierda" : "⇢ Izquierda → Derecha"}</div>
-          <div>{showGap ? "Con separación" : "Sin separación"}</div>
-          <div>Zoom: {Number(Math.fround(zoom).toFixed(2)) * 100}%</div>
+          <div>{cascadeMode ? `🧩 ${t('reader.modeCascade')}` : doublePage ? `📖 ${t('reader.modeDouble')}` : `📄 ${t('reader.modeSingle')}`}</div>
+          <div>{t('reader.orientation')}: {rtl ? `⇠ ${t('reader.rtl')}` : `⇢ ${t('reader.ltr')}`}</div>
+          <div>{showGap ? t('reader.withGap') : t('reader.withoutGap')}</div>
+          <div>{t('reader.zoom')}: {Number(Math.fround(zoom).toFixed(2)) * 100}%</div>
         </>}
-        <div>Página {pageIndex + 1} / {pages.length}</div>
+        <div>{t('reader.page')} {pageIndex + 1} {t('reader.of')} {pages.length}</div>
       </div>
     </div>
   );
