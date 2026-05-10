@@ -331,7 +331,7 @@ function Reader({
   return (
     <div
       ref={containerRef}
-      className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-gray-900 text-white min-h-screen ${cascadeMode ? 'none' : 'overflow-auto'}`}
+      className={`flex justify-center ${isTallerThanViewport ? "items-start" : "items-center"} bg-[var(--reader-bg)] text-[var(--text-primary)] min-h-screen ${cascadeMode ? 'none' : 'overflow-auto'}`}
       style={{
         scrollBehavior: "smooth",
         height: cascadeMode ? contentHeight * zoom : 'auto',
@@ -361,7 +361,7 @@ function Reader({
       </div>
 
       {/* Shortcuts panel — top right */}
-      <div className="fixed top-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded select-none">
+      <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showMoreInfo ? (
           <>
             <div className="font-semibold mb-1 text-center tracking-wide">Atajos de teclado</div>
@@ -384,8 +384,8 @@ function Reader({
                   ["X", "Cerrar ventana"],
                 ].map(([key, desc]) => (
                   <tr key={key}>
-                    <td className="pr-3 text-right font-mono text-yellow-300 whitespace-nowrap">{key}</td>
-                    <td className="text-gray-200 whitespace-nowrap">{desc}</td>
+                    <td className="pr-3 text-right font-mono text-[var(--text-key)] whitespace-nowrap">{key}</td>
+                    <td className="text-[var(--text-overlay)] whitespace-nowrap">{desc}</td>
                   </tr>
                 ))}
               </tbody>
@@ -397,7 +397,7 @@ function Reader({
       </div>
 
       {/* Info panel — bottom right */}
-      <div className="fixed bottom-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded">
+      <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showMoreInfo && <>
           <div>{cascadeMode ? "🧩 Modo cascada" : doublePage ? "📖 Doble página" : "📄 Una página"}</div>
           <div>Orientación: {rtl ? "⇠ Derecha → Izquierda" : "⇢ Izquierda → Derecha"}</div>

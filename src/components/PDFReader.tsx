@@ -227,8 +227,8 @@ function PDFReader({
 
   if (!pdf) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#1a1b1e]">
-        <div className="w-10 h-10 border-4 border-gray-200 border-t-transparent rounded-full animate-spin" />
+      <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
+        <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
@@ -236,7 +236,7 @@ function PDFReader({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col items-center min-h-screen bg-[#1a1b1e] py-6 overflow-auto"
+      className="flex flex-col items-center min-h-screen bg-[var(--bg-primary)] py-6 overflow-auto"
     >
       <div className="relative" style={{ userSelect: "text" }}>
         <canvas ref={canvasRef} className="shadow-xl rounded block" />
@@ -244,7 +244,7 @@ function PDFReader({
       </div>
 
       {/* Top-right shortcuts hint */}
-      <div className="fixed top-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded select-none text-gray-200">
+      <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showInfo ? (
           <>
             <div className="font-semibold mb-1 text-center tracking-wide">Atajos de teclado</div>
@@ -261,10 +261,10 @@ function PDFReader({
                   ["X", "Cerrar ventana"],
                 ].map(([key, desc]) => (
                   <tr key={key}>
-                    <td className="pr-3 text-right font-mono text-yellow-300 whitespace-nowrap">
+                    <td className="pr-3 text-right font-mono text-[var(--text-key)] whitespace-nowrap">
                       {key}
                     </td>
-                    <td className="text-gray-200 whitespace-nowrap">{desc}</td>
+                    <td className="text-[var(--text-overlay)] whitespace-nowrap">{desc}</td>
                   </tr>
                 ))}
               </tbody>
@@ -276,7 +276,7 @@ function PDFReader({
       </div>
 
       {/* Bottom-right page info */}
-      <div className="fixed bottom-4 right-4 text-sm opacity-30 bg-gray-800/80 px-3 py-2 rounded select-none text-gray-200">
+      <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
         {showInfo && <div>Zoom: {Math.round(scale * 100)}%</div>}
         <div>
           Página {pageNum} / {numPages}

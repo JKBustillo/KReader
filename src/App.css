@@ -7,6 +7,63 @@ body,
   padding: 0;
 }
 
+/* === Tema oscuro (por defecto) === */
+:root {
+  --bg-primary:    #1a1b1e;
+  --bg-overlay:    rgba(31, 41, 55, 0.85);
+  --reader-bg:     #111827;
+  --text-primary:  #e5e7eb;
+  --text-secondary:#9ca3af;
+  --text-muted:    #4b5563;
+  --text-overlay:  #e5e7eb;
+  --text-key:      #fde047;
+  --border-spinner:#e5e7eb;
+}
+
+/* === Tema claro === */
+[data-theme="light"] {
+  --bg-primary:    #f3f4f6;
+  --bg-overlay:    rgba(255, 255, 255, 0.92);
+  --reader-bg:     #d1d5db;
+  --text-primary:  #111827;
+  --text-secondary:#4b5563;
+  --text-muted:    #9ca3af;
+  --text-overlay:  #111827;
+  --text-key:      #b45309;
+  --border-spinner:#111827;
+}
+
+/* pdfjs text layer — transparent but selectable */
+.textLayer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  overflow: hidden;
+  line-height: 1;
+  text-size-adjust: none;
+  z-index: 2;
+  pointer-events: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.textLayer span,
+.textLayer br {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  pointer-events: auto;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.textLayer ::selection {
+  background: rgba(0, 0, 255, 0.3);
+  color: transparent;
+}
+
 /* pdfjs text layer — transparent but selectable */
 .textLayer {
   position: absolute;
