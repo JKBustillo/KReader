@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile, readDir } from "@tauri-apps/plugin-fs";
+import { dirname, join } from "@tauri-apps/api/path";
 import JSZip from "jszip";
 
 import Reader from "./components/Reader";
@@ -12,11 +13,15 @@ import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 
+const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"];
+
 function App() {
   const [loading, setLoading] = useState(false);
   const [pages, setPages] = useState<string[]>([]);
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("");
+  const [startPage, setStartPage] = useState(0);
+  const [pageNames, setPageNames] = useState<string[] | undefined>(undefined);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [theme, setTheme] = useState<Theme>(getTheme);
   const [language, setLanguage] = useState(i18n.language);
@@ -48,6 +53,8 @@ function App() {
 
   const handleOpen = useCallback(async (path: string) => {
     setLoading(true);
+    setStartPage(0);
+    setPageNames(undefined);
 
     try {
       setCurrentPath(path);
@@ -92,6 +99,37 @@ function App() {
         images = await invoke<string[]>("extract_cbr", { path });
       }
 
+      else if (IMAGE_EXTS.includes(ext ?? "")) {
+        // === Imagen suelta — carga toda la carpeta ===
+        const dir = await dirname(path);
+        const entries = await readDir(dir);
+
+        const imageFiles = entries
+          .filter(f => f.name && IMAGE_EXTS.includes(f.name.split('.').pop()?.toLowerCase() ?? ''))
+          .sort((a, b) => a.name!.localeCompare(b.name!, undefined, { numeric: true }));
+
+        const imagePaths = await Promise.all(imageFiles.map(f => join(dir, f.name!)));
+
+        images = await Promise.all(
+          imagePaths.map(async (imgPath) => {
+            const data = await readFile(imgPath);
+            const imgExt = imgPath.split('.').pop()?.toLowerCase() ?? 'jpeg';
+            const mimeMap: Record<string, string> = {
+              jpg: 'image/jpeg', jpeg: 'image/jpeg',
+              png: 'image/png', gif: 'image/gif',
+              webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif',
+            };
+            const blob = new Blob([data], { type: mimeMap[imgExt] ?? 'image/jpeg' });
+            return URL.createObjectURL(blob);
+          })
+        );
+
+        const fileName = path.split(/[/\\]/).pop()!;
+        const imgIndex = imageFiles.findIndex(f => f.name === fileName);
+        setStartPage(imgIndex >= 0 ? imgIndex : 0);
+        setPageNames(imageFiles.map(f => f.name!));
+      }
+
       else {
         throw new Error("Formato no soportado");
       }
@@ -116,7 +154,7 @@ function App() {
 
   const openCbz = async () => {
     const filePath = await open({
-      filters: [{ name: "Comics", extensions: ["cbz", "cbr", "zip", "rar", "pdf"] }],
+      filters: [{ name: "Comics & Images", extensions: ["cbz", "cbr", "zip", "rar", "pdf", ...IMAGE_EXTS] }],
     });
 
     if (!filePath) return;
@@ -196,7 +234,7 @@ function App() {
   }
 
   if (pages.length > 0) {
-    return <Reader pages={pages} resetPages={resetPages} filePath={currentPath} />;
+    return <Reader pages={pages} resetPages={resetPages} filePath={currentPath} startPage={startPage} pageNames={pageNames} />;
   }
 
   return (

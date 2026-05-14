@@ -1,7 +1,7 @@
 {
   "loading": "Opening file...",
   "home": {
-    "subtitle": "Lightweight reader for CBZ / CBR / ZIP / RAR / PDF",
+    "subtitle": "Lightweight reader for CBZ / CBR / ZIP / RAR / PDF / Images",
     "openFile": "Open file",
     "recent": "Recent",
     "clear": "Clear"

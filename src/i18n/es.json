@@ -1,7 +1,7 @@
 {
   "loading": "Abriendo archivo...",
   "home": {
-    "subtitle": "Lector ligero para CBZ / CBR / ZIP / RAR / PDF",
+    "subtitle": "Lector ligero para CBZ / CBR / ZIP / RAR / PDF / Imágenes",
     "openFile": "Abrir archivo",
     "recent": "Recientes",
     "clear": "Limpiar"

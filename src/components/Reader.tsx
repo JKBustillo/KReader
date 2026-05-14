@@ -6,16 +6,22 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { dirname, join } from "@tauri-apps/api/path";
 
+const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"]);
+
 function Reader({
   pages,
   resetPages,
   filePath,
+  startPage = 0,
+  pageNames,
 }: {
   pages: string[];
   resetPages: () => void;
   filePath: string;
+  startPage?: number;
+  pageNames?: string[];
 }) {
-  const [pageIndex, setPageIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(startPage);
   const [zoom, setZoom] = useState(1);
   const [doublePage, setDoublePage] = useState(false);
   const [rtl, setRtl] = useState(false);
@@ -44,14 +50,10 @@ function Reader({
   }, [filePath]);
 
   useEffect(() => {
-    const updateTitle = async () => {
-      const win = getCurrentWindow();
-      const fileName = filePath.split(/[/\\]/).pop() || "KReader1";
-      await win.setTitle(`${fileName} - KReader`);
-    };
-
-    updateTitle();
-  }, [filePath]);
+    const win = getCurrentWindow();
+    const name = pageNames?.[pageIndex] ?? filePath.split(/[/\\]/).pop() ?? "KReader";
+    win.setTitle(`${name} - KReader`);
+  }, [filePath, pageIndex, pageNames]);
 
   useEffect(() => {
     if (store) {
@@ -138,9 +140,17 @@ function Reader({
 
       if (e.ctrlKey && (key === "ArrowRight" || key === "ArrowLeft")) {
         e.preventDefault();
+        const currentExt = filePath.split(".").pop()?.toLowerCase() ?? "";
+        if (IMAGE_EXTS.has(currentExt)) {
+          // Imagen suelta: toda la carpeta ya está cargada como páginas, navegar normalmente
+          if (!cascadeMode) {
+            if (key === "ArrowRight") { if (rtl) prevPage(); else nextPage(); }
+            else { if (rtl) nextPage(); else prevPage(); }
+          }
+          return;
+        }
         try {
           const dir = await dirname(filePath);
-          const currentExt = filePath.split(".").pop()?.toLowerCase() ?? "";
           const files = await readDir(dir);
 
           const siblings = files
