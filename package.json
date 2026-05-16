@@ -1,11 +1,11 @@
 {
   "name": "kreader",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.2",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
+    "dev": "tauri dev",
+    "build": "tauri build",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src"

@@ -54,10 +54,10 @@ A lightweight desktop reader for comics and documents, built with Tauri + React 
 npm install
 
 # Start in development mode (Vite + Tauri window)
-npm run tauri dev
+npm run dev
 
 # Build for production
-npm run tauri build
+npm run build
 
 # Lint
 npm run lint

@@ -10,15 +10,9 @@ KReader is a lightweight desktop comic/document reader built with Tauri v2 + Rea
 
 ```bash
 # Development (starts Vite on port 1420 + Tauri window)
-npm run tauri dev
-
-# Production build
-npm run tauri build
-
-# Frontend-only dev (no Tauri window, browser only)
 npm run dev
 
-# Type check + bundle frontend
+# Production build
 npm run build
 ```
 
