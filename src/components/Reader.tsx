@@ -33,9 +33,48 @@ function Reader({
   const [cascadeMode, setCascadeMode] = useState(false);
   const [contentHeight, setContentHeight] = useState(0);
 
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [pinPageIndicator, setPinPageIndicator] = useState(false);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
+  const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settingsStoreRef = useRef<Store | null>(null);
+  const settingsLoadedRef = useRef(false);
   const { t } = useTranslation();
+
+  const scheduleHide = useCallback(() => {
+    if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+    overlayTimerRef.current = setTimeout(() => setShowOverlay(false), 1500);
+  }, []);
+
+  useEffect(() => {
+    const handleMouseMove = () => {
+      setShowOverlay(true);
+      if (!showMoreInfo) scheduleHide();
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", handleMouseMove);
+      if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+    };
+  }, [showMoreInfo, scheduleHide]);
+
+  useEffect(() => {
+    (async () => {
+      const s = await Store.load(".settings.dat");
+      settingsStoreRef.current = s;
+      const pinned = await s.get<boolean>("pin-page-indicator");
+      if (pinned !== undefined) setPinPageIndicator(pinned);
+      settingsLoadedRef.current = true;
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!settingsLoadedRef.current) return;
+    const s = settingsStoreRef.current;
+    if (s) { s.set("pin-page-indicator", pinPageIndicator); s.save(); }
+  }, [pinPageIndicator]);
 
   useEffect(() => {
     (async () => {
@@ -255,8 +294,20 @@ function Reader({
           setDoublePage((d) => !d);
           break;
         case "i":
-        case "I":
-          setShowMoreInfo((d) => !d);
+        case "I": {
+          const next = !showMoreInfo;
+          setShowMoreInfo(next);
+          if (!next) {
+            setShowOverlay(true);
+            scheduleHide();
+          } else {
+            if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
+          }
+          break;
+        }
+        case "p":
+        case "P":
+          setPinPageIndicator((p) => !p);
           break;
         case "s":
         case "S":
@@ -287,7 +338,7 @@ function Reader({
           break;
       }
     },
-    [nextPage, prevPage, resetPages, rtl, smoothScroll, cascadeMode, checkHeight, filePath, pages.length]
+    [nextPage, prevPage, resetPages, rtl, smoothScroll, cascadeMode, checkHeight, filePath, pages.length, showMoreInfo, scheduleHide]
   );
 
   useEffect(() => {
@@ -373,7 +424,7 @@ function Reader({
       </div>
 
       {/* Shortcuts panel — top right */}
-      <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
+      <div className="fixed top-4 right-4 text-sm px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)', opacity: (showMoreInfo || showOverlay) ? 0.3 : 0, transition: 'opacity 0.3s ease', pointerEvents: (showMoreInfo || showOverlay) ? 'auto' : 'none' }}>
         {showMoreInfo ? (
           <>
             <div className="font-semibold mb-1 text-center tracking-wide">{t('shortcuts.title')}</div>
@@ -409,14 +460,14 @@ function Reader({
       </div>
 
       {/* Info panel — bottom right */}
-      <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
+      <div className="fixed bottom-4 right-4 text-sm px-3 py-2 rounded" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)', opacity: (showMoreInfo || showOverlay || pinPageIndicator) ? 0.3 : 0, transition: 'opacity 0.3s ease', pointerEvents: (showMoreInfo || showOverlay || pinPageIndicator) ? 'auto' : 'none' }}>
         {showMoreInfo && <>
           <div>{cascadeMode ? `🧩 ${t('reader.modeCascade')}` : doublePage ? `📖 ${t('reader.modeDouble')}` : `📄 ${t('reader.modeSingle')}`}</div>
           <div>{t('reader.orientation')}: {rtl ? `⇠ ${t('reader.rtl')}` : `⇢ ${t('reader.ltr')}`}</div>
           <div>{showGap ? t('reader.withGap') : t('reader.withoutGap')}</div>
           <div>{t('reader.zoom')}: {Number(Math.fround(zoom).toFixed(2)) * 100}%</div>
         </>}
-        <div>{t('reader.page')} {pageIndex + 1} {t('reader.of')} {pages.length}</div>
+        <div>{showMoreInfo && `${t('reader.page')} `}{pageIndex + 1} {t('reader.of')} {pages.length}</div>
       </div>
     </div>
   );

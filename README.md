@@ -45,6 +45,7 @@ A lightweight desktop reader for comics and documents, built with Tauri + React 
 | `+` / `-` | Zoom in / out |
 | `J` | Toggle smooth scroll |
 | `I` | Toggle info overlay |
+| `P` | Pin / unpin page number permanently |
 | `Escape` | Close reader, return to home screen |
 
 ## Development

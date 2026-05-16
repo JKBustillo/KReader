@@ -58,6 +58,7 @@ Minimal — contains only the template `greet` command and registers the `tauri-
 | `+` / `-` | Zoom in/out |
 | `J` | Toggle smooth scroll |
 | `I` | Toggle info overlay |
+| `P` | Pin/unpin page number (persists globally) |
 | `Escape` | Close reader, return to home screen |
 | `F` | Toggle fullscreen |
 | `X` | Close window |
