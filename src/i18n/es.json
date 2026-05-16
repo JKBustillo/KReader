@@ -1,5 +1,9 @@
 {
   "loading": "Abriendo archivo...",
+  "errors": {
+    "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",
+    "goBack": "Volver"
+  },
   "home": {
     "subtitle": "Lector ligero para CBZ / CBR / ZIP / RAR / PDF / Imágenes",
     "openFile": "Abrir archivo",

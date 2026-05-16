@@ -1,5 +1,9 @@
 {
   "loading": "Opening file...",
+  "errors": {
+    "pdfLoad": "Could not open this PDF (corrupt or password-protected).",
+    "goBack": "Go back"
+  },
   "home": {
     "subtitle": "Lightweight reader for CBZ / CBR / ZIP / RAR / PDF / Images",
     "openFile": "Open file",

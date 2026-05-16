@@ -1,10 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readFile, readDir } from "@tauri-apps/plugin-fs";
-import { dirname, join } from "@tauri-apps/api/path";
-import JSZip from "jszip";
+import { readFile } from "@tauri-apps/plugin-fs";
 
 import Reader from "./components/Reader";
 import PDFReader from "./components/PDFReader";
@@ -12,8 +10,7 @@ import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFi
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
-
-const IMAGE_EXTS = ["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"];
+import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -27,10 +24,20 @@ function App() {
   const [language, setLanguage] = useState(i18n.language);
   const { t } = useTranslation();
 
+  // Track blob: URLs so we can revoke them when loading a new file or closing.
+  const blobUrlsRef = useRef<string[]>([]);
+  const revokeBlobUrls = useCallback(() => {
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current = [];
+  }, []);
+
+  // Guard so get_startup_file only fires once even if handleOpen changes identity.
+  const startupCheckedRef = useRef(false);
+
   useEffect(() => { applyTheme(theme); }, [theme]);
 
   const handleToggleTheme = useCallback(() =>
-    setTheme(t => t === 'dark' ? 'light' : 'dark'), []);
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark'), []);
 
   const handleSetLanguage = useCallback((lang: string) => {
     i18n.changeLanguage(lang);
@@ -55,98 +62,45 @@ function App() {
     setLoading(true);
     setStartPage(0);
     setPageNames(undefined);
+    revokeBlobUrls();
 
     try {
       setCurrentPath(path);
-      const ext = path.split(".").pop()?.toLowerCase();
+      const kind = detectKind(path);
 
-      let images: string[] = [];
-
-      if (ext === "cbz" || ext === "zip") {
-        // === CBZ ===
-        const data = await readFile(path);
-        const zip = await JSZip.loadAsync(data);
-
-        const imageEntries = Object.values(zip.files).filter(
-          (file) =>
-            !file.dir &&
-            /\.(jpg|jpeg|png|gif|webp)$/i.test(file.name)
-        );
-
-        imageEntries.sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { numeric: true })
-        );
-
-        images = await Promise.all(
-          imageEntries.map(async (file) => {
-            const blob = await file.async("blob");
-            return URL.createObjectURL(blob);
-          })
-        );
+      if (kind === "unsupported") {
+        throw new Error(`Unsupported format: ${path}`);
       }
 
-      else if (ext === "pdf") {
+      if (kind === "pdf") {
         const data = await readFile(path);
+        setPdfData(data);
         const updated = await addRecentFile(path);
         setRecentFiles(updated);
-        setPdfData(data);
-        setLoading(false);
         return;
       }
 
-      else if (ext === "cbr" || ext === "rar") {
-        // === CBR/RAR — extracción vía backend Rust ===
-        images = await invoke<string[]>("extract_cbr", { path });
-      }
+      const result = await loadPages(path);
+      blobUrlsRef.current = result.pages.filter((u) => u.startsWith("blob:"));
+      setPages(result.pages);
+      if (result.pageNames) setPageNames(result.pageNames);
+      if (result.startPage !== undefined) setStartPage(result.startPage);
 
-      else if (IMAGE_EXTS.includes(ext ?? "")) {
-        // === Imagen suelta — carga toda la carpeta ===
-        const dir = await dirname(path);
-        const entries = await readDir(dir);
-
-        const imageFiles = entries
-          .filter(f => f.name && IMAGE_EXTS.includes(f.name.split('.').pop()?.toLowerCase() ?? ''))
-          .sort((a, b) => a.name!.localeCompare(b.name!, undefined, { numeric: true }));
-
-        const imagePaths = await Promise.all(imageFiles.map(f => join(dir, f.name!)));
-
-        images = await Promise.all(
-          imagePaths.map(async (imgPath) => {
-            const data = await readFile(imgPath);
-            const imgExt = imgPath.split('.').pop()?.toLowerCase() ?? 'jpeg';
-            const mimeMap: Record<string, string> = {
-              jpg: 'image/jpeg', jpeg: 'image/jpeg',
-              png: 'image/png', gif: 'image/gif',
-              webp: 'image/webp', bmp: 'image/bmp', avif: 'image/avif',
-            };
-            const blob = new Blob([data], { type: mimeMap[imgExt] ?? 'image/jpeg' });
-            return URL.createObjectURL(blob);
-          })
-        );
-
-        const fileName = path.split(/[/\\]/).pop()!;
-        const imgIndex = imageFiles.findIndex(f => f.name === fileName);
-        setStartPage(imgIndex >= 0 ? imgIndex : 0);
-        setPageNames(imageFiles.map(f => f.name!));
-      }
-
-      else {
-        throw new Error("Formato no soportado");
-      }
-
-      const updated = await addRecentFile(path as string);
+      const updated = await addRecentFile(path);
       setRecentFiles(updated);
-      setPages(images);
     } catch (err) {
       console.error("[handleOpen] error:", err);
       const newRecentFiles = recentFiles.filter((p) => p !== path);
       saveRecentFiles(newRecentFiles);
       setRecentFiles(newRecentFiles);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [recentFiles]);
+  }, [recentFiles, revokeBlobUrls]);
 
   useEffect(() => {
+    if (startupCheckedRef.current) return;
+    startupCheckedRef.current = true;
     invoke<string | null>("get_startup_file").then((path) => {
       if (path) handleOpen(path);
     });
@@ -168,9 +122,18 @@ function App() {
   };
 
   const resetPages = () => {
+    revokeBlobUrls();
     setPages([]);
     setPdfData(null);
   };
+
+  const handlePdfLoadError = useCallback((path: string) => {
+    setRecentFiles((prev) => {
+      const updated = prev.filter((p) => p !== path);
+      saveRecentFiles(updated);
+      return updated;
+    });
+  }, []);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -230,7 +193,7 @@ function App() {
   }
 
   if (pdfData !== null) {
-    return <PDFReader data={pdfData} filePath={currentPath} resetPages={resetPages} />;
+    return <PDFReader data={pdfData} filePath={currentPath} resetPages={resetPages} onLoadError={handlePdfLoadError} />;
   }
 
   if (pages.length > 0) {

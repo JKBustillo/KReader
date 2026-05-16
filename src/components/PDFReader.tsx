@@ -13,10 +13,12 @@ function PDFReader({
   data,
   filePath,
   resetPages,
+  onLoadError,
 }: {
   data: Uint8Array;
   filePath: string;
   resetPages: () => void;
+  onLoadError?: (path: string) => void;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -24,6 +26,10 @@ function PDFReader({
   const [scale, setScale] = useState(1.5);
   const [showInfo, setShowInfo] = useState(false);
   const [store, setStore] = useState<Store | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Tracks whether the rendered canvas is taller than the viewport so the
+  // container can switch between centering the page and pinning it to the top.
+  const [contentTaller, setContentTaller] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const textLayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -31,17 +37,33 @@ function PDFReader({
   const { t } = useTranslation();
 
   useEffect(() => {
-    (async () => {
-      const s = await Store.load(".reading-progress.dat");
-      setStore(s);
-      const doc = await pdfjsLib.getDocument({ data }).promise;
-      setPdf(doc);
-      setNumPages(doc.numPages);
+    let cancelled = false;
 
-      const saved = await s.get<number>(`${filePath}-page`);
-      if (saved != null) setPageNum(Math.max(1, Math.min(saved + 1, doc.numPages)));
+    (async () => {
+      try {
+        const s = await Store.load(".reading-progress.dat");
+        if (cancelled) return;
+        setStore(s);
+
+        const doc = await pdfjsLib.getDocument({ data }).promise;
+        if (cancelled) return;
+        setLoadError(null);
+        setPdf(doc);
+        setNumPages(doc.numPages);
+
+        const saved = await s.get<number>(`${filePath}-page`);
+        if (cancelled) return;
+        if (saved != null) setPageNum(Math.max(1, Math.min(saved + 1, doc.numPages)));
+      } catch (err) {
+        if (cancelled) return;
+        console.error("[PDFReader] load failed:", err);
+        setLoadError(err instanceof Error ? err.message : String(err));
+        onLoadError?.(filePath);
+      }
     })();
-  }, [data, filePath]);
+
+    return () => { cancelled = true; };
+  }, [data, filePath, onLoadError]);
 
   useEffect(() => {
     const win = getCurrentWindow();
@@ -76,10 +98,22 @@ function PDFReader({
       if (cancelled) return;
 
       const viewport = page.getViewport({ scale });
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
+      const w = Math.floor(viewport.width);
+      const h = Math.floor(viewport.height);
 
-      const task = page.render({ canvasContext: ctx, viewport, canvas });
+      // Render to an offscreen canvas first. pdfjs starts every render by
+      // fillRect-ing the target with white (the page background), which causes a
+      // visible white flash before the page content paints on top — most
+      // noticeable on the first visit to a page since pdfjs hasn't cached it yet.
+      // Double-buffering means the visible canvas only changes once via
+      // drawImage(), atomically, with no intermediate blank state.
+      const offscreen = document.createElement("canvas");
+      offscreen.width = w;
+      offscreen.height = h;
+      const offCtx = offscreen.getContext("2d");
+      if (!offCtx) return;
+
+      const task = page.render({ canvasContext: offCtx, viewport, canvas: offscreen });
       renderTaskRef.current = task;
 
       try {
@@ -90,6 +124,15 @@ function PDFReader({
       }
 
       if (cancelled) return;
+
+      // Swap into the visible canvas. Reassigning width/height clears it, so only
+      // do that when dimensions actually changed.
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+      }
+      ctx.drawImage(offscreen, 0, 0);
+      setContentTaller(h > window.innerHeight);
 
       textLayerDiv.innerHTML = "";
 
@@ -227,9 +270,34 @@ function PDFReader({
     containerRef.current?.scrollTo({ top: 0 });
   }, [pageNum]);
 
+  // Keep contentTaller accurate when the user resizes the window without zooming.
+  useEffect(() => {
+    const update = () => {
+      const canvas = canvasRef.current;
+      if (canvas) setContentTaller(canvas.height > window.innerHeight);
+    };
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-[var(--bg-primary)] text-[var(--text-primary)] gap-4 px-6 text-center">
+        <p>{t("errors.pdfLoad")}</p>
+        <p className="text-sm text-[var(--text-secondary)] font-mono break-all">{loadError}</p>
+        <button
+          onClick={() => { getCurrentWindow().setTitle("KReader"); resetPages(); }}
+          className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+        >
+          {t("errors.goBack")}
+        </button>
+      </div>
+    );
+  }
+
   if (!pdf) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[var(--bg-primary)]">
+      <div className="flex items-center justify-center h-screen bg-[var(--bg-primary)]">
         <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -238,7 +306,7 @@ function PDFReader({
   return (
     <div
       ref={containerRef}
-      className="flex flex-col items-center min-h-screen bg-[var(--bg-primary)] py-6 overflow-auto"
+      className={`flex flex-col items-center h-screen bg-[var(--bg-primary)] py-6 overflow-auto ${contentTaller ? 'justify-start' : 'justify-center'}`}
     >
       <div className="relative" style={{ userSelect: "text" }}>
         <canvas ref={canvasRef} className="shadow-xl rounded block" />
