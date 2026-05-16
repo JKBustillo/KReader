@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Store } from "@tauri-apps/plugin-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { useReadingProgress } from "../hooks/useReadingProgress";
 import { useReaderShortcuts } from "../hooks/useReaderShortcuts";
+import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
+import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
 import ReaderOverlay from "./ReaderOverlay";
 
 function Reader({
@@ -28,53 +29,14 @@ function Reader({
   const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [isTallerThanViewport, setIsTallerThanViewport] = useState(false);
 
-  const [showOverlay, setShowOverlay] = useState(false);
-  const [pinPageIndicator, setPinPageIndicator] = useState(false);
+  const { showOverlay, setShowOverlay, scheduleHide, overlayTimerRef } = useOverlayAutoHide(showMoreInfo);
+  const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const overlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const settingsStoreRef = useRef<Store | null>(null);
-  const settingsLoadedRef = useRef(false);
   // Lets the scroll-to effect know that a pageIndex update came from the cascade
   // IntersectionObserver (user scroll) and shouldn't trigger another scroll.
   const pageIndexSourceRef = useRef<'external' | 'observer'>('external');
-
-  const scheduleHide = useCallback(() => {
-    if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
-    overlayTimerRef.current = setTimeout(() => setShowOverlay(false), 1500);
-  }, []);
-
-  useEffect(() => {
-    const handleMouseMove = () => {
-      setShowOverlay(true);
-      if (!showMoreInfo) scheduleHide();
-    };
-    window.addEventListener("mousemove", handleMouseMove);
-    return () => window.removeEventListener("mousemove", handleMouseMove);
-  }, [showMoreInfo, scheduleHide]);
-
-  // Timer cleanup only on unmount — keeping it in the mousemove effect's cleanup
-  // canceled the hide timer set by the I-key handler when showMoreInfo flipped.
-  useEffect(() => () => {
-    if (overlayTimerRef.current) clearTimeout(overlayTimerRef.current);
-  }, []);
-
-  useEffect(() => {
-    (async () => {
-      const s = await Store.load(".settings.dat");
-      settingsStoreRef.current = s;
-      const pinned = await s.get<boolean>("pin-page-indicator");
-      if (pinned !== undefined) setPinPageIndicator(pinned);
-      settingsLoadedRef.current = true;
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!settingsLoadedRef.current) return;
-    const s = settingsStoreRef.current;
-    if (s) { s.set("pin-page-indicator", pinPageIndicator); s.save(); }
-  }, [pinPageIndicator]);
 
   useEffect(() => {
     const win = getCurrentWindow();

@@ -35,6 +35,8 @@ src/
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
+    useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
+    usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/
     index.ts                    detectKind(path) + loadPages(path) dispatcher
     loadCbz.ts                  CBZ/ZIP via JSZip → blob URLs

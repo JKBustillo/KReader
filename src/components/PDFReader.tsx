@@ -7,6 +7,9 @@ import PDFWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Store } from "@tauri-apps/plugin-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
+import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
+import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
+
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
 
 function PDFReader({
@@ -27,6 +30,8 @@ function PDFReader({
   const [showInfo, setShowInfo] = useState(false);
   const [store, setStore] = useState<Store | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { showOverlay, setShowOverlay, scheduleHide, overlayTimerRef } = useOverlayAutoHide(showInfo);
+  const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
   // Tracks whether the rendered canvas is taller than the viewport so the
   // container can switch between centering the page and pinning it to the top.
   const [contentTaller, setContentTaller] = useState(false);
@@ -168,12 +173,18 @@ function PDFReader({
 
       switch (e.key) {
         case "ArrowRight":
-        case "ArrowDown":
           setPageNum((p) => Math.min(p + 1, numPages));
           break;
         case "ArrowLeft":
-        case "ArrowUp":
           setPageNum((p) => Math.max(p - 1, 1));
+          break;
+        case "ArrowDown":
+          containerRef.current?.scrollBy({ top: 60, behavior: "smooth" });
+          e.preventDefault();
+          break;
+        case "ArrowUp":
+          containerRef.current?.scrollBy({ top: -60, behavior: "smooth" });
+          e.preventDefault();
           break;
         case "PageDown": {
           const c = containerRef.current;
@@ -211,8 +222,20 @@ function PDFReader({
           setScale((s) => Math.max(+(s - 0.1).toFixed(1), 0.3));
           break;
         case "i":
-        case "I":
-          setShowInfo((v) => !v);
+        case "I": {
+          const next = !showInfo;
+          setShowInfo(next);
+          if (!next) {
+            setShowOverlay(true);
+            scheduleHide();
+          } else if (overlayTimerRef.current) {
+            clearTimeout(overlayTimerRef.current);
+          }
+          break;
+        }
+        case "p":
+        case "P":
+          setPinPageIndicator((p) => !p);
           break;
         case "Escape":
           getCurrentWindow().setTitle("KReader");
@@ -230,7 +253,7 @@ function PDFReader({
           break;
       }
     },
-    [numPages, resetPages]
+    [numPages, resetPages, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator]
   );
 
   useEffect(() => {
@@ -314,7 +337,16 @@ function PDFReader({
       </div>
 
       {/* Top-right shortcuts hint */}
-      <div className="fixed top-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
+      <div
+        className="fixed top-4 right-4 text-sm px-3 py-2 rounded select-none"
+        style={{
+          background: 'var(--bg-overlay)',
+          color: 'var(--text-overlay)',
+          opacity: (showInfo || showOverlay) ? 0.3 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: (showInfo || showOverlay) ? 'auto' : 'none',
+        }}
+      >
         {showInfo ? (
           <>
             <div className="font-semibold mb-1 text-center tracking-wide">{t('shortcuts.title')}</div>
@@ -346,10 +378,20 @@ function PDFReader({
       </div>
 
       {/* Bottom-right page info */}
-      <div className="fixed bottom-4 right-4 text-sm opacity-30 px-3 py-2 rounded select-none" style={{ background: 'var(--bg-overlay)', color: 'var(--text-overlay)' }}>
+      <div
+        className="fixed bottom-4 right-4 text-sm px-3 py-2 rounded select-none"
+        style={{
+          background: 'var(--bg-overlay)',
+          color: 'var(--text-overlay)',
+          opacity: (showInfo || showOverlay || pinPageIndicator) ? 0.3 : 0,
+          transition: 'opacity 0.3s ease',
+          pointerEvents: (showInfo || showOverlay || pinPageIndicator) ? 'auto' : 'none',
+        }}
+      >
         {showInfo && <div>{t('reader.zoom')}: {Math.round(scale * 100)}%</div>}
         <div>
-          {t('reader.page')} {pageNum} {t('reader.of')} {numPages}
+          {showInfo && `${t('reader.page')} `}
+          {pageNum} {t('reader.of')} {numPages}
         </div>
       </div>
     </div>
