@@ -15,12 +15,12 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
 function PDFReader({
   data,
   filePath,
-  resetPages,
+  onClose,
   onLoadError,
 }: {
   data: Uint8Array;
   filePath: string;
-  resetPages: () => void;
+  onClose: () => void;
   onLoadError?: (path: string) => void;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
@@ -75,6 +75,15 @@ function PDFReader({
     const fileName = filePath.split(/[/\\]/).pop() || "KReader";
     win.setTitle(`${fileName} - KReader`);
   }, [filePath]);
+
+  useEffect(() => {
+    const handleDblClick = async () => {
+      const win = getCurrentWindow();
+      await win.setFullscreen(!(await win.isFullscreen()));
+    };
+    window.addEventListener("dblclick", handleDblClick);
+    return () => window.removeEventListener("dblclick", handleDblClick);
+  }, []);
 
   useEffect(() => {
     if (store && pdf) {
@@ -239,7 +248,7 @@ function PDFReader({
           break;
         case "Escape":
           getCurrentWindow().setTitle("KReader");
-          resetPages();
+          onClose();
           break;
         case "f":
         case "F":
@@ -253,7 +262,7 @@ function PDFReader({
           break;
       }
     },
-    [numPages, resetPages, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator]
+    [numPages, onClose, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator]
   );
 
   useEffect(() => {
@@ -309,7 +318,7 @@ function PDFReader({
         <p>{t("errors.pdfLoad")}</p>
         <p className="text-sm text-[var(--text-secondary)] font-mono break-all">{loadError}</p>
         <button
-          onClick={() => { getCurrentWindow().setTitle("KReader"); resetPages(); }}
+          onClick={() => { getCurrentWindow().setTitle("KReader"); onClose(); }}
           className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
         >
           {t("errors.goBack")}

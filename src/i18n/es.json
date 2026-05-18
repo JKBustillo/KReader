@@ -1,5 +1,25 @@
 {
   "loading": "Abriendo archivo...",
+  "nav": {
+    "home": "Inicio",
+    "library": "Biblioteca"
+  },
+  "library": {
+    "title": "Biblioteca",
+    "addLibrary": "Añadir biblioteca",
+    "removeLibrary": "Eliminar biblioteca",
+    "noLibraries": "No hay bibliotecas añadidas. Haz clic en «Añadir biblioteca» para comenzar.",
+    "empty": "Esta biblioteca está vacía o no se encontraron archivos compatibles.",
+    "scanning": "Escaneando...",
+    "search": "Buscar...",
+    "colName": "Nombre",
+    "colSize": "Tamaño",
+    "colDate": "Fecha",
+    "colFolder": "Carpeta",
+    "notFound": "Archivo no encontrado",
+    "viewDetails": "Detalles",
+    "viewGrid": "Cuadrícula"
+  },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",
     "goBack": "Volver"

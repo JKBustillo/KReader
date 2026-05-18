@@ -1,5 +1,25 @@
 {
   "loading": "Opening file...",
+  "nav": {
+    "home": "Home",
+    "library": "Library"
+  },
+  "library": {
+    "title": "Library",
+    "addLibrary": "Add library",
+    "removeLibrary": "Remove library",
+    "noLibraries": "No libraries added yet. Click «Add library» to get started.",
+    "empty": "This library is empty or no supported files were found.",
+    "scanning": "Scanning...",
+    "search": "Search...",
+    "colName": "Name",
+    "colSize": "Size",
+    "colDate": "Date",
+    "colFolder": "Folder",
+    "notFound": "File not found",
+    "viewDetails": "Details",
+    "viewGrid": "Grid"
+  },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",
     "goBack": "Go back"

@@ -16,7 +16,7 @@ type Params = {
   smoothScroll: ScrollBehavior;
   nextPage: () => void;
   prevPage: () => void;
-  resetPages: () => void;
+  onClose: () => void;
   setPageIndex: Dispatch<SetStateAction<number>>;
   setCascadeMode: Dispatch<SetStateAction<boolean>>;
   setDoublePage: Dispatch<SetStateAction<boolean>>;
@@ -43,7 +43,7 @@ export function useReaderShortcuts(params: Params) {
     smoothScroll,
     nextPage,
     prevPage,
-    resetPages,
+    onClose,
     setPageIndex,
     setCascadeMode,
     setDoublePage,
@@ -93,7 +93,6 @@ export function useReaderShortcuts(params: Params) {
           else if (key === "ArrowLeft" && currentIndex > 0) newIndex--;
 
           if (newIndex !== currentIndex) {
-            resetPages();
             window.dispatchEvent(new CustomEvent("openNewCbz", { detail: siblingPaths[newIndex] }));
           }
         } catch (err) {
@@ -158,7 +157,7 @@ export function useReaderShortcuts(params: Params) {
         }
         case "Escape":
           getCurrentWindow().setTitle("KReader");
-          resetPages();
+          onClose();
           break;
         case "d":
         case "D":
@@ -211,7 +210,7 @@ export function useReaderShortcuts(params: Params) {
     [
       containerRef, overlayTimerRef, filePath, pagesLength,
       cascadeMode, rtl, showMoreInfo, smoothScroll,
-      nextPage, prevPage, resetPages,
+      nextPage, prevPage, onClose,
       setPageIndex, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator,
       checkHeight, scheduleHide,

@@ -20,6 +20,9 @@ body,
   --text-overlay:  #e5e7eb;
   --text-key:      #fde047;
   --border-spinner:#e5e7eb;
+  --bg-nav:        #111215;
+  --border-nav:    rgba(255,255,255,0.07);
+  --bg-tab-active: #2a2c30;
 }
 
 /* === Tema claro === */
@@ -33,6 +36,9 @@ body,
   --text-overlay:  #111827;
   --text-key:      #b45309;
   --border-spinner:#111827;
+  --bg-nav:        #e5e7eb;
+  --border-nav:    rgba(0,0,0,0.1);
+  --bg-tab-active: #d1d5db;
 }
 
 /* pdfjs text layer — transparent but selectable */

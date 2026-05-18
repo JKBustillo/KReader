@@ -9,13 +9,13 @@ import ReaderOverlay from "./ReaderOverlay";
 
 function Reader({
   pages,
-  resetPages,
+  onClose,
   filePath,
   startPage = 0,
   pageNames,
 }: {
   pages: string[];
-  resetPages: () => void;
+  onClose: () => void;
   filePath: string;
   startPage?: number;
   pageNames?: string[];
@@ -43,6 +43,15 @@ function Reader({
     const name = pageNames?.[pageIndex] ?? filePath.split(/[/\\]/).pop() ?? "KReader";
     win.setTitle(`${name} - KReader`);
   }, [filePath, pageIndex, pageNames]);
+
+  useEffect(() => {
+    const handleDblClick = async () => {
+      const win = getCurrentWindow();
+      await win.setFullscreen(!(await win.isFullscreen()));
+    };
+    window.addEventListener("dblclick", handleDblClick);
+    return () => window.removeEventListener("dblclick", handleDblClick);
+  }, []);
 
   const currentPages = cascadeMode
     ? pages
@@ -183,7 +192,7 @@ function Reader({
     smoothScroll,
     nextPage,
     prevPage,
-    resetPages,
+    onClose,
     setPageIndex,
     setCascadeMode,
     setDoublePage,

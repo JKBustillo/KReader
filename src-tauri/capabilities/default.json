@@ -12,6 +12,8 @@
     "core:window:allow-close",
     "dialog:default",
     "fs:default",
+    "fs:allow-write-file",
+    "fs:allow-mkdir",
     "store:default",
     {
       "identifier": "fs:default",
