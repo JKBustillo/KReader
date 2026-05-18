@@ -23,7 +23,15 @@
     "addToFavorites": "Añadir a favoritos",
     "removeFromFavorites": "Quitar de favoritos",
     "resetProgress": "Reiniciar progreso",
-    "markAsRead": "Marcar como leído"
+    "markAsRead": "Marcar como leído",
+    "tags": "Tags",
+    "searchTags": "Buscar tags...",
+    "editTags": "Editar tags",
+    "addTag": "Añadir tag",
+    "noTags": "Sin tags",
+    "editingFiles": "Editando {{count}} archivos",
+    "autoTagsLabel": "Detectados",
+    "customTagsLabel": "Personalizados"
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",

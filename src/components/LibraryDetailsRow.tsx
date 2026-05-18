@@ -1,3 +1,4 @@
+import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry, SortField } from "../types/library";
 
@@ -59,14 +60,18 @@ function LibraryDetailsRow({
   entry,
   rootPath,
   notFound,
+  selected,
   onOpen,
+  onSelect,
   onToggleFavorite,
   onContextMenu,
 }: {
   entry: LibraryEntry;
   rootPath: string;
   notFound: boolean;
+  selected: boolean;
   onOpen: (entry: LibraryEntry) => void;
+  onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
@@ -76,10 +81,15 @@ function LibraryDetailsRow({
 
   return (
     <div
+      onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
-      className="flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none hover:bg-[var(--bg-tab-active)] transition-colors"
-      style={{ borderColor: "var(--border-nav)", opacity: notFound ? 0.45 : 1 }}
+      className="flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors"
+      style={{
+        borderColor: "var(--border-nav)",
+        opacity: notFound ? 0.45 : 1,
+        background: selected ? "var(--color-selection-bg)" : undefined,
+      }}
       title={notFound ? entry.currentPath : undefined}
     >
       <button

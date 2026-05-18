@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry } from "../types/library";
 import { getThumbnail } from "../utils/thumbnails";
@@ -37,13 +37,17 @@ const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
 function LibraryCard({
   entry,
   notFound,
+  selected,
   onOpen,
+  onSelect,
   onToggleFavorite,
   onContextMenu,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
+  selected: boolean;
   onOpen: (entry: LibraryEntry) => void;
+  onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
@@ -79,13 +83,16 @@ function LibraryCard({
   return (
     <div
       ref={cardRef}
+      onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
       className="flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
       style={{
         background: "var(--bg-tab-active)",
         opacity: notFound ? 0.4 : 1,
-        border: "1px solid var(--border-nav)",
+        border: selected
+          ? "2px solid var(--color-selection)"
+          : "1px solid var(--border-nav)",
         contentVisibility: "auto",
         containIntrinsicSize: CARD_INTRINSIC_SIZE,
       }}

@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { exists } from "@tauri-apps/plugin-fs";
 
-import type { Library, LibraryEntry, SortDirection, SortField, ViewMode } from "../types/library";
+import type { Library, LibraryEntry, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
   getLibraries,
   addLibrary,
@@ -14,10 +14,13 @@ import {
   updateEntryPath,
   setFavorite,
   setReadingState,
+  batchSetCustomTags,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode } from "../utils/settingsStore";
+import { parseAutoTags } from "../utils/parseTags";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
+import TagEditor from "./TagEditor";
 
 type ScannedFile = {
   path: string;
@@ -25,6 +28,14 @@ type ScannedFile = {
   size_bytes: number;
   modified_secs: number;
 };
+
+type ContextMenuState = {
+  x: number;
+  y: number;
+  entries: LibraryEntry[];
+};
+
+const TAGS_DROPDOWN_MAX_HEIGHT = 280;
 
 function makeEntryId(filename: string, sizeBytes: number): string {
   return `${filename}::${sizeBytes}`;
@@ -64,7 +75,22 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: LibraryEntry } | null>(null);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false);
+  const [tagSearch, setTagSearch] = useState("");
+
+  // Stable refs used inside callbacks to avoid stale closures without adding
+  // frequently-changing values to useCallback dependency arrays.
+  const selectedIdsRef = useRef<Set<string>>(selectedIds);
+  selectedIdsRef.current = selectedIds;
+  const entriesRef = useRef<LibraryEntry[]>(entries);
+  entriesRef.current = entries;
+  const lastCtrlSelectedIdRef = useRef<string | null>(null);
+  const sortedRef = useRef<LibraryEntry[]>([]);
+  const tagsDropdownContainerRef = useRef<HTMLDivElement>(null);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
@@ -134,8 +160,15 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
           }
         }
 
+        // Apply auto-parse to any entry that has no autoTags yet (new or pre-feature).
+        const needsTagging = [...updatedEntries, ...newEntries].filter((e) => e.autoTags.length === 0);
+        for (const entry of needsTagging) {
+          entry.autoTags = parseAutoTags(entry.filename);
+        }
+
         const allEntries = [...updatedEntries, ...newEntries];
-        if (newEntries.length > 0) await upsertEntries(activeLib.id, newEntries);
+        const toUpsert = [...newEntries, ...needsTagging.filter((e) => !newEntries.includes(e))];
+        if (toUpsert.length > 0) await upsertEntries(activeLib.id, toUpsert);
 
         const missing = new Set<string>();
         for (const entry of allEntries) {
@@ -188,26 +221,79 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     onOpen(entry.currentPath, onComplete);
   }, [onOpen]);
 
+  const handleItemClick = useCallback((entry: LibraryEntry, e: MouseEvent) => {
+    if (e.ctrlKey && e.shiftKey) {
+      const last = lastCtrlSelectedIdRef.current;
+      if (!last) {
+        setSelectedIds((prev) => new Set([...prev, entry.id]));
+        lastCtrlSelectedIdRef.current = entry.id;
+        return;
+      }
+      const sortedList = sortedRef.current;
+      const startIdx = sortedList.findIndex((s) => s.id === last);
+      const endIdx = sortedList.findIndex((s) => s.id === entry.id);
+      if (startIdx === -1 || endIdx === -1) return;
+      const [lo, hi] = startIdx < endIdx ? [startIdx, endIdx] : [endIdx, startIdx];
+      const rangeIds = sortedList.slice(lo, hi + 1).map((s) => s.id);
+      setSelectedIds((prev) => new Set([...prev, ...rangeIds]));
+    } else if (e.ctrlKey) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        if (next.has(entry.id)) next.delete(entry.id);
+        else next.add(entry.id);
+        return next;
+      });
+      lastCtrlSelectedIdRef.current = entry.id;
+    } else {
+      setSelectedIds(new Set());
+    }
+  }, []);
+
   const handleContextMenu = useCallback((entry: LibraryEntry, x: number, y: number) => {
-    setContextMenu({ x, y, entry });
+    const ids = selectedIdsRef.current;
+    if (ids.has(entry.id) && ids.size > 1) {
+      const menuEntries = entriesRef.current.filter((e) => ids.has(e.id));
+      setContextMenu({ x, y, entries: menuEntries });
+    } else {
+      setSelectedIds(new Set());
+      setContextMenu({ x, y, entries: [entry] });
+    }
   }, []);
 
-  const handleResetProgress = useCallback(async (entry: LibraryEntry) => {
-    await setReadingState(entry.id, entry.libraryId, "unread");
+  const handleResetProgress = useCallback(async (targetEntries: LibraryEntry[]) => {
+    for (const entry of targetEntries) {
+      await setReadingState(entry.id, entry.libraryId, "unread");
+    }
+    const ids = new Set(targetEntries.map((e) => e.id));
     setEntries((prev) =>
-      prev.map((e) => e.id === entry.id ? { ...e, readingState: "unread" as const } : e)
+      prev.map((e) => ids.has(e.id) ? { ...e, readingState: "unread" as const } : e)
     );
     setContextMenu(null);
   }, []);
 
-  const handleMarkAsRead = useCallback(async (entry: LibraryEntry) => {
-    await setReadingState(entry.id, entry.libraryId, "completed");
+  const handleMarkAsRead = useCallback(async (targetEntries: LibraryEntry[]) => {
+    for (const entry of targetEntries) {
+      await setReadingState(entry.id, entry.libraryId, "completed");
+    }
+    const ids = new Set(targetEntries.map((e) => e.id));
     setEntries((prev) =>
-      prev.map((e) => e.id === entry.id ? { ...e, readingState: "completed" as const } : e)
+      prev.map((e) => ids.has(e.id) ? { ...e, readingState: "completed" as const } : e)
     );
     setContextMenu(null);
   }, []);
 
+  const handleTagSave = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
+    if (updates.length === 0) return;
+    const firstEntry = entriesRef.current.find((e) => e.id === updates[0].id);
+    if (!firstEntry) return;
+    await batchSetCustomTags(firstEntry.libraryId, updates);
+    const updateMap = new Map(updates.map(({ id, tags }) => [id, tags]));
+    setEntries((prev) =>
+      prev.map((e) => updateMap.has(e.id) ? { ...e, customTags: updateMap.get(e.id)! } : e)
+    );
+  }, []);
+
+  // Dismiss context menu on click-outside or Escape.
   useEffect(() => {
     if (!contextMenu) return;
     const close = () => setContextMenu(null);
@@ -219,6 +305,31 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
       document.removeEventListener("keydown", onKey);
     };
   }, [contextMenu]);
+
+  // Escape clears selection (runs regardless of contextMenu so Escape covers both).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedIds(new Set());
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Dismiss tags dropdown on click-outside.
+  useEffect(() => {
+    if (!tagsDropdownOpen) return;
+    const handler = (e: globalThis.MouseEvent) => {
+      if (
+        tagsDropdownContainerRef.current &&
+        !tagsDropdownContainerRef.current.contains(e.target as Node)
+      ) {
+        setTagsDropdownOpen(false);
+        setTagSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [tagsDropdownOpen]);
 
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
@@ -238,11 +349,45 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const sortIndicator = (field: SortField) =>
     sortField !== field ? null : (sortDir === "asc" ? " ↑" : " ↓");
 
-  const filtered = entries.filter(
-    (e) =>
-      (!showFavoritesOnly || e.isFavorite) &&
-      (search.trim() === "" || e.filename.toLowerCase().includes(search.trim().toLowerCase()))
-  );
+  // All tags across the library with their entry counts.
+  const allTags = useMemo(() => {
+    const map = new Map<string, { tag: Tag; count: number }>();
+    for (const entry of entries) {
+      for (const tag of [...entry.autoTags, ...entry.customTags]) {
+        const existing = map.get(tag.value);
+        if (existing) {
+          existing.count++;
+          if (!existing.tag.color && tag.color) existing.tag = { ...tag };
+        } else {
+          map.set(tag.value, { tag: { ...tag }, count: 1 });
+        }
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => {
+      const aSelected = selectedTags.has(a.tag.value);
+      const bSelected = selectedTags.has(b.tag.value);
+      if (aSelected !== bSelected) return aSelected ? -1 : 1;
+      return b.count - a.count;
+    });
+  }, [entries, selectedTags]);
+
+  const allTagValues = useMemo(() => allTags.map(({ tag }) => tag.value), [allTags]);
+
+  const visibleTags = tagSearch.trim()
+    ? allTags.filter((t) => t.tag.value.toLowerCase().includes(tagSearch.trim().toLowerCase()))
+    : allTags;
+
+  const filtered = entries.filter((e) => {
+    if (showFavoritesOnly && !e.isFavorite) return false;
+    if (search.trim() !== "" && !e.filename.toLowerCase().includes(search.trim().toLowerCase())) return false;
+    if (selectedTags.size > 0) {
+      const vals = new Set([...e.autoTags, ...e.customTags].map((t) => t.value));
+      for (const tag of selectedTags) {
+        if (!vals.has(tag)) return false;
+      }
+    }
+    return true;
+  });
 
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
@@ -259,6 +404,9 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
+
+  // Keep ref in sync for range-selection inside handleItemClick.
+  sortedRef.current = sorted;
 
   const colHeaderClass = "flex items-center gap-1 cursor-pointer select-none text-xs font-medium uppercase tracking-wide hover:text-[var(--text-primary)] transition-colors";
 
@@ -285,6 +433,92 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Tags filter dropdown */}
+          <div ref={tagsDropdownContainerRef} className="relative">
+            <button
+              onClick={() => { setTagsDropdownOpen((v) => !v); setTagSearch(""); }}
+              className="text-xs px-2 py-1 rounded transition-colors"
+              style={{
+                background: selectedTags.size > 0 ? "var(--color-selection)" : "var(--bg-tab-active)",
+                color: selectedTags.size > 0 ? "#fff" : "var(--text-secondary)",
+                border: "1px solid var(--border-nav)",
+              }}
+            >
+              {t("library.tags")}{selectedTags.size > 0 ? ` (${selectedTags.size})` : ""}
+            </button>
+
+            {tagsDropdownOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 rounded shadow-lg flex flex-col"
+                style={{
+                  width: "220px",
+                  background: "var(--bg-nav)",
+                  border: "1px solid var(--border-nav)",
+                }}
+              >
+                <div className="p-2 border-b shrink-0" style={{ borderColor: "var(--border-nav)" }}>
+                  <input
+                    type="text"
+                    value={tagSearch}
+                    onChange={(e) => setTagSearch(e.target.value)}
+                    placeholder={t("library.searchTags")}
+                    className="w-full text-xs rounded px-2 py-1 outline-none"
+                    style={{
+                      background: "var(--bg-tab-active)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-nav)",
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div style={{ overflowY: "auto", maxHeight: `${TAGS_DROPDOWN_MAX_HEIGHT}px` }}>
+                  {visibleTags.length === 0 && (
+                    <p className="px-3 py-2 text-xs" style={{ color: "var(--text-muted)" }}>
+                      {t("library.noTags")}
+                    </p>
+                  )}
+                  {visibleTags.map(({ tag, count }) => {
+                    const active = selectedTags.has(tag.value);
+                    return (
+                      <button
+                        key={tag.value}
+                        onClick={() => {
+                          setSelectedTags((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(tag.value)) next.delete(tag.value);
+                            else next.add(tag.value);
+                            return next;
+                          });
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                        style={{
+                          color: active ? "var(--text-primary)" : "var(--text-secondary)",
+                          fontWeight: active ? 600 : undefined,
+                        }}
+                      >
+                        <span
+                          className="shrink-0 w-2 h-2 rounded-full"
+                          style={{ background: tag.color ?? "var(--text-muted)" }}
+                        />
+                        <span className="flex-1 truncate">{tag.value}</span>
+                        <span style={{ color: "var(--text-muted)" }}>{count}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedTags.size > 0 && (
+                  <button
+                    onClick={() => setSelectedTags(new Set())}
+                    className="px-3 py-1.5 text-xs border-t text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                    style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
+                  >
+                    ✕ {t("library.tags")} ({selectedTags.size})
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Favorites filter */}
           <button
             onClick={() => setShowFavoritesOnly((v) => !v)}
@@ -382,7 +616,10 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
           )}
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto">
+          <div
+            className="flex-1 overflow-y-auto"
+            onClick={(e) => { if (e.target === e.currentTarget) setSelectedIds(new Set()); }}
+          >
             {scanning && (
               <div className="flex items-center justify-center py-8" style={{ color: "var(--text-muted)" }}>
                 <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin mr-2"
@@ -403,19 +640,27 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                     entry={entry}
                     rootPath={activeLib?.rootPath ?? ""}
                     notFound={notFoundIds.has(entry.id)}
+                    selected={selectedIds.has(entry.id)}
                     onOpen={handleOpen}
+                    onSelect={handleItemClick}
                     onToggleFavorite={handleToggleFavorite}
                     onContextMenu={handleContextMenu}
                   />
                 ))
               : (
-                <div className="p-4" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "1rem" }}>
+                <div
+                  className="p-4"
+                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "1rem" }}
+                  onClick={(e) => { if (e.target === e.currentTarget) setSelectedIds(new Set()); }}
+                >
                   {sorted.map((entry) => (
                     <LibraryCard
                       key={entry.id}
                       entry={entry}
                       notFound={notFoundIds.has(entry.id)}
+                      selected={selectedIds.has(entry.id)}
                       onOpen={handleOpen}
+                      onSelect={handleItemClick}
                       onToggleFavorite={handleToggleFavorite}
                       onContextMenu={handleContextMenu}
                     />
@@ -438,14 +683,24 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                 <button
                   className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
                   style={{ color: "var(--text-primary)" }}
-                  onClick={() => handleResetProgress(contextMenu.entry)}
+                  onClick={() => {
+                    setTagEditorEntries(contextMenu.entries);
+                    setContextMenu(null);
+                  }}
+                >
+                  {t("library.editTags")}
+                </button>
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => handleResetProgress(contextMenu.entries)}
                 >
                   {t("library.resetProgress")}
                 </button>
                 <button
                   className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
                   style={{ color: "var(--text-primary)" }}
-                  onClick={() => handleMarkAsRead(contextMenu.entry)}
+                  onClick={() => handleMarkAsRead(contextMenu.entries)}
                 >
                   {t("library.markAsRead")}
                 </button>
@@ -453,6 +708,15 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
             )}
           </div>
         </>
+      )}
+
+      {tagEditorEntries && (
+        <TagEditor
+          entries={tagEditorEntries}
+          onSave={handleTagSave}
+          onClose={() => setTagEditorEntries(null)}
+          allTagValues={allTagValues}
+        />
       )}
     </div>
   );

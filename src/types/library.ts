@@ -6,6 +6,7 @@ export type Tag = {
   type: "auto" | "custom";
   value: string;
   category?: TagCategory;
+  color?: string;
 };
 
 export type Library = {

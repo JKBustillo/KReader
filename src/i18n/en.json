@@ -23,7 +23,15 @@
     "addToFavorites": "Add to favorites",
     "removeFromFavorites": "Remove from favorites",
     "resetProgress": "Reset progress",
-    "markAsRead": "Mark as read"
+    "markAsRead": "Mark as read",
+    "tags": "Tags",
+    "searchTags": "Search tags...",
+    "editTags": "Edit tags",
+    "addTag": "Add tag",
+    "noTags": "No tags",
+    "editingFiles": "Editing {{count}} files",
+    "autoTagsLabel": "Detected",
+    "customTagsLabel": "Custom"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

@@ -112,3 +112,18 @@ export async function setCustomTags(id: string, libraryId: string, tags: Tag[]):
   await store.set(entriesKey(libraryId), entries);
   await store.save();
 }
+
+export async function batchSetCustomTags(
+  libraryId: string,
+  updates: { id: string; tags: Tag[] }[],
+): Promise<void> {
+  if (updates.length === 0) return;
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  for (const { id, tags } of updates) {
+    const entry = entries.find((e) => e.id === id);
+    if (entry) entry.customTags = tags;
+  }
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+}
