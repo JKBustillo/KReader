@@ -1,6 +1,7 @@
 import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry, SortField } from "../types/library";
+import { getRelativeFolder } from "../utils/folderUtils";
 
 const BYTES_IN_MB = 1_048_576;
 const BYTES_IN_KB = 1_024;
@@ -18,17 +19,6 @@ function formatDate(secs: number): string {
     month: "short",
     day: "numeric",
   });
-}
-
-function getRelativeFolder(entryPath: string, rootPath: string): string {
-  const normalized = entryPath.replace(/\\/g, "/");
-  const normalizedRoot = rootPath.replace(/\\/g, "/");
-  const dir = normalized.substring(0, normalized.lastIndexOf("/"));
-  if (dir === normalizedRoot) return "/";
-  const rel = dir.startsWith(normalizedRoot + "/")
-    ? dir.slice(normalizedRoot.length + 1)
-    : dir;
-  return rel || "/";
 }
 
 function StarIcon({ filled }: { filled: boolean }) {

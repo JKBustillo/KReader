@@ -32,6 +32,8 @@
     "editingFiles": "Editing {{count}} files",
     "autoTagsLabel": "Detected",
     "customTagsLabel": "Custom",
+    "folders": "Folders",
+    "searchFolders": "Search folders...",
     "ambiguous": "Ambiguous location — multiple files match",
     "resolveLocation": "Resolve location",
     "resolveLocationTitle": "Resolve location",

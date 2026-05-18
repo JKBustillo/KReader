@@ -29,3 +29,23 @@ export async function saveLastAppView(view: "home" | "library"): Promise<void> {
   await store.set(KEY_LAST_APP_VIEW, view);
   await store.save();
 }
+
+const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
+
+export async function getSavedFolderFilter(
+  libraryId: string,
+): Promise<Map<string, "full" | "partial">> {
+  const store = await getStore();
+  const raw = await store.get<Record<string, "full" | "partial">>(folderFilterKey(libraryId));
+  if (!raw) return new Map();
+  return new Map(Object.entries(raw));
+}
+
+export async function saveFolderFilter(
+  libraryId: string,
+  folders: Map<string, "full" | "partial">,
+): Promise<void> {
+  const store = await getStore();
+  await store.set(folderFilterKey(libraryId), Object.fromEntries(folders));
+  await store.save();
+}

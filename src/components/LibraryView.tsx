@@ -16,8 +16,9 @@ import {
   setReadingState,
   batchSetCustomTags,
 } from "../utils/libraryStore";
-import { getLibraryViewMode, saveLibraryViewMode } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
 import { parseAutoTags } from "../utils/parseTags";
+import { getRelativeFolder } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
@@ -83,6 +84,10 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [tagSearch, setTagSearch] = useState("");
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
   const [resolveTarget, setResolveTarget] = useState<{ entry: LibraryEntry; candidates: string[] } | null>(null);
+  const [selectedFolders, setSelectedFolders] = useState<Map<string, "full" | "partial">>(new Map());
+  const [foldersDropdownOpen, setFoldersDropdownOpen] = useState(false);
+  const [folderSearch, setFolderSearch] = useState("");
+  const foldersDropdownContainerRef = useRef<HTMLDivElement>(null);
 
   // Stable refs used inside callbacks to avoid stale closures without adding
   // frequently-changing values to useCallback dependency arrays.
@@ -93,6 +98,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const lastCtrlSelectedIdRef = useRef<string | null>(null);
   const sortedRef = useRef<LibraryEntry[]>([]);
   const tagsDropdownContainerRef = useRef<HTMLDivElement>(null);
+  const folderFilterLoadedForLibRef = useRef<string | null>(null);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
@@ -340,6 +346,23 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  useEffect(() => {
+    if (!activeLibId) {
+      setSelectedFolders(new Map());
+      return;
+    }
+    folderFilterLoadedForLibRef.current = null;
+    getSavedFolderFilter(activeLibId).then((saved) => {
+      setSelectedFolders(saved);
+      folderFilterLoadedForLibRef.current = activeLibId;
+    });
+  }, [activeLibId]);
+
+  useEffect(() => {
+    if (!activeLibId || folderFilterLoadedForLibRef.current !== activeLibId) return;
+    saveFolderFilter(activeLibId, selectedFolders).catch(console.error);
+  }, [selectedFolders, activeLibId]);
+
   // Dismiss tags dropdown on click-outside.
   useEffect(() => {
     if (!tagsDropdownOpen) return;
@@ -355,6 +378,22 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [tagsDropdownOpen]);
+
+  // Dismiss folders dropdown on click-outside.
+  useEffect(() => {
+    if (!foldersDropdownOpen) return;
+    const handler = (e: globalThis.MouseEvent) => {
+      if (
+        foldersDropdownContainerRef.current &&
+        !foldersDropdownContainerRef.current.contains(e.target as Node)
+      ) {
+        setFoldersDropdownOpen(false);
+        setFolderSearch("");
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [foldersDropdownOpen]);
 
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
@@ -398,6 +437,19 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
 
   const allTagValues = useMemo(() => allTags.map(({ tag }) => tag.value), [allTags]);
 
+  const allFolders = useMemo(() => {
+    const rootPath = activeLib?.rootPath ?? "";
+    const set = new Set<string>();
+    for (const entry of entries) {
+      set.add(getRelativeFolder(entry.currentPath, rootPath));
+    }
+    return Array.from(set).sort((a, b) => {
+      if (a === "/") return -1;
+      if (b === "/") return 1;
+      return a.localeCompare(b);
+    });
+  }, [entries, activeLib]);
+
   const visibleTags = tagSearch.trim()
     ? allTags.filter((t) => t.tag.value.toLowerCase().includes(tagSearch.trim().toLowerCase()))
     : allTags;
@@ -410,6 +462,18 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
       for (const tag of selectedTags) {
         if (!vals.has(tag)) return false;
       }
+    }
+    if (selectedFolders.size > 0) {
+      const rootPath = activeLib?.rootPath ?? "";
+      const entryFolder = getRelativeFolder(e.currentPath, rootPath);
+      const matches = [...selectedFolders.entries()].some(([folder, mode]) => {
+        if (mode === "full") {
+          if (folder === "/") return true;
+          return entryFolder === folder || entryFolder.startsWith(folder + "/");
+        }
+        return entryFolder === folder;
+      });
+      if (!matches) return false;
     }
     return true;
   });
@@ -458,6 +522,103 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Folders filter dropdown */}
+          <div ref={foldersDropdownContainerRef} className="relative">
+            <button
+              onClick={() => { setFoldersDropdownOpen((v) => !v); setFolderSearch(""); }}
+              className="text-xs px-2 py-1 rounded transition-colors"
+              style={{
+                background: selectedFolders.size > 0 ? "var(--color-selection)" : "var(--bg-tab-active)",
+                color: selectedFolders.size > 0 ? "#fff" : "var(--text-secondary)",
+                border: "1px solid var(--border-nav)",
+              }}
+            >
+              {t("library.folders")}{selectedFolders.size > 0 ? ` (${selectedFolders.size})` : ""}
+            </button>
+
+            {foldersDropdownOpen && (
+              <div
+                className="absolute right-0 top-full mt-1 z-50 rounded shadow-lg flex flex-col"
+                style={{
+                  width: "240px",
+                  background: "var(--bg-nav)",
+                  border: "1px solid var(--border-nav)",
+                }}
+              >
+                <div className="p-2 border-b shrink-0" style={{ borderColor: "var(--border-nav)" }}>
+                  <input
+                    type="text"
+                    value={folderSearch}
+                    onChange={(e) => setFolderSearch(e.target.value)}
+                    placeholder={t("library.searchFolders")}
+                    className="w-full text-xs rounded px-2 py-1 outline-none"
+                    style={{
+                      background: "var(--bg-tab-active)",
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-nav)",
+                    }}
+                    autoFocus
+                  />
+                </div>
+                <div style={{ overflowY: "auto", maxHeight: `${TAGS_DROPDOWN_MAX_HEIGHT}px` }}>
+                  {(folderSearch.trim()
+                    ? allFolders.filter((f) => f.toLowerCase().includes(folderSearch.trim().toLowerCase()))
+                    : allFolders
+                  ).map((folder) => {
+                    const state = selectedFolders.get(folder);
+                    return (
+                      <button
+                        key={folder}
+                        onClick={() => {
+                          setSelectedFolders((prev) => {
+                            const next = new Map(prev);
+                            const cur = next.get(folder);
+                            if (!cur) next.set(folder, "full");
+                            else if (cur === "full") next.set(folder, "partial");
+                            else next.delete(folder);
+                            return next;
+                          });
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                        style={{ color: state ? "var(--text-primary)" : "var(--text-secondary)" }}
+                      >
+                        <span
+                          className="shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold"
+                          style={{
+                            border: state ? "none" : "1px solid var(--text-muted)",
+                            background: state === "full"
+                              ? "var(--color-selection)"
+                              : state === "partial"
+                                ? "transparent"
+                                : "transparent",
+                            color: state === "full"
+                              ? "#fff"
+                              : state === "partial"
+                                ? "var(--text-primary)"
+                                : "transparent",
+                            ...(state === "partial" ? { border: "1px solid var(--text-primary)" } : {}),
+                          }}
+                        >
+                          {state === "full" ? "✓" : state === "partial" ? "—" : ""}
+                        </span>
+                        <span className="flex-1 truncate font-mono">{folder}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+                {selectedFolders.size > 0 && (
+                  <button
+                    onClick={() => setSelectedFolders(new Map())}
+                    className="px-3 py-1.5 text-xs border-t text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                    style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
+                  >
+                    ✕ {t("library.folders")} ({selectedFolders.size})
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Tags filter dropdown */}
           <div ref={tagsDropdownContainerRef} className="relative">
             <button
