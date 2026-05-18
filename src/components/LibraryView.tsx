@@ -12,9 +12,10 @@ import {
   getEntries,
   upsertEntries,
   updateEntryPath,
+  setFavorite,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode } from "../utils/settingsStore";
-import { LibraryDetailsRow, COL_WIDTHS } from "./LibraryDetailsRow";
+import { LibraryDetailsRow, COL_WIDTHS, COL_STAR } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 
 type ScannedFile = {
@@ -61,6 +62,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
@@ -159,6 +161,12 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
     setEntries([]);
   };
 
+  const handleToggleFavorite = useCallback(async (entry: LibraryEntry) => {
+    const next = !entry.isFavorite;
+    await setFavorite(entry.id, entry.libraryId, next);
+    setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, isFavorite: next } : e));
+  }, []);
+
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
     await removeLibrary(activeLib.id);
@@ -178,7 +186,9 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
     sortField !== field ? null : (sortDir === "asc" ? " ↑" : " ↓");
 
   const filtered = entries.filter(
-    (e) => search.trim() === "" || e.filename.toLowerCase().includes(search.trim().toLowerCase())
+    (e) =>
+      (!showFavoritesOnly || e.isFavorite) &&
+      (search.trim() === "" || e.filename.toLowerCase().includes(search.trim().toLowerCase()))
   );
 
   const sorted = [...filtered].sort((a, b) => {
@@ -222,6 +232,24 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
         )}
 
         <div className="ml-auto flex items-center gap-2">
+          {/* Favorites filter */}
+          <button
+            onClick={() => setShowFavoritesOnly((v) => !v)}
+            title={t("library.favoritesOnly")}
+            className="p-1.5 rounded transition-colors"
+            style={{
+              background: showFavoritesOnly ? "var(--color-favorite)" : "var(--bg-tab-active)",
+              color: showFavoritesOnly ? "#fff" : "var(--text-secondary)",
+              border: "1px solid var(--border-nav)",
+            }}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+              fill={showFavoritesOnly ? "currentColor" : "none"}
+              stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </svg>
+          </button>
+
           {/* View mode toggle */}
           <button
             onClick={handleViewModeToggle}
@@ -284,6 +312,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
               className="flex items-center gap-4 px-4 py-2 border-b shrink-0"
               style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
             >
+              <div className={COL_STAR} />
               <button className={`${colHeaderClass} ${COL_WIDTHS.name}`} onClick={() => handleSortClick("name")}>
                 {t("library.colName")}{sortIndicator("name")}
               </button>
@@ -322,6 +351,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
                     rootPath={activeLib?.rootPath ?? ""}
                     notFound={notFoundIds.has(entry.id)}
                     onOpen={(e) => onOpen(e.currentPath)}
+                    onToggleFavorite={handleToggleFavorite}
                   />
                 ))
               : (
@@ -332,6 +362,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
                       entry={entry}
                       notFound={notFoundIds.has(entry.id)}
                       onOpen={(e) => onOpen(e.currentPath)}
+                      onToggleFavorite={handleToggleFavorite}
                     />
                   ))}
                 </div>

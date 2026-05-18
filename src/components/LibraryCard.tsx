@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { LibraryEntry } from "../types/library";
 import { getThumbnail } from "../utils/thumbnails";
 
@@ -17,15 +18,29 @@ function FileIcon() {
   );
 }
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
 function LibraryCard({
   entry,
   notFound,
   onOpen,
+  onToggleFavorite,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
   onOpen: (entry: LibraryEntry) => void;
+  onToggleFavorite: (entry: LibraryEntry) => void;
 }) {
+  const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
   const [thumbLoading, setThumbLoading] = useState(true);
   const cardRef = useRef<HTMLDivElement>(null);
@@ -88,6 +103,19 @@ function LibraryCard({
             <FileIcon />
           </div>
         )}
+
+        {/* Favorite toggle — always visible, top-right of cover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onToggleFavorite(entry); }}
+          className="absolute top-1.5 right-1.5 z-10 p-1 rounded-full"
+          style={{
+            color: entry.isFavorite ? "var(--color-favorite)" : "var(--text-muted)",
+            background: "rgba(0,0,0,0.35)",
+          }}
+          title={entry.isFavorite ? t("library.removeFromFavorites") : t("library.addToFavorites")}
+        >
+          <StarIcon filled={entry.isFavorite} />
+        </button>
       </div>
 
       {/* Title */}

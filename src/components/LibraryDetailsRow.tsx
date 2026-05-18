@@ -1,3 +1,4 @@
+import { useTranslation } from "react-i18next";
 import type { LibraryEntry, SortField } from "../types/library";
 
 const BYTES_IN_MB = 1_048_576;
@@ -29,7 +30,19 @@ function getRelativeFolder(entryPath: string, rootPath: string): string {
   return rel || "/";
 }
 
+function StarIcon({ filled }: { filled: boolean }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24"
+      fill={filled ? "currentColor" : "none"}
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+    >
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
 // Column widths kept as constants so header and rows stay aligned.
+const COL_STAR = "w-6 shrink-0 flex items-center justify-center";
 const COL_WIDTHS: Record<SortField, string> = {
   name:   "flex-1 min-w-0",
   size:   "w-24 shrink-0 text-right",
@@ -42,12 +55,15 @@ function LibraryDetailsRow({
   rootPath,
   notFound,
   onOpen,
+  onToggleFavorite,
 }: {
   entry: LibraryEntry;
   rootPath: string;
   notFound: boolean;
   onOpen: (entry: LibraryEntry) => void;
+  onToggleFavorite: (entry: LibraryEntry) => void;
 }) {
+  const { t } = useTranslation();
   const name = entry.filename.replace(/\.[^.]+$/, "");
   const folder = getRelativeFolder(entry.currentPath, rootPath);
 
@@ -58,6 +74,14 @@ function LibraryDetailsRow({
       style={{ borderColor: "var(--border-nav)", opacity: notFound ? 0.45 : 1 }}
       title={notFound ? entry.currentPath : undefined}
     >
+      <button
+        onClick={(e) => { e.stopPropagation(); onToggleFavorite(entry); }}
+        className={COL_STAR}
+        style={{ color: entry.isFavorite ? "var(--color-favorite)" : "var(--text-muted)" }}
+        title={entry.isFavorite ? t("library.removeFromFavorites") : t("library.addToFavorites")}
+      >
+        <StarIcon filled={entry.isFavorite} />
+      </button>
       <span className={`${COL_WIDTHS.name} truncate`} style={{ color: "var(--text-primary)" }}>
         {name}
       </span>
@@ -74,4 +98,4 @@ function LibraryDetailsRow({
   );
 }
 
-export { COL_WIDTHS, LibraryDetailsRow };
+export { COL_STAR, COL_WIDTHS, LibraryDetailsRow };

@@ -18,7 +18,10 @@
     "colFolder": "Folder",
     "notFound": "File not found",
     "viewDetails": "Details",
-    "viewGrid": "Grid"
+    "viewGrid": "Grid",
+    "favoritesOnly": "Show favorites only",
+    "addToFavorites": "Add to favorites",
+    "removeFromFavorites": "Remove from favorites"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

@@ -18,7 +18,10 @@
     "colFolder": "Carpeta",
     "notFound": "Archivo no encontrado",
     "viewDetails": "Detalles",
-    "viewGrid": "Cuadrícula"
+    "viewGrid": "Cuadrícula",
+    "favoritesOnly": "Mostrar solo favoritos",
+    "addToFavorites": "Añadir a favoritos",
+    "removeFromFavorites": "Quitar de favoritos"
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",

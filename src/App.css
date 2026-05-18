@@ -23,6 +23,7 @@ body,
   --bg-nav:        #111215;
   --border-nav:    rgba(255,255,255,0.07);
   --bg-tab-active: #2a2c30;
+  --color-favorite:#f59e0b;
 }
 
 /* === Tema claro === */
@@ -39,6 +40,7 @@ body,
   --bg-nav:        #e5e7eb;
   --border-nav:    rgba(0,0,0,0.1);
   --bg-tab-active: #d1d5db;
+  --color-favorite:#f59e0b;
 }
 
 /* pdfjs text layer — transparent but selectable */
