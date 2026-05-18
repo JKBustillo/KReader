@@ -10,6 +10,7 @@ import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
+import { getLastAppView, saveLastAppView } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
@@ -32,6 +33,7 @@ function App() {
 
   const blobUrlsRef = useRef<string[]>([]);
   const onCompleteRef = useRef<(() => void) | null>(null);
+  const viewInitializedRef = useRef(false);
   const revokeBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     blobUrlsRef.current = [];
@@ -126,10 +128,26 @@ function App() {
   useEffect(() => {
     if (startupCheckedRef.current) return;
     startupCheckedRef.current = true;
-    invoke<string | null>("get_startup_file").then((path) => {
-      if (path) handleOpen(path, "home");
-    });
+    (async () => {
+      const [savedView, startupPath] = await Promise.all([
+        getLastAppView(),
+        invoke<string | null>("get_startup_file"),
+      ]);
+      if (startupPath) {
+        handleOpen(startupPath, "home");
+      } else {
+        setView(savedView);
+      }
+      viewInitializedRef.current = true;
+    })();
   }, [handleOpen]);
+
+  useEffect(() => {
+    if (!viewInitializedRef.current) return;
+    if (view === "home" || view === "library") {
+      saveLastAppView(view).catch(console.error);
+    }
+  }, [view]);
 
   const openFileDialog = async () => {
     const filePath = await open({
