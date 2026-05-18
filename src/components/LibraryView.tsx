@@ -81,6 +81,8 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
   const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
+  const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
+  const [resolveTarget, setResolveTarget] = useState<{ entry: LibraryEntry; candidates: string[] } | null>(null);
 
   // Stable refs used inside callbacks to avoid stale closures without adding
   // frequently-changing values to useCallback dependency arrays.
@@ -125,19 +127,24 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
         const scannedByPath = new Map(scanned.map((f) => [f.path, f]));
         const storedById = new Map(stored.map((e) => [e.id, e]));
 
+        const newAmbiguous = new Map<string, string[]>();
         const updatedEntries = await Promise.all(
           stored.map(async (entry) => {
             if (scannedByPath.has(entry.currentPath)) return entry;
-            const relocated = scanned.find(
+            const matches = scanned.filter(
               (f) => f.filename === entry.filename && f.size_bytes === entry.sizeBytes
             );
-            if (relocated) {
-              await updateEntryPath(entry.id, entry.libraryId, relocated.path);
-              return { ...entry, currentPath: relocated.path };
+            if (matches.length === 1) {
+              await updateEntryPath(entry.id, entry.libraryId, matches[0].path);
+              return { ...entry, currentPath: matches[0].path };
+            }
+            if (matches.length > 1) {
+              newAmbiguous.set(entry.id, matches.map((f) => f.path));
             }
             return entry;
           })
         );
+        setAmbiguousCandidates(newAmbiguous);
 
         const now = Math.floor(Date.now() / 1000);
         const newEntries: LibraryEntry[] = [];
@@ -291,6 +298,24 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     setEntries((prev) =>
       prev.map((e) => updateMap.has(e.id) ? { ...e, customTags: updateMap.get(e.id)! } : e)
     );
+  }, []);
+
+  const handleResolveLocation = useCallback(async (entry: LibraryEntry, chosenPath: string) => {
+    await updateEntryPath(entry.id, entry.libraryId, chosenPath);
+    setAmbiguousCandidates((prev) => {
+      const next = new Map(prev);
+      next.delete(entry.id);
+      return next;
+    });
+    setNotFoundIds((prev) => {
+      const next = new Set(prev);
+      next.delete(entry.id);
+      return next;
+    });
+    setEntries((prev) =>
+      prev.map((e) => e.id === entry.id ? { ...e, currentPath: chosenPath } : e)
+    );
+    setResolveTarget(null);
   }, []);
 
   // Dismiss context menu on click-outside or Escape.
@@ -640,6 +665,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                     entry={entry}
                     rootPath={activeLib?.rootPath ?? ""}
                     notFound={notFoundIds.has(entry.id)}
+                    ambiguous={ambiguousCandidates.has(entry.id)}
                     selected={selectedIds.has(entry.id)}
                     onOpen={handleOpen}
                     onSelect={handleItemClick}
@@ -658,6 +684,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                       key={entry.id}
                       entry={entry}
                       notFound={notFoundIds.has(entry.id)}
+                      ambiguous={ambiguousCandidates.has(entry.id)}
                       selected={selectedIds.has(entry.id)}
                       onOpen={handleOpen}
                       onSelect={handleItemClick}
@@ -690,6 +717,19 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                 >
                   {t("library.editTags")}
                 </button>
+                {contextMenu.entries.length === 1 && ambiguousCandidates.has(contextMenu.entries[0].id) && (
+                  <button
+                    className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                    style={{ color: "var(--color-progress-inprogress)" }}
+                    onClick={() => {
+                      const entry = contextMenu.entries[0];
+                      setResolveTarget({ entry, candidates: ambiguousCandidates.get(entry.id)! });
+                      setContextMenu(null);
+                    }}
+                  >
+                    {t("library.resolveLocation")}
+                  </button>
+                )}
                 <button
                   className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
                   style={{ color: "var(--text-primary)" }}
@@ -717,6 +757,59 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
           onClose={() => setTagEditorEntries(null)}
           allTagValues={allTagValues}
         />
+      )}
+
+      {resolveTarget && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ background: "rgba(0,0,0,0.5)" }}
+          onClick={() => setResolveTarget(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-lg shadow-2xl p-5 flex flex-col gap-4"
+            style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+                {t("library.resolveLocationTitle")}
+              </h2>
+              <button
+                onClick={() => setResolveTarget(null)}
+                className="text-lg leading-none opacity-60 hover:opacity-100"
+                style={{ color: "var(--text-muted)" }}
+              >
+                ×
+              </button>
+            </div>
+            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+              {t("library.resolveLocationHint")}
+            </p>
+            <div className="flex flex-col gap-1">
+              {resolveTarget.candidates.map((path) => {
+                const rootPath = activeLib?.rootPath ?? "";
+                const normalized = path.replace(/\\/g, "/");
+                const normalizedRoot = rootPath.replace(/\\/g, "/");
+                const display = normalized.startsWith(normalizedRoot + "/")
+                  ? normalized.slice(normalizedRoot.length + 1)
+                  : normalized;
+                return (
+                  <button
+                    key={path}
+                    onClick={() => handleResolveLocation(resolveTarget.entry, path)}
+                    className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+                    style={{
+                      color: "var(--text-primary)",
+                      border: "1px solid var(--border-nav)",
+                    }}
+                  >
+                    {display}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

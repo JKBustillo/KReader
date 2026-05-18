@@ -60,6 +60,7 @@ function LibraryDetailsRow({
   entry,
   rootPath,
   notFound,
+  ambiguous,
   selected,
   onOpen,
   onSelect,
@@ -69,6 +70,7 @@ function LibraryDetailsRow({
   entry: LibraryEntry;
   rootPath: string;
   notFound: boolean;
+  ambiguous: boolean;
   selected: boolean;
   onOpen: (entry: LibraryEntry) => void;
   onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
@@ -87,10 +89,11 @@ function LibraryDetailsRow({
       className="flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors"
       style={{
         borderColor: "var(--border-nav)",
-        opacity: notFound ? 0.45 : 1,
+        opacity: notFound && !ambiguous ? 0.45 : 1,
         background: selected ? "var(--color-selection-bg)" : undefined,
+        borderLeft: ambiguous ? "3px solid var(--color-progress-inprogress)" : undefined,
       }}
-      title={notFound ? entry.currentPath : undefined}
+      title={ambiguous ? t("library.ambiguous") : notFound ? entry.currentPath : undefined}
     >
       <button
         onClick={(e) => { e.stopPropagation(); onToggleFavorite(entry); }}
@@ -101,6 +104,14 @@ function LibraryDetailsRow({
         <StarIcon filled={entry.isFavorite} />
       </button>
       <span className={`${COL_WIDTHS.name} flex items-center gap-1.5 min-w-0`} style={{ color: "var(--text-primary)" }}>
+        {ambiguous && (
+          <span
+            className="shrink-0 w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-bold"
+            style={{ background: "var(--color-progress-inprogress)", color: "#fff" }}
+          >
+            ?
+          </span>
+        )}
         {entry.readingState !== "unread" && (
           <span
             className="shrink-0 w-2 h-2 rounded-full"

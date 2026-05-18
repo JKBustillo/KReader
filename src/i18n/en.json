@@ -31,7 +31,11 @@
     "noTags": "No tags",
     "editingFiles": "Editing {{count}} files",
     "autoTagsLabel": "Detected",
-    "customTagsLabel": "Custom"
+    "customTagsLabel": "Custom",
+    "ambiguous": "Ambiguous location — multiple files match",
+    "resolveLocation": "Resolve location",
+    "resolveLocationTitle": "Resolve location",
+    "resolveLocationHint": "Multiple files share the same name and size. Choose the correct one:"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

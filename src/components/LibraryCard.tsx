@@ -37,6 +37,7 @@ const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
 function LibraryCard({
   entry,
   notFound,
+  ambiguous,
   selected,
   onOpen,
   onSelect,
@@ -45,6 +46,7 @@ function LibraryCard({
 }: {
   entry: LibraryEntry;
   notFound: boolean;
+  ambiguous: boolean;
   selected: boolean;
   onOpen: (entry: LibraryEntry) => void;
   onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
@@ -89,14 +91,16 @@ function LibraryCard({
       className="flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
       style={{
         background: "var(--bg-tab-active)",
-        opacity: notFound ? 0.4 : 1,
+        opacity: notFound && !ambiguous ? 0.4 : 1,
         border: selected
           ? "2px solid var(--color-selection)"
-          : "1px solid var(--border-nav)",
+          : ambiguous
+            ? "2px solid var(--color-progress-inprogress)"
+            : "1px solid var(--border-nav)",
         contentVisibility: "auto",
         containIntrinsicSize: CARD_INTRINSIC_SIZE,
       }}
-      title={notFound ? entry.currentPath : title}
+      title={ambiguous ? t("library.ambiguous") : notFound ? entry.currentPath : title}
     >
       {/* Cover area — 2:3 portrait ratio */}
       <div className="relative w-full" style={{ aspectRatio: "2/3", background: "var(--bg-nav)" }}>
@@ -117,6 +121,16 @@ function LibraryCard({
           <div className="absolute inset-0 flex items-center justify-center">
             <FileIcon />
           </div>
+        )}
+
+        {/* Ambiguous badge — top-left of cover */}
+        {ambiguous && (
+          <span
+            className="absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+            style={{ background: "var(--color-progress-inprogress)", color: "#fff" }}
+          >
+            ?
+          </span>
         )}
 
         {/* Reading progress dot — bottom-left of cover */}
