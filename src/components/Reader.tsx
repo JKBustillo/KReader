@@ -13,14 +13,17 @@ function Reader({
   filePath,
   startPage = 0,
   pageNames,
+  onLastPage,
 }: {
   pages: string[];
   onClose: () => void;
   filePath: string;
   startPage?: number;
   pageNames?: string[];
+  onLastPage?: () => void;
 }) {
   const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, loaded } = useReadingProgress(filePath, startPage);
+  const lastPageFiredRef = useRef(false);
   const [zoom, setZoom] = useState(1);
   const [doublePage, setDoublePage] = useState(false);
   const [rtl, setRtl] = useState(false);
@@ -37,6 +40,17 @@ function Reader({
   // Lets the scroll-to effect know that a pageIndex update came from the cascade
   // IntersectionObserver (user scroll) and shouldn't trigger another scroll.
   const pageIndexSourceRef = useRef<'external' | 'observer'>('external');
+
+  useEffect(() => {
+    lastPageFiredRef.current = false;
+  }, [filePath]);
+
+  useEffect(() => {
+    if (pages.length > 0 && pageIndex === pages.length - 1 && !lastPageFiredRef.current) {
+      lastPageFiredRef.current = true;
+      onLastPage?.();
+    }
+  }, [pageIndex, pages.length, onLastPage]);
 
   useEffect(() => {
     const win = getCurrentWindow();

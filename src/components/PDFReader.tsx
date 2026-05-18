@@ -17,11 +17,13 @@ function PDFReader({
   filePath,
   onClose,
   onLoadError,
+  onLastPage,
 }: {
   data: Uint8Array;
   filePath: string;
   onClose: () => void;
   onLoadError?: (path: string) => void;
+  onLastPage?: () => void;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -39,6 +41,7 @@ function PDFReader({
   const textLayerRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const renderTaskRef = useRef<RenderTask | null>(null);
+  const lastPageFiredRef = useRef(false);
   const { t } = useTranslation();
 
   useEffect(() => {
@@ -75,6 +78,17 @@ function PDFReader({
     const fileName = filePath.split(/[/\\]/).pop() || "KReader";
     win.setTitle(`${fileName} - KReader`);
   }, [filePath]);
+
+  useEffect(() => {
+    lastPageFiredRef.current = false;
+  }, [filePath]);
+
+  useEffect(() => {
+    if (numPages > 0 && pageNum === numPages && !lastPageFiredRef.current) {
+      lastPageFiredRef.current = true;
+      onLastPage?.();
+    }
+  }, [pageNum, numPages, onLastPage]);
 
   useEffect(() => {
     const handleDblClick = async () => {

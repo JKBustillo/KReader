@@ -1,5 +1,7 @@
 export type TagCategory = "author" | "circle" | "language" | "generic";
 
+export type ReadingState = "unread" | "in_progress" | "completed";
+
 export type Tag = {
   type: "auto" | "custom";
   value: string;
@@ -23,8 +25,7 @@ export type LibraryEntry = {
   customTags: Tag[];
   isFavorite: boolean;
   addedAt: number;
-  lastReadPage?: number;
-  totalPages?: number;
+  readingState: ReadingState;
 };
 
 export type SortField = "name" | "size" | "date" | "folder";

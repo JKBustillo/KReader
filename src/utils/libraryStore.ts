@@ -1,5 +1,5 @@
 import { Store } from "@tauri-apps/plugin-store";
-import type { Library, LibraryEntry, Tag } from "../types/library";
+import type { Library, LibraryEntry, ReadingState, Tag } from "../types/library";
 
 const STORE_FILE = ".library.dat";
 const LIBRARIES_KEY = "libraries";
@@ -33,7 +33,11 @@ export async function removeLibrary(id: string): Promise<void> {
 
 export async function getEntries(libraryId: string): Promise<LibraryEntry[]> {
   const store = await getStore();
-  return (await store.get<LibraryEntry[]>(entriesKey(libraryId))) ?? [];
+  const raw = (await store.get<LibraryEntry[]>(entriesKey(libraryId))) ?? [];
+  return raw.map((e) => ({
+    ...e,
+    readingState: (e.readingState as ReadingState | undefined) ?? "unread",
+  }));
 }
 
 export async function upsertEntry(entry: LibraryEntry): Promise<void> {
@@ -81,6 +85,20 @@ export async function setFavorite(id: string, libraryId: string, value: boolean)
   const entry = entries.find((e) => e.id === id);
   if (!entry) return;
   entry.isFavorite = value;
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+}
+
+export async function setReadingState(
+  id: string,
+  libraryId: string,
+  state: ReadingState,
+): Promise<void> {
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  entry.readingState = state;
   await store.set(entriesKey(libraryId), entries);
   await store.save();
 }

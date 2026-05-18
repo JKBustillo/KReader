@@ -13,6 +13,7 @@ import {
   upsertEntries,
   updateEntryPath,
   setFavorite,
+  setReadingState,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode } from "../utils/settingsStore";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR } from "./LibraryDetailsRow";
@@ -51,7 +52,7 @@ function GridIcon() {
   );
 }
 
-function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
+function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => void) => void }) {
   const { t } = useTranslation();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [activeLibId, setActiveLibId] = useState<string | null>(null);
@@ -63,6 +64,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
   const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; entry: LibraryEntry } | null>(null);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
@@ -127,6 +129,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
               customTags: [],
               isFavorite: false,
               addedAt: now,
+              readingState: "unread",
             });
           }
         }
@@ -166,6 +169,56 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
     await setFavorite(entry.id, entry.libraryId, next);
     setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, isFavorite: next } : e));
   }, []);
+
+  const handleOpen = useCallback(async (entry: LibraryEntry) => {
+    if (entry.readingState !== "completed") {
+      await setReadingState(entry.id, entry.libraryId, "in_progress");
+      setEntries((prev) =>
+        prev.map((e) => e.id === entry.id ? { ...e, readingState: "in_progress" as const } : e)
+      );
+    }
+    const onComplete = entry.readingState !== "completed"
+      ? () => {
+          setReadingState(entry.id, entry.libraryId, "completed").catch(console.error);
+          setEntries((prev) =>
+            prev.map((e) => e.id === entry.id ? { ...e, readingState: "completed" as const } : e)
+          );
+        }
+      : undefined;
+    onOpen(entry.currentPath, onComplete);
+  }, [onOpen]);
+
+  const handleContextMenu = useCallback((entry: LibraryEntry, x: number, y: number) => {
+    setContextMenu({ x, y, entry });
+  }, []);
+
+  const handleResetProgress = useCallback(async (entry: LibraryEntry) => {
+    await setReadingState(entry.id, entry.libraryId, "unread");
+    setEntries((prev) =>
+      prev.map((e) => e.id === entry.id ? { ...e, readingState: "unread" as const } : e)
+    );
+    setContextMenu(null);
+  }, []);
+
+  const handleMarkAsRead = useCallback(async (entry: LibraryEntry) => {
+    await setReadingState(entry.id, entry.libraryId, "completed");
+    setEntries((prev) =>
+      prev.map((e) => e.id === entry.id ? { ...e, readingState: "completed" as const } : e)
+    );
+    setContextMenu(null);
+  }, []);
+
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setContextMenu(null); };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("click", close);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
@@ -350,8 +403,9 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
                     entry={entry}
                     rootPath={activeLib?.rootPath ?? ""}
                     notFound={notFoundIds.has(entry.id)}
-                    onOpen={(e) => onOpen(e.currentPath)}
+                    onOpen={handleOpen}
                     onToggleFavorite={handleToggleFavorite}
+                    onContextMenu={handleContextMenu}
                   />
                 ))
               : (
@@ -361,13 +415,42 @@ function LibraryView({ onOpen }: { onOpen: (path: string) => void }) {
                       key={entry.id}
                       entry={entry}
                       notFound={notFoundIds.has(entry.id)}
-                      onOpen={(e) => onOpen(e.currentPath)}
+                      onOpen={handleOpen}
                       onToggleFavorite={handleToggleFavorite}
+                      onContextMenu={handleContextMenu}
                     />
                   ))}
                 </div>
               )
             }
+
+            {contextMenu && (
+              <div
+                className="fixed z-50 rounded shadow-lg overflow-hidden"
+                style={{
+                  top: contextMenu.y,
+                  left: contextMenu.x,
+                  background: "var(--bg-nav)",
+                  border: "1px solid var(--border-nav)",
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => handleResetProgress(contextMenu.entry)}
+                >
+                  {t("library.resetProgress")}
+                </button>
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => handleMarkAsRead(contextMenu.entry)}
+                >
+                  {t("library.markAsRead")}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

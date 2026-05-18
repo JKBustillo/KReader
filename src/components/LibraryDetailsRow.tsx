@@ -50,18 +50,25 @@ const COL_WIDTHS: Record<SortField, string> = {
   folder: "w-48 shrink-0 min-w-0",
 };
 
+const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
+  in_progress: "var(--color-progress-inprogress)",
+  completed:   "var(--color-progress-complete)",
+};
+
 function LibraryDetailsRow({
   entry,
   rootPath,
   notFound,
   onOpen,
   onToggleFavorite,
+  onContextMenu,
 }: {
   entry: LibraryEntry;
   rootPath: string;
   notFound: boolean;
   onOpen: (entry: LibraryEntry) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
+  onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
   const name = entry.filename.replace(/\.[^.]+$/, "");
@@ -70,6 +77,7 @@ function LibraryDetailsRow({
   return (
     <div
       onDoubleClick={() => !notFound && onOpen(entry)}
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
       className="flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none hover:bg-[var(--bg-tab-active)] transition-colors"
       style={{ borderColor: "var(--border-nav)", opacity: notFound ? 0.45 : 1 }}
       title={notFound ? entry.currentPath : undefined}
@@ -82,8 +90,14 @@ function LibraryDetailsRow({
       >
         <StarIcon filled={entry.isFavorite} />
       </button>
-      <span className={`${COL_WIDTHS.name} truncate`} style={{ color: "var(--text-primary)" }}>
-        {name}
+      <span className={`${COL_WIDTHS.name} flex items-center gap-1.5 min-w-0`} style={{ color: "var(--text-primary)" }}>
+        {entry.readingState !== "unread" && (
+          <span
+            className="shrink-0 w-2 h-2 rounded-full"
+            style={{ background: PROGRESS_DOT_COLORS[entry.readingState] }}
+          />
+        )}
+        <span className="truncate">{name}</span>
       </span>
       <span className={`${COL_WIDTHS.size} tabular-nums`} style={{ color: "var(--text-secondary)" }}>
         {formatSize(entry.sizeBytes)}

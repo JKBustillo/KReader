@@ -31,6 +31,7 @@ function App() {
   const { t } = useTranslation();
 
   const blobUrlsRef = useRef<string[]>([]);
+  const onCompleteRef = useRef<(() => void) | null>(null);
   const revokeBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     blobUrlsRef.current = [];
@@ -62,7 +63,17 @@ function App() {
     setPdfData(null);
   }, [revokeBlobUrls]);
 
-  const handleOpen = useCallback(async (path: string, from: "home" | "library" = "home") => {
+  const handleLastPage = useCallback(() => {
+    onCompleteRef.current?.();
+    onCompleteRef.current = null;
+  }, []);
+
+  const handleOpen = useCallback(async (
+    path: string,
+    from: "home" | "library" = "home",
+    onComplete?: () => void,
+  ) => {
+    onCompleteRef.current = onComplete ?? null;
     setLoading(true);
     setStartPage(0);
     setPageNames(undefined);
@@ -197,10 +208,10 @@ function App() {
 
   if (view === "reader") {
     if (pdfData !== null) {
-      return <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} />;
+      return <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} />;
     }
     if (pages.length > 0) {
-      return <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} />;
+      return <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />;
     }
   }
 
@@ -218,7 +229,7 @@ function App() {
       {/* Content area — offset by NavBar height (h-11 = 44px) */}
       <div className="flex-1 pt-11 min-h-0 overflow-hidden">
         {view === "library" ? (
-          <LibraryView onOpen={(path) => handleOpen(path, "library")} />
+          <LibraryView onOpen={(path, onComplete) => handleOpen(path, "library", onComplete)} />
         ) : (
           /* Home view */
           <div className="flex flex-col justify-center items-center h-full">

@@ -24,6 +24,8 @@ body,
   --border-nav:    rgba(255,255,255,0.07);
   --bg-tab-active: #2a2c30;
   --color-favorite:#f59e0b;
+  --color-progress-inprogress: #f97316;
+  --color-progress-complete:   #22c55e;
 }
 
 /* === Tema claro === */
@@ -41,6 +43,8 @@ body,
   --border-nav:    rgba(0,0,0,0.1);
   --bg-tab-active: #d1d5db;
   --color-favorite:#f59e0b;
+  --color-progress-inprogress: #f97316;
+  --color-progress-complete:   #22c55e;
 }
 
 /* pdfjs text layer — transparent but selectable */

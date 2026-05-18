@@ -21,7 +21,9 @@
     "viewGrid": "Grid",
     "favoritesOnly": "Show favorites only",
     "addToFavorites": "Add to favorites",
-    "removeFromFavorites": "Remove from favorites"
+    "removeFromFavorites": "Remove from favorites",
+    "resetProgress": "Reset progress",
+    "markAsRead": "Mark as read"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

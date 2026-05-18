@@ -29,16 +29,23 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
+const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
+  in_progress: "var(--color-progress-inprogress)",
+  completed:   "var(--color-progress-complete)",
+};
+
 function LibraryCard({
   entry,
   notFound,
   onOpen,
   onToggleFavorite,
+  onContextMenu,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
   onOpen: (entry: LibraryEntry) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
+  onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -73,6 +80,7 @@ function LibraryCard({
     <div
       ref={cardRef}
       onDoubleClick={() => !notFound && onOpen(entry)}
+      onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
       className="flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
       style={{
         background: "var(--bg-tab-active)",
@@ -102,6 +110,14 @@ function LibraryCard({
           <div className="absolute inset-0 flex items-center justify-center">
             <FileIcon />
           </div>
+        )}
+
+        {/* Reading progress dot — bottom-left of cover */}
+        {entry.readingState !== "unread" && (
+          <span
+            className="absolute bottom-1.5 left-1.5 z-10 w-2.5 h-2.5 rounded-full"
+            style={{ background: PROGRESS_DOT_COLORS[entry.readingState] }}
+          />
         )}
 
         {/* Favorite toggle — always visible, top-right of cover */}
