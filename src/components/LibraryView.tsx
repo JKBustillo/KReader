@@ -38,6 +38,10 @@ type ContextMenuState = {
 
 const TAGS_DROPDOWN_MAX_HEIGHT = 280;
 
+// Session-only tag filter — survives LibraryView unmount (reader open/close)
+// but resets when the app is restarted.
+let sessionSelectedTags: Set<string> = new Set();
+
 function makeEntryId(filename: string, sizeBytes: number): string {
   return `${filename}::${sizeBytes}`;
 }
@@ -79,7 +83,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
-  const [selectedTags, setSelectedTags] = useState<Set<string>>(new Set());
+  const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set(sessionSelectedTags));
   const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false);
   const [tagSearch, setTagSearch] = useState("");
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
@@ -345,6 +349,10 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
+
+  useEffect(() => {
+    sessionSelectedTags = selectedTags;
+  }, [selectedTags]);
 
   useEffect(() => {
     if (!activeLibId) {
