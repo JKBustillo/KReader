@@ -172,6 +172,8 @@ function App() {
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
       switch (e.key) {
         case "f":
         case "F":
