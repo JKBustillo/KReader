@@ -37,7 +37,14 @@
     "ambiguous": "Ambiguous location — multiple files match",
     "resolveLocation": "Resolve location",
     "resolveLocationTitle": "Resolve location",
-    "resolveLocationHint": "Multiple files share the same name and size. Choose the correct one:"
+    "resolveLocationHint": "Multiple files share the same name and size. Choose the correct one:",
+    "moveToFolder": "Move to folder",
+    "moveToFolderTitle": "Move to folder",
+    "delete": "Delete",
+    "deleteConfirm": "Delete \"{{name}}\"? The file will be moved to the trash.",
+    "deleteConfirmMany": "Delete {{count}} files? They will be moved to the trash.",
+    "deleteConfirmBtn": "Delete",
+    "cancel": "Cancel"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

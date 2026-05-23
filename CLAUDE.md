@@ -124,6 +124,8 @@ src/
   - `extract_cbr_cover(path)` — returns only the first image from a CBR/RAR (for thumbnails). Stops after first image found.
   - `extract_cbz_cover(path)` — returns only the first image from a CBZ/ZIP (alphabetically sorted); reads only the central directory + one compressed entry.
   - `scan_library(root)` — recursive directory walk returning `ScannedFile[]` (path, filename, size_bytes, modified_secs) for all supported extensions.
+  - `list_subdirs(root)` — recursive walk returning all subdirectory paths relative to root (`"/"` for root itself, `"Leído"`, `"Leído/Archivado"`, etc.). Used by the "Move to folder" context menu action.
+  - `trash_file(path)` — sends a file to the OS trash via the `trash` crate; falls back to permanent deletion if trash is unavailable.
 
 All commands return `Result<T, String>`. Large binary data (images) is returned as `tauri::ipc::Response` (raw bytes) to avoid base64 inflation and keep bytes outside V8's heap.
 
@@ -170,7 +172,7 @@ All other file I/O and format decoding happens in the frontend via Tauri JS plug
 | `F` | Toggle fullscreen |
 | `X` | Close window |
 
-Global hotkeys (`T` = theme toggle, `F` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element.
+Global hotkeys (`F` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element. The `T` theme-toggle hotkey was removed when the theme control moved to the settings modal.
 
 ## Versioning
 
@@ -183,6 +185,17 @@ When bumping the version, update it in all three places:
 | `src-tauri/Cargo.toml` | `version` (line 3) |
 
 All three must match. `Cargo.toml` is what Tauri uses for the installer binary version. After bumping, run `npm i` to sync `package-lock.json`.
+
+## Key dependencies
+
+### Tauri capabilities (`src-tauri/capabilities/default.json`)
+
+New fs operations require explicit entries here. Currently granted beyond `fs:default`:
+- `fs:allow-write-file` — writing files (used by store plugins)
+- `fs:allow-mkdir` — creating directories
+- `fs:allow-rename` — moving/renaming files (used by "Move to folder")
+
+If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permission here.
 
 ## Key dependencies
 

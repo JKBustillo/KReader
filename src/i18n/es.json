@@ -37,7 +37,14 @@
     "ambiguous": "Ubicación ambigua — varios archivos coinciden",
     "resolveLocation": "Resolver ubicación",
     "resolveLocationTitle": "Resolver ubicación",
-    "resolveLocationHint": "Varios archivos comparten el mismo nombre y tamaño. Elige el correcto:"
+    "resolveLocationHint": "Varios archivos comparten el mismo nombre y tamaño. Elige el correcto:",
+    "moveToFolder": "Mover a carpeta",
+    "moveToFolderTitle": "Mover a carpeta",
+    "delete": "Eliminar",
+    "deleteConfirm": "¿Eliminar «{{name}}»? El archivo se moverá a la papelera.",
+    "deleteConfirmMany": "¿Eliminar {{count}} archivos? Se moverán a la papelera.",
+    "deleteConfirmBtn": "Eliminar",
+    "cancel": "Cancelar"
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",

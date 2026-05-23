@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } fr
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { exists } from "@tauri-apps/plugin-fs";
+import { exists, rename, mkdir } from "@tauri-apps/plugin-fs";
 
 import type { Library, LibraryEntry, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
@@ -12,6 +12,7 @@ import {
   getEntries,
   upsertEntries,
   updateEntryPath,
+  removeEntry,
   setFavorite,
   setReadingState,
   batchSetCustomTags,
@@ -68,6 +69,124 @@ function GridIcon() {
   );
 }
 
+function MoveFolderModal({
+  entries,
+  folders,
+  rootPath,
+  onMove,
+  onClose,
+}: {
+  entries: LibraryEntry[];
+  folders: string[];
+  rootPath: string;
+  onMove: (entries: LibraryEntry[], folder: string) => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const currentFolders = new Set(entries.map((e) => getRelativeFolder(e.currentPath, rootPath)));
+  const destinations = folders.filter((f) => !currentFolders.has(f));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-lg shadow-2xl p-5 flex flex-col gap-4"
+        style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+            {t("library.moveToFolderTitle")}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-lg leading-none opacity-60 hover:opacity-100"
+            style={{ color: "var(--text-muted)" }}
+          >
+            ×
+          </button>
+        </div>
+        <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+          {destinations.map((folder) => (
+            <button
+              key={folder}
+              onClick={() => onMove(entries, folder)}
+              className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+              style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
+            >
+              {folder}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DeleteConfirmModal({
+  entries,
+  onConfirm,
+  onClose,
+}: {
+  entries: LibraryEntry[];
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const message = entries.length === 1
+    ? t("library.deleteConfirm", { name: entries[0].filename.replace(/\.[^.]+$/, "") })
+    : t("library.deleteConfirmMany", { count: entries.length });
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center"
+      style={{ background: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-lg shadow-2xl p-5 flex flex-col gap-4"
+        style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-sm" style={{ color: "var(--text-primary)" }}>{message}</p>
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 text-xs rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+            style={{ color: "var(--text-secondary)", border: "1px solid var(--border-nav)" }}
+          >
+            {t("library.cancel")}
+          </button>
+          <button
+            onClick={onConfirm}
+            className="px-3 py-1.5 text-xs rounded transition-colors"
+            style={{ background: "var(--color-danger)", color: "#fff" }}
+          >
+            {t("library.deleteConfirmBtn")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => void) => void }) {
   const { t } = useTranslation();
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -92,6 +211,9 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [foldersDropdownOpen, setFoldersDropdownOpen] = useState(false);
   const [folderSearch, setFolderSearch] = useState("");
   const foldersDropdownContainerRef = useRef<HTMLDivElement>(null);
+  const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
+  const [availableFolders, setAvailableFolders] = useState<string[]>([]);
+  const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
 
   // Stable refs used inside callbacks to avoid stale closures without adding
   // frequently-changing values to useCallback dependency arrays.
@@ -297,6 +419,48 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
       prev.map((e) => ids.has(e.id) ? { ...e, readingState: "completed" as const } : e)
     );
     setContextMenu(null);
+  }, []);
+
+  const handleMoveToFolder = useCallback(async (targetEntries: LibraryEntry[], targetFolder: string) => {
+    const rootPath = (activeLib?.rootPath ?? "").replace(/\\/g, "/");
+    const destDir = targetFolder === "/" ? rootPath : `${rootPath}/${targetFolder}`;
+
+    if (targetFolder !== "/") {
+      await mkdir(destDir, { recursive: true });
+    }
+
+    const movedPaths = new Map<string, string>();
+    for (const entry of targetEntries) {
+      const newPath = `${destDir}/${entry.filename}`;
+      const normalizedCurrent = entry.currentPath.replace(/\\/g, "/");
+      if (normalizedCurrent === newPath) continue;
+      await rename(entry.currentPath, newPath);
+      await updateEntryPath(entry.id, entry.libraryId, newPath);
+      movedPaths.set(entry.id, newPath);
+    }
+
+    setEntries((prev) =>
+      prev.map((e) => movedPaths.has(e.id) ? { ...e, currentPath: movedPaths.get(e.id)! } : e)
+    );
+    setMoveFolderTarget(null);
+  }, [activeLib]);
+
+  const handleDeleteEntries = useCallback(async (targetEntries: LibraryEntry[]) => {
+    for (const entry of targetEntries) {
+      await invoke("trash_file", { path: entry.currentPath });
+      await removeEntry(entry.id, entry.libraryId);
+    }
+    const deletedIds = new Set(targetEntries.map((e) => e.id));
+    setEntries((prev) => prev.filter((e) => !deletedIds.has(e.id)));
+    setSelectedIds((prev) => {
+      if ([...prev].some((id) => deletedIds.has(id))) {
+        const next = new Set(prev);
+        for (const id of deletedIds) next.delete(id);
+        return next;
+      }
+      return prev;
+    });
+    setDeleteConfirmEntries(null);
   }, []);
 
   const handleTagSave = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
@@ -913,6 +1077,29 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                 >
                   {t("library.markAsRead")}
                 </button>
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={async () => {
+                    const entries = contextMenu.entries;
+                    const folders = await invoke<string[]>("list_subdirs", { root: activeLib!.rootPath });
+                    setAvailableFolders(folders);
+                    setMoveFolderTarget(entries);
+                    setContextMenu(null);
+                  }}
+                >
+                  {t("library.moveToFolder")}
+                </button>
+                <button
+                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
+                  style={{ color: "var(--color-danger)" }}
+                  onClick={() => {
+                    setDeleteConfirmEntries(contextMenu.entries);
+                    setContextMenu(null);
+                  }}
+                >
+                  {t("library.delete")}
+                </button>
               </div>
             )}
           </div>
@@ -925,6 +1112,24 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
           onSave={handleTagSave}
           onClose={() => setTagEditorEntries(null)}
           allTagValues={allTagValues}
+        />
+      )}
+
+      {moveFolderTarget && (
+        <MoveFolderModal
+          entries={moveFolderTarget}
+          folders={availableFolders}
+          rootPath={activeLib?.rootPath ?? ""}
+          onMove={handleMoveToFolder}
+          onClose={() => setMoveFolderTarget(null)}
+        />
+      )}
+
+      {deleteConfirmEntries && (
+        <DeleteConfirmModal
+          entries={deleteConfirmEntries}
+          onConfirm={() => handleDeleteEntries(deleteConfirmEntries)}
+          onClose={() => setDeleteConfirmEntries(null)}
         />
       )}
 

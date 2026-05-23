@@ -28,6 +28,7 @@ body,
   --color-progress-complete:   #22c55e;
   --color-selection:           #3b82f6;
   --color-selection-bg:        rgba(59, 130, 246, 0.15);
+  --color-danger:              #ef4444;
 }
 
 /* === Tema claro === */
@@ -49,6 +50,7 @@ body,
   --color-progress-complete:   #22c55e;
   --color-selection:           #2563eb;
   --color-selection-bg:        rgba(37, 99, 235, 0.10);
+  --color-danger:              #dc2626;
 }
 
 /* pdfjs text layer — transparent but selectable */

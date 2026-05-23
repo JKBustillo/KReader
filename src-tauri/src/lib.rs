@@ -228,6 +228,44 @@ fn scan_library(root: String) -> Result<Vec<ScannedFile>, String> {
     Ok(results)
 }
 
+#[tauri::command]
+fn list_subdirs(root: String) -> Result<Vec<String>, String> {
+    let root_path = PathBuf::from(&root);
+    let mut result = vec!["/".to_string()];
+    let mut dirs: Vec<PathBuf> = vec![root_path.clone()];
+
+    while let Some(dir) = dirs.pop() {
+        let read_dir = match std::fs::read_dir(&dir) {
+            Ok(rd) => rd,
+            Err(_) => continue,
+        };
+        for entry in read_dir.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                let rel = path
+                    .strip_prefix(&root_path)
+                    .map(|p| p.to_string_lossy().replace('\\', "/"))
+                    .unwrap_or_default();
+                if !rel.is_empty() {
+                    result.push(rel);
+                }
+                dirs.push(path);
+            }
+        }
+    }
+
+    result.sort();
+    Ok(result)
+}
+
+#[tauri::command]
+fn trash_file(path: String) -> Result<(), String> {
+    match trash::delete(&path) {
+        Ok(_) => Ok(()),
+        Err(_) => std::fs::remove_file(&path).map_err(|e| e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -240,7 +278,7 @@ pub fn run() {
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_startup_file, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library])
+        .invoke_handler(tauri::generate_handler![get_startup_file, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
