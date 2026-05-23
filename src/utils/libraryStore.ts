@@ -113,6 +113,36 @@ export async function setCustomTags(id: string, libraryId: string, tags: Tag[]):
   await store.save();
 }
 
+export async function setRating(id: string, libraryId: string, rating: number): Promise<void> {
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  entry.rating = rating;
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+}
+
+export async function setLastOpenedAt(id: string, libraryId: string, timestamp: number): Promise<void> {
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  entry.lastOpenedAt = timestamp;
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+}
+
+export async function setTotalPages(id: string, libraryId: string, total: number): Promise<void> {
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const entry = entries.find((e) => e.id === id);
+  if (!entry) return;
+  entry.totalPages = total;
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+}
+
 export async function batchSetCustomTags(
   libraryId: string,
   updates: { id: string; tags: Tag[] }[],

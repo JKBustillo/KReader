@@ -27,8 +27,11 @@ export type LibraryEntry = {
   isFavorite: boolean;
   addedAt: number;
   readingState: ReadingState;
+  rating?: number;
+  lastOpenedAt?: number;
+  totalPages?: number;
 };
 
-export type SortField = "name" | "size" | "date" | "folder";
+export type SortField = "name" | "size" | "date" | "folder" | "lastOpened";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "details" | "grid";

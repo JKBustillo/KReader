@@ -30,6 +30,19 @@ export async function saveLastAppView(view: "home" | "library"): Promise<void> {
   await store.save();
 }
 
+const KEY_SHOW_PROGRESS_BAR = "show-progress-bar";
+
+export async function getShowProgressBar(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_SHOW_PROGRESS_BAR)) ?? false;
+}
+
+export async function saveShowProgressBar(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_SHOW_PROGRESS_BAR, value);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(
