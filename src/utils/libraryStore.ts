@@ -113,7 +113,7 @@ export async function setCustomTags(id: string, libraryId: string, tags: Tag[]):
   await store.save();
 }
 
-export async function setRating(id: string, libraryId: string, rating: number): Promise<void> {
+export async function setRating(id: string, libraryId: string, rating: number | undefined): Promise<void> {
   const store = await getStore();
   const entries = await getEntries(libraryId);
   const entry = entries.find((e) => e.id === id);

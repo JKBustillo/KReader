@@ -14,13 +14,14 @@ import {
   updateEntryPath,
   removeEntry,
   setFavorite,
+  setRating,
   setReadingState,
   batchSetCustomTags,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder } from "../utils/folderUtils";
-import { LibraryDetailsRow, COL_WIDTHS, COL_STAR } from "./LibraryDetailsRow";
+import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
 
@@ -419,6 +420,11 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
       prev.map((e) => ids.has(e.id) ? { ...e, readingState: "completed" as const } : e)
     );
     setContextMenu(null);
+  }, []);
+
+  const handleRate = useCallback(async (entry: LibraryEntry, rating: number | undefined) => {
+    await setRating(entry.id, entry.libraryId, rating);
+    setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, rating } : e));
   }, []);
 
   const handleMoveToFolder = useCallback(async (targetEntries: LibraryEntry[], targetFolder: string) => {
@@ -958,6 +964,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
               style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
             >
               <div className={COL_STAR} />
+              <div className={COL_RATING} />
               <button className={`${colHeaderClass} ${COL_WIDTHS.name}`} onClick={() => handleSortClick("name")}>
                 {t("library.colName")}{sortIndicator("name")}
               </button>
@@ -1003,6 +1010,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                     onOpen={handleOpen}
                     onSelect={handleItemClick}
                     onToggleFavorite={handleToggleFavorite}
+                    onRate={handleRate}
                     onContextMenu={handleContextMenu}
                   />
                 ))
@@ -1022,6 +1030,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                       onOpen={handleOpen}
                       onSelect={handleItemClick}
                       onToggleFavorite={handleToggleFavorite}
+                      onRate={handleRate}
                       onContextMenu={handleContextMenu}
                     />
                   ))}

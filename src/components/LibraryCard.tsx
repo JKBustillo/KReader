@@ -34,6 +34,28 @@ const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
   completed:   "var(--color-progress-complete)",
 };
 
+const RATING_COUNT = 5;
+
+function RatingStars({ rating, onRate }: { rating: number | undefined; onRate: (r: number | undefined) => void }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: RATING_COUNT }, (_, i) => {
+        const star = i + 1;
+        const filled = star <= (rating ?? 0);
+        return (
+          <button
+            key={star}
+            onClick={(e) => { e.stopPropagation(); onRate(rating === star ? undefined : star); }}
+            style={{ fontSize: "14px", lineHeight: 1, color: filled ? "var(--color-favorite)" : "var(--text-muted)" }}
+          >
+            {filled ? "★" : "☆"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function LibraryCard({
   entry,
   notFound,
@@ -42,6 +64,7 @@ function LibraryCard({
   onOpen,
   onSelect,
   onToggleFavorite,
+  onRate,
   onContextMenu,
 }: {
   entry: LibraryEntry;
@@ -51,6 +74,7 @@ function LibraryCard({
   onOpen: (entry: LibraryEntry) => void;
   onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
+  onRate: (entry: LibraryEntry, rating: number | undefined) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
@@ -155,12 +179,13 @@ function LibraryCard({
         </button>
       </div>
 
-      {/* Title */}
-      <div className="px-2 py-1.5">
+      {/* Title + rating */}
+      <div className="px-2 py-1.5 flex flex-col gap-1">
         <p className="text-xs leading-snug line-clamp-2 break-words"
           style={{ color: "var(--text-secondary)" }}>
           {title}
         </p>
+        <RatingStars rating={entry.rating} onRate={(r) => onRate(entry, r)} />
       </div>
     </div>
   );

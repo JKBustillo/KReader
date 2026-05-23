@@ -5,6 +5,7 @@ import { getRelativeFolder } from "../utils/folderUtils";
 
 const BYTES_IN_MB = 1_048_576;
 const BYTES_IN_KB = 1_024;
+const RATING_COUNT = 5;
 
 function formatSize(bytes: number): string {
   if (bytes >= BYTES_IN_MB) return `${(bytes / BYTES_IN_MB).toFixed(1)} MB`;
@@ -32,13 +33,35 @@ function StarIcon({ filled }: { filled: boolean }) {
   );
 }
 
+function RatingStars({ rating, onRate }: { rating: number | undefined; onRate: (r: number | undefined) => void }) {
+  return (
+    <div className="flex items-center gap-0.5">
+      {Array.from({ length: RATING_COUNT }, (_, i) => {
+        const star = i + 1;
+        const filled = star <= (rating ?? 0);
+        return (
+          <button
+            key={star}
+            onClick={(e) => { e.stopPropagation(); onRate(rating === star ? undefined : star); }}
+            style={{ fontSize: "15px", lineHeight: 1, color: filled ? "var(--color-favorite)" : "var(--text-muted)" }}
+          >
+            {filled ? "★" : "☆"}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 // Column widths kept as constants so header and rows stay aligned.
 const COL_STAR = "w-6 shrink-0 flex items-center justify-center";
+const COL_RATING = "w-24 shrink-0";
 const COL_WIDTHS: Record<SortField, string> = {
-  name:   "flex-1 min-w-0",
-  size:   "w-24 shrink-0 text-right",
-  date:   "w-32 shrink-0",
-  folder: "w-48 shrink-0 min-w-0",
+  name:      "flex-1 min-w-0",
+  size:      "w-24 shrink-0 text-right",
+  date:      "w-32 shrink-0",
+  folder:    "w-48 shrink-0 min-w-0",
+  lastOpened:"w-32 shrink-0",
 };
 
 const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
@@ -55,6 +78,7 @@ function LibraryDetailsRow({
   onOpen,
   onSelect,
   onToggleFavorite,
+  onRate,
   onContextMenu,
 }: {
   entry: LibraryEntry;
@@ -65,6 +89,7 @@ function LibraryDetailsRow({
   onOpen: (entry: LibraryEntry) => void;
   onSelect: (entry: LibraryEntry, e: MouseEvent<HTMLDivElement>) => void;
   onToggleFavorite: (entry: LibraryEntry) => void;
+  onRate: (entry: LibraryEntry, rating: number | undefined) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
 }) {
   const { t } = useTranslation();
@@ -93,6 +118,9 @@ function LibraryDetailsRow({
       >
         <StarIcon filled={entry.isFavorite} />
       </button>
+      <div className={COL_RATING}>
+        <RatingStars rating={entry.rating} onRate={(r) => onRate(entry, r)} />
+      </div>
       <span className={`${COL_WIDTHS.name} flex items-center gap-1.5 min-w-0`} style={{ color: "var(--text-primary)" }}>
         {ambiguous && (
           <span
@@ -123,4 +151,4 @@ function LibraryDetailsRow({
   );
 }
 
-export { COL_STAR, COL_WIDTHS, LibraryDetailsRow };
+export { COL_STAR, COL_RATING, COL_WIDTHS, LibraryDetailsRow };
