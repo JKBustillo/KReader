@@ -9,6 +9,10 @@ body,
   overflow: hidden;
 }
 
+button {
+  cursor: pointer;
+}
+
 /* === Tema oscuro (por defecto) === */
 :root {
   --bg-primary:    #1a1b1e;
