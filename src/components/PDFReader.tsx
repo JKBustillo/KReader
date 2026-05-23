@@ -355,7 +355,7 @@ function PDFReader({
       className={`flex flex-col items-center h-screen bg-[var(--bg-primary)] py-6 overflow-auto ${contentTaller ? 'justify-start' : 'justify-center'}`}
     >
       <div className="relative" style={{ userSelect: "text" }}>
-        <canvas ref={canvasRef} className="shadow-xl rounded block" />
+        <canvas ref={canvasRef} className="shadow-xl block" />
         <div ref={textLayerRef} className="textLayer" />
       </div>
 

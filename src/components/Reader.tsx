@@ -294,8 +294,8 @@ function Reader({
               alt={`Page ${i + 1}`}
               className={
                 cascadeMode
-                  ? "w-auto max-w-[95vw] max-h-[95vh] object-contain rounded shadow-md"
-                  : "max-h-screen object-contain rounded shadow-md"
+                  ? "w-auto max-w-[95vw] max-h-[95vh] object-contain shadow-md"
+                  : "max-h-screen object-contain shadow-md"
               }
               style={cascadeMode ? undefined : { maxWidth: `${doublePage ? 45 : 80}vw` }}
             />
