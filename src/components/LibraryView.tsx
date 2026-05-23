@@ -16,6 +16,7 @@ import {
   setFavorite,
   setRating,
   setReadingState,
+  setLastOpenedAt,
   batchSetCustomTags,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
@@ -344,6 +345,11 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   }, []);
 
   const handleOpen = useCallback(async (entry: LibraryEntry) => {
+    const now = Math.floor(Date.now() / 1000);
+    await setLastOpenedAt(entry.id, entry.libraryId, now);
+    setEntries((prev) =>
+      prev.map((e) => e.id === entry.id ? { ...e, lastOpenedAt: now } : e)
+    );
     if (entry.readingState !== "completed") {
       await setReadingState(entry.id, entry.libraryId, "in_progress");
       setEntries((prev) =>
@@ -585,7 +591,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
 
   const handleSortClick = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortField(field); setSortDir("asc"); }
+    else { setSortField(field); setSortDir(field === "lastOpened" ? "desc" : "asc"); }
   };
 
   const sortIndicator = (field: SortField) =>
@@ -668,6 +674,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
         cmp = a.currentPath.slice(0, fa).localeCompare(b.currentPath.slice(0, fb));
         break;
       }
+      case "lastOpened": cmp = (a.lastOpenedAt ?? 0) - (b.lastOpenedAt ?? 0); break;
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -976,6 +983,9 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
               </button>
               <button className={`${colHeaderClass} ${COL_WIDTHS.folder}`} onClick={() => handleSortClick("folder")}>
                 {t("library.colFolder")}{sortIndicator("folder")}
+              </button>
+              <button className={`${colHeaderClass} ${COL_WIDTHS.lastOpened}`} onClick={() => handleSortClick("lastOpened")}>
+                {t("library.colLastOpened")}{sortIndicator("lastOpened")}
               </button>
             </div>
           )}

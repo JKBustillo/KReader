@@ -44,7 +44,8 @@
     "deleteConfirm": "Delete \"{{name}}\"? The file will be moved to the trash.",
     "deleteConfirmMany": "Delete {{count}} files? They will be moved to the trash.",
     "deleteConfirmBtn": "Delete",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "colLastOpened": "Last opened"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",

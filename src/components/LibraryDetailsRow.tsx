@@ -147,6 +147,9 @@ function LibraryDetailsRow({
       <span className={`${COL_WIDTHS.folder} truncate`} style={{ color: "var(--text-muted)" }}>
         {folder}
       </span>
+      <span className={COL_WIDTHS.lastOpened} style={{ color: "var(--text-muted)" }}>
+        {formatDate(entry.lastOpenedAt ?? 0)}
+      </span>
     </div>
   );
 }

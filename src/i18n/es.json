@@ -44,7 +44,8 @@
     "deleteConfirm": "¿Eliminar «{{name}}»? El archivo se moverá a la papelera.",
     "deleteConfirmMany": "¿Eliminar {{count}} archivos? Se moverán a la papelera.",
     "deleteConfirmBtn": "Eliminar",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "colLastOpened": "Último abierto"
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",

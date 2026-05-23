@@ -105,6 +105,11 @@ src/
 - `setRating(id, libraryId, rating: number | undefined)` in `libraryStore.ts`. Passing `undefined` clears the rating.
 - UI: 5 clickable stars (★/☆) in `LibraryDetailsRow` (column after favorite) and `LibraryCard` (below title). Clicking the active star toggles it off.
 
+**Last opened:**
+- `lastOpenedAt?: number` (Unix timestamp in seconds) stored per entry in `LibraryEntry`. Set in `LibraryView.handleOpen` every time an entry is opened.
+- `setLastOpenedAt(id, libraryId, timestamp)` in `libraryStore.ts`.
+- Sortable column in details view (`SortField = "lastOpened"`). Defaults to descending when first selected (most recently opened first). Entries never opened show `"—"`.
+
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.
 - `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions.
