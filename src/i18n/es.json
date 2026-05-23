@@ -78,6 +78,19 @@
     "closeReader": "Cerrar lector",
     "closeWindow": "Cerrar ventana"
   },
+  "settings": {
+    "title": "Ajustes",
+    "appearance": "Apariencia",
+    "themeDark": "Oscuro",
+    "themeLight": "Claro",
+    "language": "Idioma",
+    "library": "Biblioteca",
+    "export": "Exportar biblioteca",
+    "import": "Importar biblioteca",
+    "importConfirmMsg": "Esto reemplazará todos los datos actuales de la biblioteca. Esta acción no se puede deshacer.",
+    "importConfirm": "Confirmar",
+    "importCancel": "Cancelar"
+  },
   "reader": {
     "page": "Página",
     "of": "/",

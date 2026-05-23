@@ -78,6 +78,19 @@
     "closeReader": "Close reader",
     "closeWindow": "Close window"
   },
+  "settings": {
+    "title": "Settings",
+    "appearance": "Appearance",
+    "themeDark": "Dark",
+    "themeLight": "Light",
+    "language": "Language",
+    "library": "Library",
+    "export": "Export library",
+    "import": "Import library",
+    "importConfirmMsg": "This will replace all current library data. This action cannot be undone.",
+    "importConfirm": "Confirm",
+    "importCancel": "Cancel"
+  },
   "reader": {
     "page": "Page",
     "of": "/",

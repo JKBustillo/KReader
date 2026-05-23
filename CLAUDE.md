@@ -33,13 +33,15 @@ src/
     Reader.tsx                  Stateful viewer for image-based formats (CBZ/CBR/folder)
     PDFReader.tsx               Stateful viewer for PDFs (uses pdfjs canvas + text layer)
     ReaderOverlay.tsx           Floating shortcuts panel + page info indicator
-    NavBar.tsx                  Top nav: home/library toggle + theme/language switcher
+    NavBar.tsx                  Top nav: home/library toggle + botón engranaje (abre SettingsModal)
     LibraryView.tsx             Main library UI: scan, filter (tags + folders), sort, view mode,
                                   ambiguous-file resolution, tag editor modal
     LibraryCard.tsx             Grid-view card for a library entry (cover thumbnail + metadata)
     LibraryDetailsRow.tsx       Details-view row for a library entry
     TagEditor.tsx               Modal for adding/removing custom tags; supports single and
                                   multi-entry mode, autocomplete suggestions
+    SettingsModal.tsx           Modal de ajustes: tema (dark/light), idioma (ES/EN),
+                                  export/import de biblioteca. Abre desde el engranaje de NavBar.
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)

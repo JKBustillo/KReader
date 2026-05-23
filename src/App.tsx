@@ -8,6 +8,7 @@ import Reader from "./components/Reader";
 import PDFReader from "./components/PDFReader";
 import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
+import SettingsModal from "./components/SettingsModal";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { getLastAppView, saveLastAppView } from "./utils/settingsStore";
@@ -29,6 +30,7 @@ function App() {
   const [language, setLanguage] = useState(i18n.language);
   const [view, setView] = useState<AppView>("home");
   const [returnTo, setReturnTo] = useState<"home" | "library">("home");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { t } = useTranslation();
 
   const blobUrlsRef = useRef<string[]>([]);
@@ -187,15 +189,11 @@ function App() {
         case "X":
           getCurrentWindow().close();
           break;
-        case "t":
-        case "T":
-          handleToggleTheme();
-          break;
         default:
           break;
       }
     },
-    [handleToggleTheme]
+    []
   );
 
   useEffect(() => {
@@ -227,11 +225,12 @@ function App() {
   }
 
   if (view === "reader") {
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} />;
     if (pdfData !== null) {
-      return <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} />;
+      return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} /></>;
     }
     if (pages.length > 0) {
-      return <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />;
+      return <>{settingsModal}<Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} /></>;
     }
   }
 
@@ -240,10 +239,7 @@ function App() {
       <NavBar
         view={view === "reader" ? "home" : view}
         onNavigate={setView}
-        theme={theme}
-        onToggleTheme={handleToggleTheme}
-        language={language}
-        onSetLanguage={handleSetLanguage}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
 
       {/* Content area — offset by NavBar height (h-11 = 44px) */}
@@ -295,6 +291,14 @@ function App() {
           </div>
         )}
       </div>
+      <SettingsModal
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        language={language}
+        onSetLanguage={handleSetLanguage}
+      />
     </div>
   );
 }

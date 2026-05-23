@@ -143,6 +143,24 @@ export async function setTotalPages(id: string, libraryId: string, total: number
   await store.save();
 }
 
+export async function exportLibraryData(): Promise<{ libraries: Library[]; entries: Record<string, LibraryEntry[]> }> {
+  const libraries = await getLibraries();
+  const entries: Record<string, LibraryEntry[]> = {};
+  for (const lib of libraries) {
+    entries[lib.id] = await getEntries(lib.id);
+  }
+  return { libraries, entries };
+}
+
+export async function importLibraryData(data: { libraries: Library[]; entries: Record<string, LibraryEntry[]> }): Promise<void> {
+  const store = await getStore();
+  await store.set(LIBRARIES_KEY, data.libraries);
+  for (const [libId, libEntries] of Object.entries(data.entries)) {
+    await store.set(entriesKey(libId), libEntries);
+  }
+  await store.save();
+}
+
 export async function batchSetCustomTags(
   libraryId: string,
   updates: { id: string; tags: Tag[] }[],
