@@ -22,7 +22,7 @@ function Reader({
   pageNames?: string[];
   onLastPage?: () => void;
 }) {
-  const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, loaded } = useReadingProgress(filePath, startPage);
+  const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, bookmarks, setBookmarks, loaded } = useReadingProgress(filePath, startPage);
   const lastPageFiredRef = useRef(false);
   const [zoom, setZoom] = useState(1);
   const [webtoonMode, setWebtoonMode] = useState(false);
@@ -201,11 +201,13 @@ function Reader({
     overlayTimerRef,
     filePath,
     pagesLength: pages.length,
+    pageIndex,
     cascadeMode,
     webtoonMode,
     rtl,
     showMoreInfo,
     smoothScroll,
+    bookmarks,
     nextPage,
     prevPage,
     onClose,
@@ -220,6 +222,7 @@ function Reader({
     setShowMoreInfo,
     setShowOverlay,
     setPinPageIndicator,
+    setBookmarks,
     checkHeight,
     scheduleHide,
   });
@@ -320,6 +323,7 @@ function Reader({
         zoom={zoom}
         pageIndex={pageIndex}
         pagesLength={pages.length}
+        bookmarks={bookmarks}
       />
     </div>
   );

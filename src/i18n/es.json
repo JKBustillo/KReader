@@ -70,6 +70,8 @@
     "prevNextFile": "Archivo anterior / siguiente",
     "webtoon": "Modo webtoon",
     "cascade": "Modo cascada",
+    "bookmark": "Marcar / desmarcar página",
+    "prevNextBookmark": "Marcador anterior / siguiente",
     "doublePage": "Doble página",
     "rtl": "Dirección RTL",
     "gap": "Separación entre páginas",
@@ -106,6 +108,7 @@
     "rtl": "Derecha → Izquierda",
     "ltr": "Izquierda → Derecha",
     "withGap": "Con separación",
-    "withoutGap": "Sin separación"
+    "withoutGap": "Sin separación",
+    "bookmarks": "Marcadores"
   }
 }

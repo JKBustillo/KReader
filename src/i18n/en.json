@@ -70,6 +70,8 @@
     "prevNextFile": "Previous / next file",
     "webtoon": "Webtoon mode",
     "cascade": "Cascade mode",
+    "bookmark": "Toggle bookmark",
+    "prevNextBookmark": "Prev / next bookmark",
     "doublePage": "Double page",
     "rtl": "RTL direction",
     "gap": "Page gap",
@@ -106,6 +108,7 @@
     "rtl": "Right → Left",
     "ltr": "Left → Right",
     "withGap": "With gap",
-    "withoutGap": "Without gap"
+    "withoutGap": "Without gap",
+    "bookmarks": "Bookmarks"
   }
 }

@@ -78,7 +78,7 @@ src/
 ### State persistence (Tauri Store)
 
 - `.recent-files.dat` — list of up to 10 recently opened file paths.
-- `.reading-progress.dat` — per-file page index (`{filePath}-page`) and cascade mode flag (`{filePath}-cascade`), keyed by absolute file path.
+- `.reading-progress.dat` — per-file page index (`{filePath}-page`), cascade mode flag (`{filePath}-cascade`), and bookmarks (`{filePath}-bookmarks`, `number[]`), keyed by absolute file path.
 - `.settings.dat` — global app settings. Current keys:
   - `pin-page-indicator` — boolean, pin page number overlay.
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
@@ -182,6 +182,8 @@ All other file I/O and format decoding happens in the frontend via Tauri JS plug
 | `Ctrl+←` / `Ctrl+→` | Previous/next file (or page, for standalone images) |
 | `W` | Toggle webtoon mode (continuous vertical scroll, no height cap, no gap) |
 | `C` | Toggle cascade mode (all pages vertical, height-capped) |
+| `B` | Toggle bookmark on current page (persists per file) |
+| `[` / `]` | Jump to previous / next bookmark |
 | `D` | Toggle double-page mode |
 | `S` | Toggle RTL reading direction |
 | `G` | Toggle gap between pages |

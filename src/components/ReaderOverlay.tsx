@@ -12,6 +12,7 @@ type Props = {
   zoom: number;
   pageIndex: number;
   pagesLength: number;
+  bookmarks: number[];
 };
 
 function ReaderOverlay({
@@ -26,6 +27,7 @@ function ReaderOverlay({
   zoom,
   pageIndex,
   pagesLength,
+  bookmarks,
 }: Props) {
   const { t } = useTranslation();
 
@@ -64,6 +66,8 @@ function ReaderOverlay({
                   ["Ctrl+← / →",       t("shortcuts.prevNextFile")],
                   ["W",                t("shortcuts.webtoon")],
                   ["C",                t("shortcuts.cascade")],
+                  ["B",                t("shortcuts.bookmark")],
+                  ["[ / ]",            t("shortcuts.prevNextBookmark")],
                   ["D",                t("shortcuts.doublePage")],
                   ["S",                t("shortcuts.rtl")],
                   ["G",                t("shortcuts.gap")],
@@ -103,11 +107,15 @@ function ReaderOverlay({
             <div>{t("reader.orientation")}: {rtl ? `⇠ ${t("reader.rtl")}` : `⇢ ${t("reader.ltr")}`}</div>
             <div>{showGap ? t("reader.withGap") : t("reader.withoutGap")}</div>
             <div>{t("reader.zoom")}: {Math.round(zoom * 100)}%</div>
+            {bookmarks.length > 0 && (
+              <div>{t("reader.bookmarks")}: {bookmarks.map((p) => p + 1).join(", ")}</div>
+            )}
           </>
         )}
         <div>
           {showMoreInfo && `${t("reader.page")} `}
           {pageIndex + 1} {t("reader.of")} {pagesLength}
+          {bookmarks.includes(pageIndex) && " 🔖"}
         </div>
       </div>
     </>

@@ -10,10 +10,12 @@ type Params = {
   overlayTimerRef: RefObject<ReturnType<typeof setTimeout> | null>;
   filePath: string;
   pagesLength: number;
+  pageIndex: number;
   cascadeMode: boolean;
   rtl: boolean;
   showMoreInfo: boolean;
   smoothScroll: ScrollBehavior;
+  bookmarks: number[];
   nextPage: () => void;
   prevPage: () => void;
   onClose: () => void;
@@ -29,6 +31,7 @@ type Params = {
   setShowMoreInfo: Dispatch<SetStateAction<boolean>>;
   setShowOverlay: Dispatch<SetStateAction<boolean>>;
   setPinPageIndicator: Dispatch<SetStateAction<boolean>>;
+  setBookmarks: Dispatch<SetStateAction<number[]>>;
   checkHeight: (zoom: number) => void;
   scheduleHide: () => void;
 };
@@ -39,10 +42,12 @@ export function useReaderShortcuts(params: Params) {
     overlayTimerRef,
     filePath,
     pagesLength,
+    pageIndex,
     cascadeMode,
     rtl,
     showMoreInfo,
     smoothScroll,
+    bookmarks,
     nextPage,
     prevPage,
     onClose,
@@ -57,6 +62,7 @@ export function useReaderShortcuts(params: Params) {
     setShowMoreInfo,
     setShowOverlay,
     setPinPageIndicator,
+    setBookmarks,
     checkHeight,
     scheduleHide,
   } = params;
@@ -216,16 +222,35 @@ export function useReaderShortcuts(params: Params) {
             setPageIndex(pagesLength - 1);
           }
           break;
+        case "b":
+        case "B":
+          setBookmarks((bm) =>
+            bm.includes(pageIndex)
+              ? bm.filter((p) => p !== pageIndex)
+              : [...bm, pageIndex].sort((a, b) => a - b)
+          );
+          break;
+        case "[": {
+          const prev = [...bookmarks].reverse().find((p) => p < pageIndex);
+          if (prev !== undefined) setPageIndex(prev);
+          break;
+        }
+        case "]": {
+          const next = bookmarks.find((p) => p > pageIndex);
+          if (next !== undefined) setPageIndex(next);
+          break;
+        }
         default:
           break;
       }
     },
     [
       containerRef, overlayTimerRef, filePath, pagesLength,
-      cascadeMode, rtl, showMoreInfo, smoothScroll,
+      pageIndex, cascadeMode, rtl, showMoreInfo, smoothScroll,
+      bookmarks,
       nextPage, prevPage, onClose,
       setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
-      setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator,
+      setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator, setBookmarks,
       checkHeight, scheduleHide,
     ]
   );
