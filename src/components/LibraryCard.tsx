@@ -66,6 +66,8 @@ function LibraryCard({
   onToggleFavorite,
   onRate,
   onContextMenu,
+  showProgressBar,
+  currentPage,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
@@ -76,6 +78,8 @@ function LibraryCard({
   onToggleFavorite: (entry: LibraryEntry) => void;
   onRate: (entry: LibraryEntry, rating: number | undefined) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
+  showProgressBar: boolean;
+  currentPage: number;
 }) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -179,13 +183,35 @@ function LibraryCard({
         </button>
       </div>
 
-      {/* Title + rating */}
+      {/* Title + rating + progress */}
       <div className="px-2 py-1.5 flex flex-col gap-1">
         <p className="text-xs leading-snug line-clamp-2 break-words"
           style={{ color: "var(--text-secondary)" }}>
           {title}
         </p>
         <RatingStars rating={entry.rating} onRate={(r) => onRate(entry, r)} />
+        {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
+          const progressPct = entry.readingState === "completed"
+            ? 100
+            : Math.min(Math.round((currentPage + 1) / entry.totalPages! * 100), 99);
+          return (
+            <div
+              className="w-full h-1 rounded-full overflow-hidden"
+              style={{ background: "var(--border-nav)" }}
+              title={`${progressPct}%`}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${progressPct}%`,
+                  background: entry.readingState === "completed"
+                    ? "var(--color-progress-complete)"
+                    : "var(--color-progress-inprogress)",
+                }}
+              />
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

@@ -11,7 +11,7 @@ import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
-import { getLastAppView, saveLastAppView } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
@@ -31,10 +31,12 @@ function App() {
   const [view, setView] = useState<AppView>("home");
   const [returnTo, setReturnTo] = useState<"home" | "library">("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [showProgressBar, setShowProgressBar] = useState(false);
   const { t } = useTranslation();
 
   const blobUrlsRef = useRef<string[]>([]);
   const onCompleteRef = useRef<(() => void) | null>(null);
+  const onPagesLoadedRef = useRef<((total: number) => void) | null>(null);
   const viewInitializedRef = useRef(false);
   const revokeBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -56,6 +58,7 @@ function App() {
 
   useEffect(() => {
     getRecentFiles().then(setRecentFiles);
+    getShowProgressBar().then(setShowProgressBar);
   }, []);
 
   // Clears reader state without changing the current view. Used internally
@@ -72,12 +75,22 @@ function App() {
     onCompleteRef.current = null;
   }, []);
 
+  const handleToggleProgressBar = useCallback(async () => {
+    setShowProgressBar((prev) => {
+      const next = !prev;
+      saveShowProgressBar(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
   const handleOpen = useCallback(async (
     path: string,
     from: "home" | "library" = "home",
     onComplete?: () => void,
+    onPagesLoaded?: (total: number) => void,
   ) => {
     onCompleteRef.current = onComplete ?? null;
+    onPagesLoadedRef.current = onPagesLoaded ?? null;
     setLoading(true);
     setStartPage(0);
     setPageNames(undefined);
@@ -102,6 +115,7 @@ function App() {
       }
 
       const result = await loadPages(path);
+      onPagesLoaded?.(result.pages.length);
       blobUrlsRef.current = result.pages.filter((u) => u.startsWith("blob:"));
       setPages(result.pages);
       if (result.pageNames) setPageNames(result.pageNames);
@@ -164,6 +178,10 @@ function App() {
     setRecentFiles([]);
   };
 
+  const handlePdfPagesLoaded = useCallback((total: number) => {
+    onPagesLoadedRef.current?.(total);
+  }, []);
+
   const handlePdfLoadError = useCallback((path: string) => {
     setRecentFiles((prev) => {
       const updated = prev.filter((p) => p !== path);
@@ -225,9 +243,9 @@ function App() {
   }
 
   if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} />;
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} />;
     if (pdfData !== null) {
-      return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} /></>;
+      return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
     }
     if (pages.length > 0) {
       return <>{settingsModal}<Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} /></>;
@@ -245,7 +263,10 @@ function App() {
       {/* Content area — offset by NavBar height (h-11 = 44px) */}
       <div className="flex-1 pt-11 min-h-0 overflow-hidden">
         {view === "library" ? (
-          <LibraryView onOpen={(path, onComplete) => handleOpen(path, "library", onComplete)} />
+          <LibraryView
+            showProgressBar={showProgressBar}
+            onOpen={(path, onComplete, onPagesLoaded) => handleOpen(path, "library", onComplete, onPagesLoaded)}
+          />
         ) : (
           /* Home view */
           <div className="flex flex-col justify-center items-center h-full">
@@ -298,6 +319,8 @@ function App() {
         onToggleTheme={handleToggleTheme}
         language={language}
         onSetLanguage={handleSetLanguage}
+        showProgressBar={showProgressBar}
+        onToggleProgressBar={handleToggleProgressBar}
       />
     </div>
   );

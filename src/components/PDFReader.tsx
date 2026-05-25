@@ -18,12 +18,14 @@ function PDFReader({
   onClose,
   onLoadError,
   onLastPage,
+  onPagesLoaded,
 }: {
   data: Uint8Array;
   filePath: string;
   onClose: () => void;
   onLoadError?: (path: string) => void;
   onLastPage?: () => void;
+  onPagesLoaded?: (total: number) => void;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -58,6 +60,7 @@ function PDFReader({
         setLoadError(null);
         setPdf(doc);
         setNumPages(doc.numPages);
+        onPagesLoaded?.(doc.numPages);
 
         const saved = await s.get<number>(`${filePath}-page`);
         if (cancelled) return;
@@ -71,7 +74,7 @@ function PDFReader({
     })();
 
     return () => { cancelled = true; };
-  }, [data, filePath, onLoadError]);
+  }, [data, filePath, onLoadError, onPagesLoaded]);
 
   useEffect(() => {
     const win = getCurrentWindow();

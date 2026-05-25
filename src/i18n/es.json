@@ -86,6 +86,7 @@
     "themeLight": "Claro",
     "language": "Idioma",
     "library": "Biblioteca",
+    "progressBar": "Progreso de lectura",
     "export": "Exportar biblioteca",
     "import": "Importar biblioteca",
     "importConfirmMsg": "Esto reemplazará todos los datos actuales de la biblioteca. Esta acción no se puede deshacer.",

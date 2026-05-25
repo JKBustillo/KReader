@@ -80,6 +80,8 @@ function LibraryDetailsRow({
   onToggleFavorite,
   onRate,
   onContextMenu,
+  showProgressBar,
+  currentPage,
 }: {
   entry: LibraryEntry;
   rootPath: string;
@@ -91,6 +93,8 @@ function LibraryDetailsRow({
   onToggleFavorite: (entry: LibraryEntry) => void;
   onRate: (entry: LibraryEntry, rating: number | undefined) => void;
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
+  showProgressBar: boolean;
+  currentPage: number;
 }) {
   const { t } = useTranslation();
   const name = entry.filename.replace(/\.[^.]+$/, "");
@@ -101,7 +105,7 @@ function LibraryDetailsRow({
       onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
-      className="flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors"
+      className="relative flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors"
       style={{
         borderColor: "var(--border-nav)",
         opacity: notFound && !ambiguous ? 0.45 : 1,
@@ -150,6 +154,23 @@ function LibraryDetailsRow({
       <span className={COL_WIDTHS.lastOpened} style={{ color: "var(--text-muted)" }}>
         {formatDate(entry.lastOpenedAt ?? 0)}
       </span>
+      {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
+        const progressPct = entry.readingState === "completed"
+          ? 100
+          : Math.min(Math.round((currentPage + 1) / entry.totalPages! * 100), 99);
+        return (
+          <div
+            className="absolute bottom-0 left-0 h-[2px] rounded-full"
+            style={{
+              width: `${progressPct}%`,
+              background: entry.readingState === "completed"
+                ? "var(--color-progress-complete)"
+                : "var(--color-progress-inprogress)",
+            }}
+            title={`${progressPct}%`}
+          />
+        );
+      })()}
     </div>
   );
 }

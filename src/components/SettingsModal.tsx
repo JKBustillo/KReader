@@ -12,6 +12,8 @@ function SettingsModal({
   onToggleTheme,
   language,
   onSetLanguage,
+  showProgressBar,
+  onToggleProgressBar,
 }: {
   open: boolean;
   onClose: () => void;
@@ -19,6 +21,8 @@ function SettingsModal({
   onToggleTheme: () => void;
   language: string;
   onSetLanguage: (lang: string) => void;
+  showProgressBar: boolean;
+  onToggleProgressBar: () => void;
 }) {
   const { t } = useTranslation();
   const [importPending, setImportPending] = useState(false);
@@ -142,6 +146,24 @@ function SettingsModal({
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {t("settings.library")}
           </p>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+              {t("settings.progressBar")}
+            </span>
+            <button
+              onClick={onToggleProgressBar}
+              className="w-9 h-5 rounded-full relative transition-colors"
+              style={{ background: showProgressBar ? "var(--color-selection)" : "var(--border-nav)" }}
+            >
+              <span
+                className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
+                style={{
+                  background: "#fff",
+                  left: showProgressBar ? "calc(100% - 1.125rem)" : "0.125rem",
+                }}
+              />
+            </button>
+          </div>
           <button
             className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
             style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}

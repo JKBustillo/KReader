@@ -86,6 +86,7 @@
     "themeLight": "Light",
     "language": "Language",
     "library": "Library",
+    "progressBar": "Reading progress",
     "export": "Export library",
     "import": "Import library",
     "importConfirmMsg": "This will replace all current library data. This action cannot be undone.",

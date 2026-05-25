@@ -64,6 +64,7 @@ src/
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              getRelativeFolder(entryPath, rootPath) shared util
+    readingProgressStore.ts     Read-only access to .reading-progress.dat from non-hook contexts; exposes getPageForPath(filePath)
   i18n/                         react-i18next setup (en, es)
 ```
 
@@ -83,6 +84,7 @@ src/
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
+  - `show-progress-bar` — boolean, show reading progress bar in library cards and rows (default false).
 - `.library.dat` — library definitions and entries. Keys:
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
@@ -109,6 +111,12 @@ src/
 - `lastOpenedAt?: number` (Unix timestamp in seconds) stored per entry in `LibraryEntry`. Set in `LibraryView.handleOpen` every time an entry is opened.
 - `setLastOpenedAt(id, libraryId, timestamp)` in `libraryStore.ts`.
 - Sortable column in details view (`SortField = "lastOpened"`). Defaults to descending when first selected (most recently opened first). Entries never opened show `"—"`.
+
+**Progress bar:**
+- Thin bar shown in `LibraryCard` (below rating stars) and `LibraryDetailsRow` (2px line at row bottom). Toggled via `show-progress-bar` setting.
+- `totalPages?: number` persisted in `LibraryEntry` via `setTotalPages` in `libraryStore.ts`. Registered through an `onPagesLoaded(total)` callback: `LibraryView.handleOpen` creates it and passes it as third arg of `onOpen`; `App.tsx` calls it after `loadPages` (image formats) or forwards it to `<PDFReader>` as a prop (PDF format).
+- `currentPage` is **session-only** (not persisted in `LibraryEntry`). `LibraryView` batch-reads it from `.reading-progress.dat` via `getPageForPath` after each scan and stores it in a local `pageMap: Map<id, page>`. This means the displayed progress reflects the state at last scan, not real-time — it updates accurately on app restart or library rescan.
+- Progress capped at 99% while `readingState === "in_progress"`; shows 100% only when `readingState === "completed"`.
 
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.

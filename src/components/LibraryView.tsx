@@ -17,9 +17,11 @@ import {
   setRating,
   setReadingState,
   setLastOpenedAt,
+  setTotalPages,
   batchSetCustomTags,
 } from "../utils/libraryStore";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
+import { getPageForPath } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
@@ -189,7 +191,13 @@ function DeleteConfirmModal({
   );
 }
 
-function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => void) => void }) {
+function LibraryView({
+  onOpen,
+  showProgressBar,
+}: {
+  onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void) => void;
+  showProgressBar: boolean;
+}) {
   const { t } = useTranslation();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [activeLibId, setActiveLibId] = useState<string | null>(null);
@@ -216,6 +224,7 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
+  const [pageMap, setPageMap] = useState<Map<string, number>>(new Map());
 
   // Stable refs used inside callbacks to avoid stale closures without adding
   // frequently-changing values to useCallback dependency arrays.
@@ -321,6 +330,16 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
 
         setEntries(allEntries);
         setNotFoundIds(missing);
+
+        const toRead = allEntries.filter(
+          (e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread"
+        );
+        if (toRead.length > 0) {
+          const pageNums = await Promise.all(toRead.map((e) => getPageForPath(e.currentPath)));
+          const pMap = new Map<string, number>();
+          toRead.forEach((e, i) => pMap.set(e.id, pageNums[i]));
+          setPageMap(pMap);
+        }
       } finally {
         setScanning(false);
         scanRef.current = false;
@@ -364,7 +383,13 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
           );
         }
       : undefined;
-    onOpen(entry.currentPath, onComplete);
+    const onPagesLoaded = (total: number) => {
+      setTotalPages(entry.id, entry.libraryId, total).catch(console.error);
+      setEntries((prev) =>
+        prev.map((e) => e.id === entry.id ? { ...e, totalPages: total } : e)
+      );
+    };
+    onOpen(entry.currentPath, onComplete, onPagesLoaded);
   }, [onOpen]);
 
   const handleItemClick = useCallback((entry: LibraryEntry, e: MouseEvent) => {
@@ -1022,6 +1047,8 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                     onToggleFavorite={handleToggleFavorite}
                     onRate={handleRate}
                     onContextMenu={handleContextMenu}
+                    showProgressBar={showProgressBar}
+                    currentPage={pageMap.get(entry.id) ?? 0}
                   />
                 ))
               : (
@@ -1042,6 +1069,8 @@ function LibraryView({ onOpen }: { onOpen: (path: string, onComplete?: () => voi
                       onToggleFavorite={handleToggleFavorite}
                       onRate={handleRate}
                       onContextMenu={handleContextMenu}
+                      showProgressBar={showProgressBar}
+                      currentPage={pageMap.get(entry.id) ?? 0}
                     />
                   ))}
                 </div>
