@@ -5,6 +5,7 @@ type Props = {
   showOverlay: boolean;
   pinPageIndicator: boolean;
   cascadeMode: boolean;
+  webtoonMode: boolean;
   doublePage: boolean;
   rtl: boolean;
   showGap: boolean;
@@ -18,6 +19,7 @@ function ReaderOverlay({
   showOverlay,
   pinPageIndicator,
   cascadeMode,
+  webtoonMode,
   doublePage,
   rtl,
   showGap,
@@ -30,11 +32,13 @@ function ReaderOverlay({
   const shortcutsVisible = showMoreInfo || showOverlay;
   const infoVisible = showMoreInfo || showOverlay || pinPageIndicator;
 
-  const modeLabel = cascadeMode
-    ? `🧩 ${t("reader.modeCascade")}`
-    : doublePage
-      ? `📖 ${t("reader.modeDouble")}`
-      : `📄 ${t("reader.modeSingle")}`;
+  const modeLabel = webtoonMode
+    ? `📜 ${t("reader.modeWebtoon")}`
+    : cascadeMode
+      ? `🧩 ${t("reader.modeCascade")}`
+      : doublePage
+        ? `📖 ${t("reader.modeDouble")}`
+        : `📄 ${t("reader.modeSingle")}`;
 
   return (
     <>
@@ -58,6 +62,7 @@ function ReaderOverlay({
                   ["PageUp / PageDown", t("shortcuts.scrollOrTurn")],
                   ["Home / End",       t("shortcuts.firstLast")],
                   ["Ctrl+← / →",       t("shortcuts.prevNextFile")],
+                  ["W",                t("shortcuts.webtoon")],
                   ["C",                t("shortcuts.cascade")],
                   ["D",                t("shortcuts.doublePage")],
                   ["S",                t("shortcuts.rtl")],

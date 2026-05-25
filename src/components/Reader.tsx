@@ -25,6 +25,7 @@ function Reader({
   const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, loaded } = useReadingProgress(filePath, startPage);
   const lastPageFiredRef = useRef(false);
   const [zoom, setZoom] = useState(1);
+  const [webtoonMode, setWebtoonMode] = useState(false);
   const [doublePage, setDoublePage] = useState(false);
   const [rtl, setRtl] = useState(false);
   const [showGap, setShowGap] = useState(true);
@@ -67,7 +68,7 @@ function Reader({
     return () => window.removeEventListener("dblclick", handleDblClick);
   }, []);
 
-  const currentPages = cascadeMode
+  const currentPages = cascadeMode || webtoonMode
     ? pages
     : doublePage
       ? pages.slice(pageIndex, pageIndex + 2)
@@ -98,7 +99,7 @@ function Reader({
       if (unloaded.length > 0) {
         await Promise.all(unloaded.map(img => new Promise<void>(resolve => { img.onload = img.onerror = () => resolve(); })));
       }
-      if (cascadeMode) {
+      if (cascadeMode || webtoonMode) {
         const target = images[pageIndex];
         if (target) {
           // getBoundingClientRect returns the *visual* (transformed) bounds, so this
@@ -114,11 +115,11 @@ function Reader({
         container.scrollTo({ top: 0, behavior: smoothScroll });
       }
     })();
-  }, [pageIndex, cascadeMode, smoothScroll]);
+  }, [pageIndex, cascadeMode, webtoonMode, smoothScroll]);
 
   // Cascade mode: track which image is most visible and reflect it in pageIndex.
   useEffect(() => {
-    if (!cascadeMode) return;
+    if (!cascadeMode && !webtoonMode) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -168,10 +169,10 @@ function Reader({
       active = false;
       observer?.disconnect();
     };
-  }, [cascadeMode, pages, setPageIndex]);
+  }, [cascadeMode, webtoonMode, pages, setPageIndex]);
 
   useEffect(() => {
-    if (cascadeMode) return;
+    if (cascadeMode || webtoonMode) return;
 
     const preloadNextPages = () => {
       const nextPages = doublePage
@@ -186,7 +187,7 @@ function Reader({
     };
 
     preloadNextPages();
-  }, [pageIndex, pages, doublePage, cascadeMode]);
+  }, [pageIndex, pages, doublePage, cascadeMode, webtoonMode]);
 
   const checkHeight = useCallback((zoom: number) => {
     if (contentRef.current) {
@@ -201,6 +202,7 @@ function Reader({
     filePath,
     pagesLength: pages.length,
     cascadeMode,
+    webtoonMode,
     rtl,
     showMoreInfo,
     smoothScroll,
@@ -208,6 +210,7 @@ function Reader({
     prevPage,
     onClose,
     setPageIndex,
+    setWebtoonMode,
     setCascadeMode,
     setDoublePage,
     setRtl,
@@ -228,7 +231,7 @@ function Reader({
     let isThrottled = false;
 
     const handleWheel = (e: WheelEvent) => {
-      if (!container || isThrottled || cascadeMode) return;
+      if (!container || isThrottled || cascadeMode || webtoonMode) return;
 
       const { scrollTop, scrollHeight, clientHeight } = container;
       const atBottom = scrollTop + clientHeight >= scrollHeight - 10;
@@ -262,9 +265,9 @@ function Reader({
     container.addEventListener("wheel", handleWheel, { passive: true });
 
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [nextPage, prevPage, cascadeMode]);
+  }, [nextPage, prevPage, cascadeMode, webtoonMode]);
 
-  const flexDirection = cascadeMode
+  const flexDirection = cascadeMode || webtoonMode
     ? "flex-col"
     : doublePage
       ? rtl ? "flex-row-reverse" : "flex-row"
@@ -273,7 +276,7 @@ function Reader({
   return (
     <div
       ref={containerRef}
-      className={`flex justify-center ${isTallerThanViewport || cascadeMode ? "items-start" : "items-center"} bg-[var(--reader-bg)] text-[var(--text-primary)] h-screen overflow-auto`}
+      className={`flex justify-center ${isTallerThanViewport || cascadeMode || webtoonMode ? "items-start" : "items-center"} bg-[var(--reader-bg)] text-[var(--text-primary)] h-screen overflow-auto`}
       style={{ scrollBehavior: "smooth" }}
     >
       {loaded && (
@@ -281,10 +284,10 @@ function Reader({
           ref={contentRef}
           className={`flex ${flexDirection} justify-center items-center`}
           style={{
-            gap: showGap ? "1rem" : "0",
+            gap: webtoonMode ? "0" : showGap ? "1rem" : "0",
             transform: `scale(${zoom})`,
-            transformOrigin: isTallerThanViewport || cascadeMode ? "center top" : "center",
-            transition: cascadeMode ? "none" : "transform 0.2s ease-in-out",
+            transformOrigin: isTallerThanViewport || cascadeMode || webtoonMode ? "center top" : "center",
+            transition: cascadeMode || webtoonMode ? "none" : "transform 0.2s ease-in-out",
           }}
         >
           {currentPages.map((src, i) => (
@@ -293,11 +296,13 @@ function Reader({
               src={src}
               alt={`Page ${i + 1}`}
               className={
-                cascadeMode
-                  ? "w-auto max-w-[95vw] max-h-[95vh] object-contain shadow-md"
-                  : "max-h-screen object-contain shadow-md"
+                webtoonMode
+                  ? "w-auto max-w-[90vw] object-contain"
+                  : cascadeMode
+                    ? "w-auto max-w-[95vw] max-h-[95vh] object-contain shadow-md"
+                    : "max-h-screen object-contain shadow-md"
               }
-              style={cascadeMode ? undefined : { maxWidth: `${doublePage ? 45 : 80}vw` }}
+              style={webtoonMode || cascadeMode ? undefined : { maxWidth: `${doublePage ? 45 : 80}vw` }}
             />
           ))}
         </div>
@@ -308,6 +313,7 @@ function Reader({
         showOverlay={showOverlay}
         pinPageIndicator={pinPageIndicator}
         cascadeMode={cascadeMode}
+        webtoonMode={webtoonMode}
         doublePage={doublePage}
         rtl={rtl}
         showGap={showGap}

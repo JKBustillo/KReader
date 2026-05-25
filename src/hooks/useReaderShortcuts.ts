@@ -18,6 +18,8 @@ type Params = {
   prevPage: () => void;
   onClose: () => void;
   setPageIndex: Dispatch<SetStateAction<number>>;
+  webtoonMode: boolean;
+  setWebtoonMode: Dispatch<SetStateAction<boolean>>;
   setCascadeMode: Dispatch<SetStateAction<boolean>>;
   setDoublePage: Dispatch<SetStateAction<boolean>>;
   setRtl: Dispatch<SetStateAction<boolean>>;
@@ -45,6 +47,7 @@ export function useReaderShortcuts(params: Params) {
     prevPage,
     onClose,
     setPageIndex,
+    setWebtoonMode,
     setCascadeMode,
     setDoublePage,
     setRtl,
@@ -104,7 +107,17 @@ export function useReaderShortcuts(params: Params) {
       switch (key) {
         case "c":
         case "C":
-          setCascadeMode((c) => !c);
+          setCascadeMode((c) => {
+            if (!c) setWebtoonMode(false);
+            return !c;
+          });
+          break;
+        case "w":
+        case "W":
+          setWebtoonMode((w) => {
+            if (!w) setCascadeMode(false);
+            return !w;
+          });
           break;
         case "+":
         case "=":
@@ -211,7 +224,7 @@ export function useReaderShortcuts(params: Params) {
       containerRef, overlayTimerRef, filePath, pagesLength,
       cascadeMode, rtl, showMoreInfo, smoothScroll,
       nextPage, prevPage, onClose,
-      setPageIndex, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
+      setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator,
       checkHeight, scheduleHide,
     ]

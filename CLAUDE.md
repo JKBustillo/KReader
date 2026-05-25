@@ -44,7 +44,7 @@ src/
                                   export/import de biblioteca. Abre desde el engranaje de NavBar.
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
-    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
+    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/
@@ -180,7 +180,8 @@ All other file I/O and format decoding happens in the frontend via Tauri JS plug
 | `PageUp` / `PageDown` | Scroll or page-turn at boundary |
 | `Home` / `End` | First / last page |
 | `Ctrl+←` / `Ctrl+→` | Previous/next file (or page, for standalone images) |
-| `C` | Toggle cascade mode (all pages vertical) |
+| `W` | Toggle webtoon mode (continuous vertical scroll, no height cap, no gap) |
+| `C` | Toggle cascade mode (all pages vertical, height-capped) |
 | `D` | Toggle double-page mode |
 | `S` | Toggle RTL reading direction |
 | `G` | Toggle gap between pages |
