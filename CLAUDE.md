@@ -140,7 +140,8 @@ src/
 
 - `main.rs` — trivial: just calls `kreader_lib::run()`.
 - `lib.rs` — exposes Tauri commands:
-  - `get_startup_file` — returns the path passed as CLI argument (used for OS file associations).
+  - `take_window_file` — returns (and clears) the file path the calling window should open on mount, looked up by its label in the `PendingFiles` map. The initial `main` window's entry is seeded from the CLI argument in `setup()`; windows spawned by `open_new_window` or the single-instance callback seed their own entry. Returns `None` once consumed.
+  - `open_new_window(path?)` — spawns a new app window in the current process (label `reader-{n}`), optionally pre-loading `path`. Used by the NavBar "New window" button.
   - `extract_cbr(path)` — unpacks a full CBR/RAR archive; returns all images as raw binary response.
   - `extract_cbr_cover(path)` — returns only the first image from a CBR/RAR (for thumbnails). Stops after first image found.
   - `extract_cbz_cover(path)` — returns only the first image from a CBZ/ZIP (alphabetically sorted); reads only the central directory + one compressed entry.
@@ -175,6 +176,16 @@ Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into W
 ### System file associations
 
 `App.tsx` also listens for the Tauri event `openCbzFromSystem` (emitted when the OS opens a registered file with KReader via the file association in `tauri.conf.json`).
+
+## Multi-window (single-instance)
+
+KReader runs as a **single process** with potentially multiple windows, via `tauri-plugin-single-instance` (registered as the *first* plugin in `lib.rs`). This is deliberate: the Tauri Store keeps its canonical map in Rust shared across all windows of a process, so multiple windows can read/write reading progress, bookmarks, and settings without clobbering each other. Separate *processes* would each hold an independent in-memory copy and overwrite the whole file on `save()` (last-write-wins), which is the bug this design avoids.
+
+- A second OS launch (e.g. file-association double-click while running) is intercepted by the single-instance callback, which spawns a new window via `create_reader_window` instead of starting a second process.
+- The NavBar "New window" button calls `open_new_window` to spawn a fresh window from inside the app.
+- Each window resolves which file to open on mount by calling `take_window_file` (keyed by its own window label) — see the `PendingFiles` map in `lib.rs`. The `main` window's entry comes from the CLI argument.
+- New windows use labels `reader-{n}` (monotonic `WindowCounter`). The capability in `capabilities/default.json` must cover them — its `windows` list includes both `"main"` and `"reader-*"`; without the glob, new windows would have no store/fs/dialog/core permissions.
+- **Not handled:** live cross-window reactivity. If two windows share the same library, an in-memory change in one (e.g. folder filter) is not pushed to the other until it rescans/reopens. Disk state stays consistent; only the live React state can be momentarily stale.
 
 ## Reader keyboard shortcuts
 
@@ -216,6 +227,8 @@ All three must match. `Cargo.toml` is what Tauri uses for the installer binary v
 ## Key dependencies
 
 ### Tauri capabilities (`src-tauri/capabilities/default.json`)
+
+The capability's `windows` list is bound to `["main", "reader-*"]` so dynamically created reader windows inherit all permissions (see [Multi-window](#multi-window-single-instance)).
 
 New fs operations require explicit entries here. Currently granted beyond `fs:default`:
 - `fs:allow-write-file` — writing files (used by store plugins)

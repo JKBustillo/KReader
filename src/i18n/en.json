@@ -2,7 +2,8 @@
   "loading": "Opening file...",
   "nav": {
     "home": "Home",
-    "library": "Library"
+    "library": "Library",
+    "newWindow": "New window"
   },
   "library": {
     "title": "Library",

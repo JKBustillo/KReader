@@ -2,7 +2,8 @@
   "loading": "Abriendo archivo...",
   "nav": {
     "home": "Inicio",
-    "library": "Biblioteca"
+    "library": "Biblioteca",
+    "newWindow": "Nueva ventana"
   },
   "library": {
     "title": "Biblioteca",

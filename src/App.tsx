@@ -162,7 +162,7 @@ function App() {
     (async () => {
       const [savedView, startupPath] = await Promise.all([
         getLastAppView(),
-        invoke<string | null>("get_startup_file"),
+        invoke<string | null>("take_window_file"),
       ]);
       if (startupPath) {
         handleOpen(startupPath, "home");

@@ -2,9 +2,12 @@ use tauri_plugin_store::Builder as StoreBuilder;
 use tauri::Manager;
 use tauri::ipc::Response;
 use std::sync::Mutex;
-use std::collections::BTreeMap;
+use std::sync::atomic::{AtomicU32, Ordering};
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use std::time::UNIX_EPOCH;
+
+const READER_WINDOW_LABEL_PREFIX: &str = "reader-";
 
 const IMAGE_EXTS: &[&str] = &[".jpg", ".jpeg", ".png", ".gif", ".webp"];
 
@@ -15,11 +18,54 @@ fn image_mime(lower_name: &str) -> &'static str {
     else { "image/jpeg" }
 }
 
-struct StartupFile(Mutex<Option<String>>);
+// Maps a window label to the file path it should open on mount. Each window
+// reads (and clears) its own entry via `take_window_file`. The initial window
+// ("main") gets the CLI-argument file; windows spawned by the single-instance
+// callback or `open_new_window` get their target file here too. A single
+// shared store lives in this one process, so multiple windows never clobber
+// each other's persisted state.
+struct PendingFiles(Mutex<HashMap<String, String>>);
+
+// Monotonic counter for unique reader-window labels. Tauri panics on duplicate
+// labels, so this must never repeat within a process.
+struct WindowCounter(AtomicU32);
+
+// Spawns a new app window in the current process, optionally pre-loading a file.
+fn create_reader_window(app: &tauri::AppHandle, path: Option<String>) -> Result<(), String> {
+    let n = app.state::<WindowCounter>().0.fetch_add(1, Ordering::SeqCst);
+    let label = format!("{}{}", READER_WINDOW_LABEL_PREFIX, n);
+
+    if let Some(p) = path {
+        app.state::<PendingFiles>()
+            .0
+            .lock()
+            .unwrap()
+            .insert(label.clone(), p);
+    }
+
+    tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("index.html".into()))
+        .title("KReader")
+        .inner_size(800.0, 600.0)
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    Ok(())
+}
 
 #[tauri::command]
-fn get_startup_file(state: tauri::State<StartupFile>) -> Option<String> {
-    state.0.lock().unwrap().take()
+fn take_window_file(window: tauri::Window, state: tauri::State<PendingFiles>) -> Option<String> {
+    state.0.lock().unwrap().remove(window.label())
+}
+
+// Must be async: synchronous commands run on the main thread, and building a
+// WebviewWindow (WebView2 on Windows) needs the main thread's event loop to be
+// pumping. Calling build() from a sync command deadlocks the UI. Running async
+// moves this off the main thread so build() can dispatch window creation to the
+// now-free main thread. The single-instance callback creates windows directly
+// (it isn't blocking an IPC response), so create_reader_window stays sync.
+#[tauri::command]
+async fn open_new_window(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
+    create_reader_window(&app, path)
 }
 
 // Binary response layout:
@@ -314,16 +360,28 @@ fn trash_file(path: String) -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        // The single-instance plugin must be registered first. When a second
+        // launch is intercepted (e.g. OS file association double-click), the
+        // primary process spawns a new window for the incoming file instead.
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
+            let file = argv.get(1).filter(|s| !s.is_empty()).cloned();
+            let _ = create_reader_window(app, file);
+        }))
         .setup(|app| {
             let args: Vec<String> = std::env::args().collect();
             let startup_path = if args.len() > 1 { Some(args[1].clone()) } else { None };
-            app.manage(StartupFile(Mutex::new(startup_path)));
+            let mut pending = HashMap::new();
+            if let Some(p) = startup_path {
+                pending.insert("main".to_string(), p);
+            }
+            app.manage(PendingFiles(Mutex::new(pending)));
+            app.manage(WindowCounter(AtomicU32::new(1)));
             Ok(())
         })
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_startup_file, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
+        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
