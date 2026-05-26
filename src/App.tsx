@@ -11,7 +11,7 @@ import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
-import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
@@ -32,6 +32,8 @@ function App() {
   const [returnTo, setReturnTo] = useState<"home" | "library">("home");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProgressBar, setShowProgressBar] = useState(false);
+  const [showPageCount, setShowPageCount] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { t } = useTranslation();
 
   const blobUrlsRef = useRef<string[]>([]);
@@ -59,6 +61,7 @@ function App() {
   useEffect(() => {
     getRecentFiles().then(setRecentFiles);
     getShowProgressBar().then(setShowProgressBar);
+    getShowPageCount().then(setShowPageCount);
   }, []);
 
   // Clears reader state without changing the current view. Used internally
@@ -81,6 +84,18 @@ function App() {
       saveShowProgressBar(next).catch(console.error);
       return next;
     });
+  }, []);
+
+  const handleTogglePageCount = useCallback(() => {
+    setShowPageCount((prev) => {
+      const next = !prev;
+      saveShowPageCount(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const handleRefreshMetadata = useCallback(() => {
+    setRefreshTrigger((n) => n + 1);
   }, []);
 
   const handleOpen = useCallback(async (
@@ -243,7 +258,7 @@ function App() {
   }
 
   if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} />;
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} onRefreshMetadata={handleRefreshMetadata} />;
     if (pdfData !== null) {
       return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
     }
@@ -265,6 +280,8 @@ function App() {
         {view === "library" ? (
           <LibraryView
             showProgressBar={showProgressBar}
+            showPageCount={showPageCount}
+            refreshTrigger={refreshTrigger}
             onOpen={(path, onComplete, onPagesLoaded) => handleOpen(path, "library", onComplete, onPagesLoaded)}
           />
         ) : (
@@ -321,6 +338,9 @@ function App() {
         onSetLanguage={handleSetLanguage}
         showProgressBar={showProgressBar}
         onToggleProgressBar={handleToggleProgressBar}
+        showPageCount={showPageCount}
+        onTogglePageCount={handleTogglePageCount}
+        onRefreshMetadata={handleRefreshMetadata}
       />
     </div>
   );

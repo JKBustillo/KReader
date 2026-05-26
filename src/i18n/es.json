@@ -45,7 +45,9 @@
     "deleteConfirmMany": "¿Eliminar {{count}} archivos? Se moverán a la papelera.",
     "deleteConfirmBtn": "Eliminar",
     "cancel": "Cancelar",
-    "colLastOpened": "Último abierto"
+    "colLastOpened": "Último abierto",
+    "colPages": "Páginas",
+    "pages": "páginas"
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",
@@ -90,6 +92,8 @@
     "language": "Idioma",
     "library": "Biblioteca",
     "progressBar": "Progreso de lectura",
+    "pageCount": "Páginas en card",
+    "refreshMetadata": "Actualizar metadatos",
     "export": "Exportar biblioteca",
     "import": "Importar biblioteca",
     "importConfirmMsg": "Esto reemplazará todos los datos actuales de la biblioteca. Esta acción no se puede deshacer.",

@@ -45,7 +45,9 @@
     "deleteConfirmMany": "Delete {{count}} files? They will be moved to the trash.",
     "deleteConfirmBtn": "Delete",
     "cancel": "Cancel",
-    "colLastOpened": "Last opened"
+    "colLastOpened": "Last opened",
+    "colPages": "Pages",
+    "pages": "pages"
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",
@@ -90,6 +92,8 @@
     "language": "Language",
     "library": "Library",
     "progressBar": "Reading progress",
+    "pageCount": "Page count on card",
+    "refreshMetadata": "Refresh metadata",
     "export": "Export library",
     "import": "Import library",
     "importConfirmMsg": "This will replace all current library data. This action cannot be undone.",

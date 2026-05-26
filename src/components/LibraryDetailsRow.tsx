@@ -57,11 +57,12 @@ function RatingStars({ rating, onRate }: { rating: number | undefined; onRate: (
 const COL_STAR = "w-6 shrink-0 flex items-center justify-center";
 const COL_RATING = "w-24 shrink-0";
 const COL_WIDTHS: Record<SortField, string> = {
-  name:      "flex-1 min-w-0",
-  size:      "w-24 shrink-0 text-right",
-  date:      "w-32 shrink-0",
-  folder:    "w-48 shrink-0 min-w-0",
-  lastOpened:"w-32 shrink-0",
+  name:       "flex-1 min-w-0",
+  size:       "w-24 shrink-0 text-right",
+  date:       "w-32 shrink-0",
+  folder:     "w-48 shrink-0 min-w-0",
+  lastOpened: "w-32 shrink-0",
+  pages:      "w-16 shrink-0 text-right",
 };
 
 const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
@@ -153,6 +154,9 @@ function LibraryDetailsRow({
       </span>
       <span className={COL_WIDTHS.lastOpened} style={{ color: "var(--text-muted)" }}>
         {formatDate(entry.lastOpenedAt ?? 0)}
+      </span>
+      <span className={`${COL_WIDTHS.pages} tabular-nums`} style={{ color: "var(--text-secondary)" }}>
+        {entry.totalPages ?? "—"}
       </span>
       {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
         const progressPct = entry.readingState === "completed"

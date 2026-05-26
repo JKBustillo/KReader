@@ -14,6 +14,9 @@ function SettingsModal({
   onSetLanguage,
   showProgressBar,
   onToggleProgressBar,
+  showPageCount,
+  onTogglePageCount,
+  onRefreshMetadata,
 }: {
   open: boolean;
   onClose: () => void;
@@ -23,6 +26,9 @@ function SettingsModal({
   onSetLanguage: (lang: string) => void;
   showProgressBar: boolean;
   onToggleProgressBar: () => void;
+  showPageCount: boolean;
+  onTogglePageCount: () => void;
+  onRefreshMetadata: () => void;
 }) {
   const { t } = useTranslation();
   const [importPending, setImportPending] = useState(false);
@@ -164,6 +170,31 @@ function SettingsModal({
               />
             </button>
           </div>
+          <div className="flex items-center justify-between">
+            <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+              {t("settings.pageCount")}
+            </span>
+            <button
+              onClick={onTogglePageCount}
+              className="w-9 h-5 rounded-full relative transition-colors"
+              style={{ background: showPageCount ? "var(--color-selection)" : "var(--border-nav)" }}
+            >
+              <span
+                className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
+                style={{
+                  background: "#fff",
+                  left: showPageCount ? "calc(100% - 1.125rem)" : "0.125rem",
+                }}
+              />
+            </button>
+          </div>
+          <button
+            className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
+            style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
+            onClick={onRefreshMetadata}
+          >
+            {t("settings.refreshMetadata")}
+          </button>
           <button
             className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
             style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}

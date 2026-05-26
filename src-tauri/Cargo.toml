@@ -1,6 +1,6 @@
 [package]
 name = "kreader"
-version = "0.10.6"
+version = "0.11.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -27,4 +27,5 @@ tauri-plugin-store = "2"
 unrar = "0.5"
 zip = "2"
 trash = "3"
+lopdf = { version = "0.40.0", default-features = false }
 

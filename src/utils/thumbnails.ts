@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { appCacheDir, join } from "@tauri-apps/api/path";
-import { readFile, writeFile, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { readFile, writeFile, mkdir, exists, remove } from "@tauri-apps/plugin-fs";
 import * as pdfjsLib from "pdfjs-dist";
 import PDFWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
@@ -211,4 +211,16 @@ export function removeThumbnailFromCache(id: string): void {
 
 export function clearThumbnailCache(): void {
   cache.clear();
+}
+
+export async function clearThumbnailDiskCache(entryIds: string[]): Promise<void> {
+  for (const id of entryIds) {
+    cache.delete(id);
+    try {
+      const filePath = await getDiskCachePath(id);
+      await remove(filePath);
+    } catch {
+      // file may not exist — ignore
+    }
+  }
 }

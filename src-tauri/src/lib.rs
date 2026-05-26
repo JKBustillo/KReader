@@ -259,6 +259,48 @@ fn list_subdirs(root: String) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+fn count_cbz_pages(path: String) -> Result<u32, String> {
+    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let count = (0..archive.len())
+        .filter(|&i| {
+            archive
+                .name_for_index(i)
+                .map(|name| {
+                    let lower = name.to_lowercase();
+                    IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext))
+                })
+                .unwrap_or(false)
+        })
+        .count();
+    Ok(count as u32)
+}
+
+#[tauri::command]
+fn count_pdf_pages(path: String) -> Result<u32, String> {
+    let doc = lopdf::Document::load(&path).map_err(|e| e.to_string())?;
+    Ok(doc.get_pages().len() as u32)
+}
+
+#[tauri::command]
+fn count_cbr_pages(path: String) -> Result<u32, String> {
+    let archive = unrar::Archive::new(&path)
+        .open_for_listing()
+        .map_err(|e| e.to_string())?;
+    let count = archive
+        .filter_map(|entry| entry.ok())
+        .filter(|header| {
+            if !header.is_file() {
+                return false;
+            }
+            let lower = header.filename.to_string_lossy().to_lowercase();
+            IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext))
+        })
+        .count();
+    Ok(count as u32)
+}
+
+#[tauri::command]
 fn trash_file(path: String) -> Result<(), String> {
     match trash::delete(&path) {
         Ok(_) => Ok(()),
@@ -278,7 +320,7 @@ pub fn run() {
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_startup_file, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file])
+        .invoke_handler(tauri::generate_handler![get_startup_file, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

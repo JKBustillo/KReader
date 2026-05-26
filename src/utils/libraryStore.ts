@@ -143,6 +143,14 @@ export async function setTotalPages(id: string, libraryId: string, total: number
   await store.save();
 }
 
+export async function clearAllTotalPages(libraryId: string): Promise<void> {
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const cleared = entries.map((e) => ({ ...e, totalPages: undefined }));
+  await store.set(entriesKey(libraryId), cleared);
+  await store.save();
+}
+
 export async function exportLibraryData(): Promise<{ libraries: Library[]; entries: Record<string, LibraryEntry[]> }> {
   const libraries = await getLibraries();
   const entries: Record<string, LibraryEntry[]> = {};

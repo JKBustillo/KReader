@@ -65,6 +65,7 @@ src/
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              getRelativeFolder(entryPath, rootPath) shared util
     readingProgressStore.ts     Read-only access to .reading-progress.dat from non-hook contexts; exposes getPageForPath(filePath)
+    countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats.
   i18n/                         react-i18next setup (en, es)
 ```
 
@@ -146,6 +147,9 @@ src/
   - `scan_library(root)` — recursive directory walk returning `ScannedFile[]` (path, filename, size_bytes, modified_secs) for all supported extensions.
   - `list_subdirs(root)` — recursive walk returning all subdirectory paths relative to root (`"/"` for root itself, `"Leído"`, `"Leído/Archivado"`, etc.). Used by the "Move to folder" context menu action.
   - `trash_file(path)` — sends a file to the OS trash via the `trash` crate; falls back to permanent deletion if trash is unavailable.
+  - `count_cbz_pages(path)` — counts image entries in a CBZ/ZIP central directory without decompression. Returns `u32`.
+  - `count_pdf_pages(path)` — counts pages via `lopdf::Document::load` (reads xref + catalog only, no content streams). Returns `u32`.
+  - `count_cbr_pages(path)` — counts image entries in a CBR/RAR via `open_for_listing` (no extraction). Returns `u32`.
 
 All commands return `Result<T, String>`. Large binary data (images) is returned as `tauri::ipc::Response` (raw bytes) to avoid base64 inflation and keep bytes outside V8's heap.
 
@@ -159,7 +163,7 @@ for each image:
   [bytes]  image data
 ```
 
-All other file I/O and format decoding happens in the frontend via Tauri JS plugins.
+Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into WebView2 heap — only a `u32` is returned to JS. Image folder counting uses `readDir` in TS (lightweight).
 
 ### Sibling-file navigation (Ctrl+Arrow)
 
@@ -223,7 +227,8 @@ If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permissi
 ## Key dependencies
 
 - `pdfjs-dist` — PDF rendering; worker is loaded via Vite `?url` import.
-- `jszip` — CBZ extraction (CBZ is just a ZIP of images).
-- `unrar` (Rust) — CBR extraction in the backend.
+- `jszip` — CBZ extraction (CBZ is just a ZIP of images). Not used for page counting (handled by Rust).
+- `unrar` (Rust) — CBR extraction and page counting in the backend.
+- `lopdf` (Rust) — PDF page counting (`count_pdf_pages` command). `default-features = false` to avoid pulling in rayon/chrono/time.
 - `react-hotkeys-hook` — present in `package.json` but unused; keyboard handling is done via `addEventListener` in `useReaderShortcuts` and `App.tsx`.
 - `@tauri-apps/plugin-store` — key-value persistence for recent files, reading progress, settings, and library data.

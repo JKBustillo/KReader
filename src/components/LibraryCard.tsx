@@ -68,6 +68,7 @@ function LibraryCard({
   onContextMenu,
   showProgressBar,
   currentPage,
+  showPageCount,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
@@ -80,6 +81,7 @@ function LibraryCard({
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
   showProgressBar: boolean;
   currentPage: number;
+  showPageCount: boolean;
 }) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -116,7 +118,7 @@ function LibraryCard({
       onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
-      className="flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
+      className="group flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
       style={{
         background: "var(--bg-tab-active)",
         opacity: notFound && !ambiguous ? 0.4 : 1,
@@ -169,6 +171,16 @@ function LibraryCard({
           />
         )}
 
+        {/* Page count overlay — appears on hover */}
+        {(entry.totalPages ?? 0) > 0 && (
+          <div
+            className="absolute bottom-0 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity py-1 text-center text-[10px] select-none pointer-events-none"
+            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
+          >
+            {entry.totalPages} {t("library.pages")}
+          </div>
+        )}
+
         {/* Favorite toggle — always visible, top-right of cover */}
         <button
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(entry); }}
@@ -190,6 +202,11 @@ function LibraryCard({
           {title}
         </p>
         <RatingStars rating={entry.rating} onRate={(r) => onRate(entry, r)} />
+        {showPageCount && (entry.totalPages ?? 0) > 0 && (
+          <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
+            {entry.totalPages} {t("library.pages")}
+          </span>
+        )}
         {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
           const progressPct = entry.readingState === "completed"
             ? 100

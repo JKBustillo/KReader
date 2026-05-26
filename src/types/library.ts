@@ -32,6 +32,6 @@ export type LibraryEntry = {
   totalPages?: number;
 };
 
-export type SortField = "name" | "size" | "date" | "folder" | "lastOpened";
+export type SortField = "name" | "size" | "date" | "folder" | "lastOpened" | "pages";
 export type SortDirection = "asc" | "desc";
 export type ViewMode = "details" | "grid";

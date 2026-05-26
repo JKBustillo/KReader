@@ -18,8 +18,11 @@ import {
   setReadingState,
   setLastOpenedAt,
   setTotalPages,
+  clearAllTotalPages,
   batchSetCustomTags,
 } from "../utils/libraryStore";
+import { countPages } from "../utils/countPages";
+import { clearThumbnailDiskCache } from "../utils/thumbnails";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
 import { getPageForPath } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
@@ -194,9 +197,13 @@ function DeleteConfirmModal({
 function LibraryView({
   onOpen,
   showProgressBar,
+  showPageCount,
+  refreshTrigger,
 }: {
   onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void) => void;
   showProgressBar: boolean;
+  showPageCount: boolean;
+  refreshTrigger: number;
 }) {
   const { t } = useTranslation();
   const [libraries, setLibraries] = useState<Library[]>([]);
@@ -225,6 +232,8 @@ function LibraryView({
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
   const [pageMap, setPageMap] = useState<Map<string, number>>(new Map());
+  const [bgScanQueue, setBgScanQueue] = useState<LibraryEntry[]>([]);
+  const bgScanCancelRef = useRef(false);
 
   // Stable refs used inside callbacks to avoid stale closures without adding
   // frequently-changing values to useCallback dependency arrays.
@@ -232,6 +241,8 @@ function LibraryView({
   selectedIdsRef.current = selectedIds;
   const entriesRef = useRef<LibraryEntry[]>(entries);
   entriesRef.current = entries;
+  const notFoundIdsRef = useRef<Set<string>>(notFoundIds);
+  notFoundIdsRef.current = notFoundIds;
   const lastCtrlSelectedIdRef = useRef<string | null>(null);
   const sortedRef = useRef<LibraryEntry[]>([]);
   const tagsDropdownContainerRef = useRef<HTMLDivElement>(null);
@@ -330,6 +341,9 @@ function LibraryView({
 
         setEntries(allEntries);
         setNotFoundIds(missing);
+
+        const toCount = allEntries.filter((e) => e.totalPages === undefined && !missing.has(e.id));
+        setBgScanQueue(toCount);
 
         const toRead = allEntries.filter(
           (e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread"
@@ -614,9 +628,51 @@ function LibraryView({
     setNotFoundIds(new Set());
   }, [activeLib, libraries]);
 
+  // Background page-count scan: processes entries without totalPages one at a time.
+  useEffect(() => {
+    if (bgScanQueue.length === 0) return;
+    bgScanCancelRef.current = false;
+
+    (async () => {
+      for (const entry of bgScanQueue) {
+        if (bgScanCancelRef.current) break;
+        try {
+          const count = await countPages(entry);
+          if (bgScanCancelRef.current) break;
+          if (count !== null) {
+            await setTotalPages(entry.id, entry.libraryId, count);
+            setEntries((prev) =>
+              prev.map((e) => e.id === entry.id ? { ...e, totalPages: count } : e)
+            );
+          }
+        } catch {
+          // skip entries that fail (not found, unsupported, etc.)
+        }
+      }
+    })();
+
+    return () => { bgScanCancelRef.current = true; };
+  }, [bgScanQueue]);
+
+  const handleRefreshMetadata = useCallback(async () => {
+    if (!activeLibId) return;
+    bgScanCancelRef.current = true;
+    await clearAllTotalPages(activeLibId);
+    const ids = entriesRef.current.map((e) => e.id);
+    await clearThumbnailDiskCache(ids);
+    const cleared = entriesRef.current.map((e) => ({ ...e, totalPages: undefined as number | undefined }));
+    setEntries(cleared);
+    setBgScanQueue(cleared.filter((e) => !notFoundIdsRef.current.has(e.id)));
+  }, [activeLibId]);
+
+  useEffect(() => {
+    if (refreshTrigger === 0) return;
+    handleRefreshMetadata();
+  }, [refreshTrigger, handleRefreshMetadata]);
+
   const handleSortClick = (field: SortField) => {
     if (sortField === field) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortField(field); setSortDir(field === "lastOpened" ? "desc" : "asc"); }
+    else { setSortField(field); setSortDir(field === "lastOpened" || field === "pages" ? "desc" : "asc"); }
   };
 
   const sortIndicator = (field: SortField) =>
@@ -700,6 +756,7 @@ function LibraryView({
         break;
       }
       case "lastOpened": cmp = (a.lastOpenedAt ?? 0) - (b.lastOpenedAt ?? 0); break;
+      case "pages":      cmp = (a.totalPages ?? 0) - (b.totalPages ?? 0); break;
     }
     return sortDir === "asc" ? cmp : -cmp;
   });
@@ -716,7 +773,7 @@ function LibraryView({
         {libraries.length > 1 && (
           <select
             value={activeLibId ?? ""}
-            onChange={(e) => { setActiveLibId(e.target.value); setEntries([]); setSearch(""); }}
+            onChange={(e) => { setActiveLibId(e.target.value); setEntries([]); setBgScanQueue([]); setSearch(""); }}
             className="text-sm rounded px-2 py-1"
             style={{ background: "var(--bg-tab-active)", color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
           >
@@ -1012,6 +1069,9 @@ function LibraryView({
               <button className={`${colHeaderClass} ${COL_WIDTHS.lastOpened}`} onClick={() => handleSortClick("lastOpened")}>
                 {t("library.colLastOpened")}{sortIndicator("lastOpened")}
               </button>
+              <button className={`${colHeaderClass} ${COL_WIDTHS.pages} justify-end`} onClick={() => handleSortClick("pages")}>
+                {t("library.colPages")}{sortIndicator("pages")}
+              </button>
             </div>
           )}
 
@@ -1049,6 +1109,7 @@ function LibraryView({
                     onContextMenu={handleContextMenu}
                     showProgressBar={showProgressBar}
                     currentPage={pageMap.get(entry.id) ?? 0}
+                    showPageCount={showPageCount}
                   />
                 ))
               : (
@@ -1071,6 +1132,7 @@ function LibraryView({
                       onContextMenu={handleContextMenu}
                       showProgressBar={showProgressBar}
                       currentPage={pageMap.get(entry.id) ?? 0}
+                      showPageCount={showPageCount}
                     />
                   ))}
                 </div>

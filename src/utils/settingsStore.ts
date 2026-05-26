@@ -43,6 +43,19 @@ export async function saveShowProgressBar(value: boolean): Promise<void> {
   await store.save();
 }
 
+const KEY_SHOW_PAGE_COUNT = "show-page-count";
+
+export async function getShowPageCount(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_SHOW_PAGE_COUNT)) ?? false;
+}
+
+export async function saveShowPageCount(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_SHOW_PAGE_COUNT, value);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(
