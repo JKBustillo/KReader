@@ -2,23 +2,51 @@
 
 A lightweight desktop reader for comics and documents, built with Tauri + React + TypeScript.
 
+It reads comic archives, PDFs, and standalone images, and includes a built-in library system for organizing and browsing your collection.
+
 ## Supported formats
 
 | Format | Description |
 |--------|-------------|
-| `.cbz` | Comic Book ZIP — most common comic format |
+| `.cbz` / `.zip` | Comic Book ZIP — a ZIP of images (most common comic format) |
+| `.cbr` / `.rar` | Comic Book RAR — a RAR of images |
 | `.pdf` | PDF documents |
+| Images | `.jpg` `.jpeg` `.png` `.gif` `.webp` `.bmp` `.avif` — opening one loads the whole folder as pages |
 
 ## Features
 
-- **Recent files** — keeps a list of the last 10 opened files for quick access
-- **Reading progress** — remembers the last page and view mode for each file
-- **File association** — `.cbz` files can be opened directly with KReader from your OS
-- **Sibling navigation** — jump to the previous/next comic in the same folder without leaving the reader
-- **Multiple view modes** — single page, double page, and cascade (all pages scrollable vertically)
-- **Zoom** — scale content between 50% and 300%
-- **RTL support** — right-to-left reading direction for manga
-- **Fullscreen** — toggle with a key or double-click anywhere
+### Reader
+
+- **Multiple view modes** — single page, double page, cascade (all pages scrollable vertically, height-capped), and webtoon (continuous vertical scroll, no gaps).
+- **Bookmarks** — toggle bookmarks per page and jump between them; persisted per file.
+- **Reading progress** — remembers the last page and view mode for each file.
+- **Sibling navigation** — jump to the previous/next comic in the same folder without leaving the reader.
+- **Zoom** — scale content between 50% and 300%.
+- **RTL support** — right-to-left reading direction for manga.
+- **Fullscreen** — toggle with a key or by double-clicking anywhere.
+- **Recent files** — keeps a list of the last 10 opened files for quick access.
+
+### Library
+
+A built-in collection manager for browsing large libraries:
+
+- **Folder scanning** — point KReader at a folder and it indexes all supported files recursively.
+- **Two view modes** — grid (cover thumbnails) and details (sortable table).
+- **Sorting** — by name, size, date, last opened, or page count.
+- **Filtering** — by tags and by folders (recursive or direct-children-only), with union semantics.
+- **Tags** — auto-parsed from filename brackets (e.g. `[Circle (Author)]`) plus your own custom tags, editable individually or in bulk.
+- **Ratings** — 1–5 stars per entry.
+- **Reading progress bar** — optional per-card/row progress indicator.
+- **Cover thumbnails** — extracted and cached on disk.
+- **File management** — move entries to subfolders or send them to the OS trash.
+- **Export / import** — back up or transfer your whole library.
+
+### App
+
+- **Multiple windows** — open several reader windows at once; they run in a single process and share state, so bookmarks and settings never clobber each other.
+- **Themes** — dark and light.
+- **Languages** — English and Spanish.
+- **File association** — `.cbz`, `.cbr`, `.zip`, and `.rar` files can be opened directly with KReader from your OS.
 
 ## Keyboard shortcuts
 
@@ -34,11 +62,14 @@ A lightweight desktop reader for comics and documents, built with Tauri + React 
 
 | Key | Action |
 |-----|--------|
-| `←` / `→` | Previous / next page |
+| `←` / `→` | Previous / next page (respects RTL) |
 | `PageUp` / `PageDown` | Scroll, or turn page when at edge |
 | `Home` / `End` | Jump to first / last page |
 | `Ctrl + ←` / `Ctrl + →` | Previous / next comic in the same folder |
+| `W` | Toggle webtoon mode |
 | `C` | Toggle cascade mode |
+| `B` | Toggle bookmark on current page |
+| `[` / `]` | Jump to previous / next bookmark |
 | `D` | Toggle double-page mode |
 | `S` | Toggle RTL reading direction |
 | `G` | Toggle gap between pages |
@@ -65,6 +96,8 @@ npm run lint
 ```
 
 > Requires [Rust](https://www.rust-lang.org/tools/install) and the [Tauri prerequisites](https://tauri.app/start/prerequisites/) for your OS.
+>
+> Vite's dev server must run on port 1420 — Tauri hardcodes this in `tauri.conf.json`.
 
 ## Tech stack
 
@@ -72,5 +105,8 @@ npm run lint
 - [React 19](https://react.dev/) + [TypeScript](https://www.typescriptlang.org/)
 - [Vite](https://vitejs.dev/) — frontend tooling
 - [Tailwind CSS v4](https://tailwindcss.com/)
+- [react-i18next](https://react.i18next.com/) — internationalization (en/es)
 - [pdfjs-dist](https://github.com/mozilla/pdf.js) — PDF rendering
 - [JSZip](https://stuk.github.io/jszip/) — CBZ extraction
+- Rust crates: [`unrar`](https://crates.io/crates/unrar) (CBR extraction & page counting), [`lopdf`](https://crates.io/crates/lopdf) (PDF page counting), [`zip`](https://crates.io/crates/zip), [`trash`](https://crates.io/crates/trash) (send to OS trash)
+- [`@tauri-apps/plugin-store`](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/store) — key-value persistence
