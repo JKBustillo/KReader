@@ -302,6 +302,9 @@ fn count_cbr_pages(path: String) -> Result<u32, String> {
 
 #[tauri::command]
 fn trash_file(path: String) -> Result<(), String> {
+    if !std::path::Path::new(&path).exists() {
+        return Ok(());
+    }
     match trash::delete(&path) {
         Ok(_) => Ok(()),
         Err(_) => std::fs::remove_file(&path).map_err(|e| e.to_string()),

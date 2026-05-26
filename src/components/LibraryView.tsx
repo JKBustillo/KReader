@@ -1109,7 +1109,6 @@ function LibraryView({
                     onContextMenu={handleContextMenu}
                     showProgressBar={showProgressBar}
                     currentPage={pageMap.get(entry.id) ?? 0}
-                    showPageCount={showPageCount}
                   />
                 ))
               : (
@@ -1204,7 +1203,13 @@ function LibraryView({
                   className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
                   style={{ color: "var(--color-danger)" }}
                   onClick={() => {
-                    setDeleteConfirmEntries(contextMenu.entries);
+                    const entries = contextMenu.entries;
+                    const allGhost = entries.every((e) => notFoundIds.has(e.id));
+                    if (allGhost) {
+                      handleDeleteEntries(entries);
+                    } else {
+                      setDeleteConfirmEntries(entries);
+                    }
                     setContextMenu(null);
                   }}
                 >
