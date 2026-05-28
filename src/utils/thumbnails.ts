@@ -4,7 +4,7 @@ import { readFile, writeFile, mkdir, exists, remove } from "@tauri-apps/plugin-f
 import * as pdfjsLib from "pdfjs-dist";
 import PDFWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-import { detectKind } from "../loaders";
+import { detectKind, extOf, mimeForExt } from "../loaders";
 import type { LibraryEntry } from "../types/library";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
@@ -154,14 +154,8 @@ async function getPdfCover(path: string): Promise<Blob | null> {
 }
 
 async function getImageCover(path: string): Promise<Blob | null> {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
-  const mimeMap: Record<string, string> = {
-    jpg: "image/jpeg", jpeg: "image/jpeg",
-    png: "image/png", gif: "image/gif",
-    webp: "image/webp", bmp: "image/bmp", avif: "image/avif",
-  };
   const data = await readFile(path);
-  return new Blob([data], { type: mimeMap[ext] ?? "image/jpeg" });
+  return new Blob([data], { type: mimeForExt(extOf(path)) });
 }
 
 // --- Main generator ---

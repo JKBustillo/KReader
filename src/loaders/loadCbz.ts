@@ -1,8 +1,9 @@
 import { readFile } from "@tauri-apps/plugin-fs";
 import JSZip from "jszip";
-import type { LoaderResult } from "./types";
+import { IMAGE_EXTS, type LoaderResult } from "./types";
 
-const CBZ_IMAGE_REGEX = /\.(jpg|jpeg|png|gif|webp)$/i;
+// Derived from IMAGE_EXTS so supported formats stay in one place.
+const CBZ_IMAGE_REGEX = new RegExp(`\\.(${IMAGE_EXTS.join("|")})$`, "i");
 
 export async function loadCbz(path: string): Promise<LoaderResult> {
   const data = await readFile(path);

@@ -52,7 +52,9 @@ src/
     loadCbz.ts                  CBZ/ZIP via JSZip → blob URLs
     loadCbr.ts                  CBR/RAR via invoke('extract_cbr')
     loadImageFolder.ts          Single image → loads whole folder, sorted numerically
-    types.ts                    IMAGE_EXTS, LoaderResult
+    types.ts                    IMAGE_EXTS (+ IMAGE_EXTS_SET), extOf, mimeForExt, LoaderResult.
+                                  Single source of truth for image extensions/MIME used across loaders,
+                                  thumbnails, countPages, and the reader shortcuts.
   types/
     library.ts                  Tag, TagCategory, Library, LibraryEntry, ReadingState,
                                   SortField, SortDirection, ViewMode

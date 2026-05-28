@@ -1,20 +1,6 @@
 import { readFile, readDir } from "@tauri-apps/plugin-fs";
 import { dirname, join } from "@tauri-apps/api/path";
-import { IMAGE_EXTS, type LoaderResult } from "./types";
-
-const IMAGE_EXTS_SET: Set<string> = new Set(IMAGE_EXTS);
-
-const MIME_BY_EXT: Record<string, string> = {
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  png: "image/png",
-  gif: "image/gif",
-  webp: "image/webp",
-  bmp: "image/bmp",
-  avif: "image/avif",
-};
-
-const extOf = (name: string) => name.split(".").pop()?.toLowerCase() ?? "";
+import { IMAGE_EXTS_SET, extOf, mimeForExt, type LoaderResult } from "./types";
 
 export async function loadImageFolder(path: string): Promise<LoaderResult> {
   const dir = await dirname(path);
@@ -30,7 +16,7 @@ export async function loadImageFolder(path: string): Promise<LoaderResult> {
   const pages = await Promise.all(
     imagePaths.map(async (imgPath) => {
       const data = await readFile(imgPath);
-      const blob = new Blob([data], { type: MIME_BY_EXT[extOf(imgPath)] ?? "image/jpeg" });
+      const blob = new Blob([data], { type: mimeForExt(extOf(imgPath)) });
       return URL.createObjectURL(blob);
     })
   );

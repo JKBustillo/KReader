@@ -1,17 +1,15 @@
 import { loadCbz } from "./loadCbz";
 import { loadCbr } from "./loadCbr";
 import { loadImageFolder } from "./loadImageFolder";
-import { IMAGE_EXTS, type LoaderResult } from "./types";
+import { IMAGE_EXTS, IMAGE_EXTS_SET, extOf, mimeForExt, type LoaderResult } from "./types";
 
-export { IMAGE_EXTS };
+export { IMAGE_EXTS, IMAGE_EXTS_SET, extOf, mimeForExt };
 export type { LoaderResult };
 
 export type FileKind = "cbz" | "cbr" | "pdf" | "image" | "unsupported";
 
-const IMAGE_EXTS_SET: Set<string> = new Set(IMAGE_EXTS);
-
 export function detectKind(path: string): FileKind {
-  const ext = path.split(".").pop()?.toLowerCase() ?? "";
+  const ext = extOf(path);
   if (ext === "cbz" || ext === "zip") return "cbz";
   if (ext === "cbr" || ext === "rar") return "cbr";
   if (ext === "pdf") return "pdf";
