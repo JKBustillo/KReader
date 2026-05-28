@@ -267,16 +267,6 @@ function PDFReader({
           getCurrentWindow().setTitle("KReader");
           onClose();
           break;
-        case "f":
-        case "F":
-          getCurrentWindow()
-            .isFullscreen()
-            .then((full) => getCurrentWindow().setFullscreen(!full));
-          break;
-        case "x":
-        case "X":
-          getCurrentWindow().close();
-          break;
       }
     },
     [numPages, onClose, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator]
