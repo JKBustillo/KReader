@@ -3,7 +3,9 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { dirname, join } from "@tauri-apps/api/path";
 
-const IMAGE_EXTS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "avif"]);
+import { IMAGE_EXTS } from "../loaders";
+
+const IMAGE_EXTS_SET: Set<string> = new Set(IMAGE_EXTS);
 
 type Params = {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -77,7 +79,7 @@ export function useReaderShortcuts(params: Params) {
         const currentExt = filePath.split(".").pop()?.toLowerCase() ?? "";
 
         // Standalone image: the whole folder is already loaded as pages — navigate normally.
-        if (IMAGE_EXTS.has(currentExt)) {
+        if (IMAGE_EXTS_SET.has(currentExt)) {
           if (!cascadeMode) {
             if (key === "ArrowRight") { if (rtl) prevPage(); else nextPage(); }
             else { if (rtl) nextPage(); else prevPage(); }
