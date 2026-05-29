@@ -43,6 +43,19 @@ export async function saveShowProgressBar(value: boolean): Promise<void> {
   await store.save();
 }
 
+const KEY_PIN_PAGE_INDICATOR = "pin-page-indicator";
+
+export async function getPinPageIndicator(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_PIN_PAGE_INDICATOR)) ?? false;
+}
+
+export async function savePinPageIndicator(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_PIN_PAGE_INDICATOR, value);
+  await store.save();
+}
+
 const KEY_SHOW_PAGE_COUNT = "show-page-count";
 
 export async function getShowPageCount(): Promise<boolean> {

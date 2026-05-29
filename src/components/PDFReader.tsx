@@ -4,11 +4,11 @@ import * as pdfjsLib from "pdfjs-dist";
 import { TextLayer } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import PDFWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { Store } from "@tauri-apps/plugin-store";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
+import { getSavedPage, savePage } from "../utils/readingProgressStore";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
 
@@ -32,7 +32,6 @@ function PDFReader({
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.5);
   const [showInfo, setShowInfo] = useState(false);
-  const [store, setStore] = useState<Store | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { showOverlay, setShowOverlay, scheduleHide, overlayTimerRef } = useOverlayAutoHide(showInfo);
   const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
@@ -51,18 +50,18 @@ function PDFReader({
 
     (async () => {
       try {
-        const s = await Store.load(".reading-progress.dat");
-        if (cancelled) return;
-        setStore(s);
-
-        const doc = await pdfjsLib.getDocument({ data }).promise;
+        // pdf.js transfers the ArrayBuffer to its worker (detaching it). Under
+        // React.StrictMode this effect runs twice with the same `data` prop, so
+        // pass a fresh copy each time — otherwise the second call hits an already
+        // detached buffer and throws DataCloneError.
+        const doc = await pdfjsLib.getDocument({ data: data.slice() }).promise;
         if (cancelled) return;
         setLoadError(null);
         setPdf(doc);
         setNumPages(doc.numPages);
         onPagesLoaded?.(doc.numPages);
 
-        const saved = await s.get<number>(`${filePath}-page`);
+        const saved = await getSavedPage(filePath);
         if (cancelled) return;
         if (saved != null) setPageNum(Math.max(1, Math.min(saved + 1, doc.numPages)));
       } catch (err) {
@@ -103,11 +102,11 @@ function PDFReader({
   }, []);
 
   useEffect(() => {
-    if (store && pdf) {
-      store.set(`${filePath}-page`, pageNum - 1);
-      store.save();
+    // Persist the 0-based page index (shared key format with the image reader).
+    if (pdf) {
+      savePage(filePath, pageNum - 1).catch(console.error);
     }
-  }, [pageNum, store, filePath, pdf]);
+  }, [pageNum, filePath, pdf]);
 
   // Render page + text layer
   useEffect(() => {

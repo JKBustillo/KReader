@@ -1,7 +1,10 @@
-import { useEffect, useRef, useState } from "react";
-import { Store } from "@tauri-apps/plugin-store";
-
-const STORE_FILE = ".reading-progress.dat";
+import { useEffect, useState } from "react";
+import {
+  getReadingProgress,
+  savePage,
+  saveCascade,
+  saveBookmarks,
+} from "../utils/readingProgressStore";
 
 export function useReadingProgress(filePath: string, initialPage = 0) {
   const [pageIndex, setPageIndex] = useState(initialPage);
@@ -10,23 +13,16 @@ export function useReadingProgress(filePath: string, initialPage = 0) {
   // loaded gates UI rendering: while false, callers can hide the page content
   // so the user doesn't see page 1 flash before the saved page is applied.
   const [loaded, setLoaded] = useState(false);
-  const storeRef = useRef<Store | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     (async () => {
-      const s = await Store.load(STORE_FILE);
-      if (cancelled) return;
-      storeRef.current = s;
-
-      const savedPage = await s.get<number>(`${filePath}-page`);
-      const savedCascade = await s.get<boolean>(`${filePath}-cascade`);
-      const savedBookmarks = await s.get<number[]>(`${filePath}-bookmarks`);
+      const { page, cascade, bookmarks: savedBookmarks } = await getReadingProgress(filePath);
       if (cancelled) return;
 
-      if (savedPage !== undefined) setPageIndex(savedPage);
-      if (savedCascade !== undefined) setCascadeMode(savedCascade);
+      if (page !== undefined) setPageIndex(page);
+      if (cascade !== undefined) setCascadeMode(cascade);
       if (savedBookmarks !== undefined) setBookmarks(savedBookmarks);
       setLoaded(true);
     })();
@@ -36,26 +32,17 @@ export function useReadingProgress(filePath: string, initialPage = 0) {
 
   useEffect(() => {
     if (!loaded) return;
-    const s = storeRef.current;
-    if (!s) return;
-    s.set(`${filePath}-page`, pageIndex);
-    s.save();
+    savePage(filePath, pageIndex).catch(console.error);
   }, [pageIndex, filePath, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
-    const s = storeRef.current;
-    if (!s) return;
-    s.set(`${filePath}-cascade`, cascadeMode);
-    s.save();
+    saveCascade(filePath, cascadeMode).catch(console.error);
   }, [cascadeMode, filePath, loaded]);
 
   useEffect(() => {
     if (!loaded) return;
-    const s = storeRef.current;
-    if (!s) return;
-    s.set(`${filePath}-bookmarks`, bookmarks);
-    s.save();
+    saveBookmarks(filePath, bookmarks).catch(console.error);
   }, [bookmarks, filePath, loaded]);
 
   return { pageIndex, setPageIndex, cascadeMode, setCascadeMode, bookmarks, setBookmarks, loaded };

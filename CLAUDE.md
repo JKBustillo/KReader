@@ -66,7 +66,9 @@ src/
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              getRelativeFolder(entryPath, rootPath) shared util
-    readingProgressStore.ts     Read-only access to .reading-progress.dat from non-hook contexts; exposes getPageForPath(filePath)
+    readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks), read+write.
+                                  Consumed by useReadingProgress and PDFReader; exposes getReadingProgress,
+                                  getSavedPage, savePage/saveCascade/saveBookmarks, and getPageForPath(filePath).
     countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats.
   i18n/                         react-i18next setup (en, es)
 ```
@@ -92,7 +94,7 @@ src/
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
 
-**Rule:** All store access must go through the utility wrappers (`libraryStore.ts`, `settingsStore.ts`, `recentFiles.ts`). Never instantiate `Store` directly in a component or hook, and never use key strings outside the owning util file.
+**Rule:** All store access must go through the utility wrappers (`libraryStore.ts`, `settingsStore.ts`, `recentFiles.ts`, `readingProgressStore.ts`). Never instantiate `Store` directly in a component or hook, and never use key strings outside the owning util file. The `pin-page-indicator` setting is owned by `settingsStore.ts`; `usePinPageIndicator` consumes it through that wrapper.
 
 ### Library system
 
