@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry } from "../types/library";
 import { getThumbnail } from "../utils/thumbnails";
+import { computeProgress, PROGRESS_DOT_COLORS } from "../utils/progress";
 
 const THUMBNAIL_MARGIN = "1000px";
 const CARD_INTRINSIC_SIZE = "0 250px";
@@ -28,11 +29,6 @@ function StarIcon({ filled }: { filled: boolean }) {
     </svg>
   );
 }
-
-const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
-  in_progress: "var(--color-progress-inprogress)",
-  completed:   "var(--color-progress-complete)",
-};
 
 const RATING_COUNT = 5;
 
@@ -208,9 +204,7 @@ function LibraryCard({
           </span>
         )}
         {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
-          const progressPct = entry.readingState === "completed"
-            ? 100
-            : Math.min(Math.round((currentPage + 1) / entry.totalPages! * 100), 99);
+          const progressPct = computeProgress(entry, currentPage);
           return (
             <div
               className="w-full h-1 rounded-full overflow-hidden"
@@ -221,9 +215,7 @@ function LibraryCard({
                 className="h-full rounded-full"
                 style={{
                   width: `${progressPct}%`,
-                  background: entry.readingState === "completed"
-                    ? "var(--color-progress-complete)"
-                    : "var(--color-progress-inprogress)",
+                  background: PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"],
                 }}
               />
             </div>

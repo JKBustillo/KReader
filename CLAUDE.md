@@ -42,6 +42,9 @@ src/
                                   multi-entry mode, autocomplete suggestions
     SettingsModal.tsx           Modal de ajustes: tema (dark/light), idioma (ES/EN),
                                   export/import de biblioteca. Abre desde el engranaje de NavBar.
+    Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
+                                  stopPropagation. Children = panel content; panelClassName sets width.
+                                  Used by MoveFolderModal/DeleteConfirmModal/resolve-location in LibraryView.
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
@@ -72,6 +75,8 @@ src/
                                   Consumed by useReadingProgress and PDFReader; exposes getReadingProgress,
                                   getSavedPage, savePage/saveCascade/saveBookmarks, and getPageForPath(filePath).
     countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats.
+    progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
+                                  PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
 ```
 

@@ -154,12 +154,18 @@ function TagEditor({
   const [input, setInput] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Register the Escape listener once on mount, reading the latest onClose via a
+  // ref. With [onClose] (a new inline fn each parent render) the listener would
+  // re-subscribe on LibraryView's frequent re-renders and drop the Escape event.
+  const onCloseRef = useRef(onClose);
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
   useEffect(() => {
     inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, []);
 
   const trimmed = input.trim();
   const suggestions = trimmed.length > 0 && allTagValues

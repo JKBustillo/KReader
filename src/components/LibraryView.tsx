@@ -30,6 +30,7 @@ import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
+import Modal from "./Modal";
 
 type ScannedFile = {
   path: string;
@@ -91,52 +92,36 @@ function MoveFolderModal({
 }) {
   const { t } = useTranslation();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const currentFolders = new Set(entries.map((e) => getRelativeFolder(e.currentPath, rootPath)));
   const destinations = folders.filter((f) => !currentFolders.has(f));
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-md rounded-lg shadow-2xl p-5 flex flex-col gap-4"
-        style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-            {t("library.moveToFolderTitle")}
-          </h2>
-          <button
-            onClick={onClose}
-            className="text-lg leading-none opacity-60 hover:opacity-100"
-            style={{ color: "var(--text-muted)" }}
-          >
-            ×
-          </button>
-        </div>
-        <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-          {destinations.map((folder) => (
-            <button
-              key={folder}
-              onClick={() => onMove(entries, folder)}
-              className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-              style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
-            >
-              {folder}
-            </button>
-          ))}
-        </div>
+    <Modal onClose={onClose}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          {t("library.moveToFolderTitle")}
+        </h2>
+        <button
+          onClick={onClose}
+          className="text-lg leading-none opacity-60 hover:opacity-100"
+          style={{ color: "var(--text-muted)" }}
+        >
+          ×
+        </button>
       </div>
-    </div>
+      <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
+        {destinations.map((folder) => (
+          <button
+            key={folder}
+            onClick={() => onMove(entries, folder)}
+            className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+            style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
+          >
+            {folder}
+          </button>
+        ))}
+      </div>
+    </Modal>
   );
 }
 
@@ -151,46 +136,30 @@ function DeleteConfirmModal({
 }) {
   const { t } = useTranslation();
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
   const message = entries.length === 1
     ? t("library.deleteConfirm", { name: entries[0].filename.replace(/\.[^.]+$/, "") })
     : t("library.deleteConfirmMany", { count: entries.length });
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
-      onClick={onClose}
-    >
-      <div
-        className="w-full max-w-sm rounded-lg shadow-2xl p-5 flex flex-col gap-4"
-        style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <p className="text-sm" style={{ color: "var(--text-primary)" }}>{message}</p>
-        <div className="flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-            style={{ color: "var(--text-secondary)", border: "1px solid var(--border-nav)" }}
-          >
-            {t("library.cancel")}
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-3 py-1.5 text-xs rounded transition-colors"
-            style={{ background: "var(--color-danger)", color: "#fff" }}
-          >
-            {t("library.deleteConfirmBtn")}
-          </button>
-        </div>
+    <Modal onClose={onClose} panelClassName="max-w-sm">
+      <p className="text-sm" style={{ color: "var(--text-primary)" }}>{message}</p>
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={onClose}
+          className="px-3 py-1.5 text-xs rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+          style={{ color: "var(--text-secondary)", border: "1px solid var(--border-nav)" }}
+        >
+          {t("library.cancel")}
+        </button>
+        <button
+          onClick={onConfirm}
+          className="px-3 py-1.5 text-xs rounded transition-colors"
+          style={{ background: "var(--color-danger)", color: "#fff" }}
+        >
+          {t("library.deleteConfirmBtn")}
+        </button>
       </div>
-    </div>
+    </Modal>
   );
 }
 
@@ -1249,56 +1218,46 @@ function LibraryView({
       )}
 
       {resolveTarget && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center"
-          style={{ background: "rgba(0,0,0,0.5)" }}
-          onClick={() => setResolveTarget(null)}
-        >
-          <div
-            className="w-full max-w-md rounded-lg shadow-2xl p-5 flex flex-col gap-4"
-            style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-                {t("library.resolveLocationTitle")}
-              </h2>
-              <button
-                onClick={() => setResolveTarget(null)}
-                className="text-lg leading-none opacity-60 hover:opacity-100"
-                style={{ color: "var(--text-muted)" }}
-              >
-                ×
-              </button>
-            </div>
-            <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-              {t("library.resolveLocationHint")}
-            </p>
-            <div className="flex flex-col gap-1">
-              {resolveTarget.candidates.map((path) => {
-                const rootPath = activeLib?.rootPath ?? "";
-                const normalized = normalizePath(path);
-                const normalizedRoot = normalizePath(rootPath);
-                const display = normalized.startsWith(normalizedRoot + "/")
-                  ? normalized.slice(normalizedRoot.length + 1)
-                  : normalized;
-                return (
-                  <button
-                    key={path}
-                    onClick={() => handleResolveLocation(resolveTarget.entry, path)}
-                    className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-                    style={{
-                      color: "var(--text-primary)",
-                      border: "1px solid var(--border-nav)",
-                    }}
-                  >
-                    {display}
-                  </button>
-                );
-              })}
-            </div>
+        <Modal onClose={() => setResolveTarget(null)}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+              {t("library.resolveLocationTitle")}
+            </h2>
+            <button
+              onClick={() => setResolveTarget(null)}
+              className="text-lg leading-none opacity-60 hover:opacity-100"
+              style={{ color: "var(--text-muted)" }}
+            >
+              ×
+            </button>
           </div>
-        </div>
+          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
+            {t("library.resolveLocationHint")}
+          </p>
+          <div className="flex flex-col gap-1">
+            {resolveTarget.candidates.map((path) => {
+              const rootPath = activeLib?.rootPath ?? "";
+              const normalized = normalizePath(path);
+              const normalizedRoot = normalizePath(rootPath);
+              const display = normalized.startsWith(normalizedRoot + "/")
+                ? normalized.slice(normalizedRoot.length + 1)
+                : normalized;
+              return (
+                <button
+                  key={path}
+                  onClick={() => handleResolveLocation(resolveTarget.entry, path)}
+                  className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
+                  style={{
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border-nav)",
+                  }}
+                >
+                  {display}
+                </button>
+              );
+            })}
+          </div>
+        </Modal>
       )}
     </div>
   );

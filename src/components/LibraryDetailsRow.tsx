@@ -2,6 +2,7 @@ import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry, SortField } from "../types/library";
 import { getRelativeFolder } from "../utils/folderUtils";
+import { computeProgress, PROGRESS_DOT_COLORS } from "../utils/progress";
 
 const BYTES_IN_MB = 1_048_576;
 const BYTES_IN_KB = 1_024;
@@ -63,11 +64,6 @@ const COL_WIDTHS: Record<SortField, string> = {
   folder:     "w-48 shrink-0 min-w-0",
   lastOpened: "w-32 shrink-0",
   pages:      "w-16 shrink-0 text-right",
-};
-
-const PROGRESS_DOT_COLORS: Record<"in_progress" | "completed", string> = {
-  in_progress: "var(--color-progress-inprogress)",
-  completed:   "var(--color-progress-complete)",
 };
 
 function LibraryDetailsRow({
@@ -159,17 +155,13 @@ function LibraryDetailsRow({
         {entry.totalPages ?? "—"}
       </span>
       {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
-        const progressPct = entry.readingState === "completed"
-          ? 100
-          : Math.min(Math.round((currentPage + 1) / entry.totalPages! * 100), 99);
+        const progressPct = computeProgress(entry, currentPage);
         return (
           <div
             className="absolute bottom-0 left-0 h-[2px] rounded-full"
             style={{
               width: `${progressPct}%`,
-              background: entry.readingState === "completed"
-                ? "var(--color-progress-complete)"
-                : "var(--color-progress-inprogress)",
+              background: PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"],
             }}
             title={`${progressPct}%`}
           />
