@@ -31,6 +31,9 @@ import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDe
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
 import Modal from "./Modal";
+import ResolveLocationModal from "./ResolveLocationModal";
+import ContextMenu from "./ContextMenu";
+import FilterDropdown from "./FilterDropdown";
 
 type ScannedFile = {
   path: string;
@@ -44,8 +47,6 @@ type ContextMenuState = {
   y: number;
   entries: LibraryEntry[];
 };
-
-const TAGS_DROPDOWN_MAX_HEIGHT = 280;
 
 // Session-only tag filter — survives LibraryView unmount (reader open/close)
 // but resets when the app is restarted.
@@ -189,14 +190,9 @@ function LibraryView({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set(sessionSelectedTags));
-  const [tagsDropdownOpen, setTagsDropdownOpen] = useState(false);
-  const [tagSearch, setTagSearch] = useState("");
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
   const [resolveTarget, setResolveTarget] = useState<{ entry: LibraryEntry; candidates: string[] } | null>(null);
   const [selectedFolders, setSelectedFolders] = useState<Map<string, "full" | "partial">>(new Map());
-  const [foldersDropdownOpen, setFoldersDropdownOpen] = useState(false);
-  const [folderSearch, setFolderSearch] = useState("");
-  const foldersDropdownContainerRef = useRef<HTMLDivElement>(null);
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
@@ -214,7 +210,6 @@ function LibraryView({
   notFoundIdsRef.current = notFoundIds;
   const lastCtrlSelectedIdRef = useRef<string | null>(null);
   const sortedRef = useRef<LibraryEntry[]>([]);
-  const tagsDropdownContainerRef = useRef<HTMLDivElement>(null);
   const folderFilterLoadedForLibRef = useRef<string | null>(null);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
@@ -512,19 +507,6 @@ function LibraryView({
     setResolveTarget(null);
   }, []);
 
-  // Dismiss context menu on click-outside or Escape.
-  useEffect(() => {
-    if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setContextMenu(null); };
-    document.addEventListener("click", close);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("click", close);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [contextMenu]);
-
   // Escape clears selection (runs regardless of contextMenu so Escape covers both).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -554,38 +536,6 @@ function LibraryView({
     if (!activeLibId || folderFilterLoadedForLibRef.current !== activeLibId) return;
     saveFolderFilter(activeLibId, selectedFolders).catch(console.error);
   }, [selectedFolders, activeLibId]);
-
-  // Dismiss tags dropdown on click-outside.
-  useEffect(() => {
-    if (!tagsDropdownOpen) return;
-    const handler = (e: globalThis.MouseEvent) => {
-      if (
-        tagsDropdownContainerRef.current &&
-        !tagsDropdownContainerRef.current.contains(e.target as Node)
-      ) {
-        setTagsDropdownOpen(false);
-        setTagSearch("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [tagsDropdownOpen]);
-
-  // Dismiss folders dropdown on click-outside.
-  useEffect(() => {
-    if (!foldersDropdownOpen) return;
-    const handler = (e: globalThis.MouseEvent) => {
-      if (
-        foldersDropdownContainerRef.current &&
-        !foldersDropdownContainerRef.current.contains(e.target as Node)
-      ) {
-        setFoldersDropdownOpen(false);
-        setFolderSearch("");
-      }
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [foldersDropdownOpen]);
 
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
@@ -684,10 +634,6 @@ function LibraryView({
     });
   }, [entries, activeLib]);
 
-  const visibleTags = tagSearch.trim()
-    ? allTags.filter((t) => t.tag.value.toLowerCase().includes(tagSearch.trim().toLowerCase()))
-    : allTags;
-
   const filtered = entries.filter((e) => {
     if (showFavoritesOnly && !e.isFavorite) return false;
     if (search.trim() !== "" && !e.filename.toLowerCase().includes(search.trim().toLowerCase())) return false;
@@ -759,141 +705,73 @@ function LibraryView({
 
         <div className="ml-auto flex items-center gap-2">
           {/* Folders filter dropdown */}
-          <div ref={foldersDropdownContainerRef} className="relative">
-            <button
-              onClick={() => { setFoldersDropdownOpen((v) => !v); setFolderSearch(""); }}
-              className="text-xs px-2 py-1 rounded transition-colors"
-              style={{
-                background: selectedFolders.size > 0 ? "var(--color-selection)" : "var(--bg-tab-active)",
-                color: selectedFolders.size > 0 ? "#fff" : "var(--text-secondary)",
-                border: "1px solid var(--border-nav)",
-              }}
-            >
-              {t("library.folders")}{selectedFolders.size > 0 ? ` (${selectedFolders.size})` : ""}
-            </button>
-
-            {foldersDropdownOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 z-50 rounded shadow-lg flex flex-col"
-                style={{
-                  width: "240px",
-                  background: "var(--bg-nav)",
-                  border: "1px solid var(--border-nav)",
-                }}
-              >
-                <div className="p-2 border-b shrink-0" style={{ borderColor: "var(--border-nav)" }}>
-                  <input
-                    type="text"
-                    value={folderSearch}
-                    onChange={(e) => setFolderSearch(e.target.value)}
-                    placeholder={t("library.searchFolders")}
-                    className="w-full text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg-tab-active)",
-                      color: "var(--text-primary)",
-                      border: "1px solid var(--border-nav)",
-                    }}
-                    autoFocus
-                  />
-                </div>
-                <div style={{ overflowY: "auto", maxHeight: `${TAGS_DROPDOWN_MAX_HEIGHT}px` }}>
-                  {(folderSearch.trim()
-                    ? allFolders.filter((f) => f.toLowerCase().includes(folderSearch.trim().toLowerCase()))
-                    : allFolders
-                  ).map((folder) => {
-                    const state = selectedFolders.get(folder);
-                    return (
-                      <button
-                        key={folder}
-                        onClick={() => {
-                          setSelectedFolders((prev) => {
-                            const next = new Map(prev);
-                            const cur = next.get(folder);
-                            if (!cur) next.set(folder, "full");
-                            else if (cur === "full") next.set(folder, "partial");
-                            else next.delete(folder);
-                            return next;
-                          });
-                        }}
-                        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors hover:bg-[var(--bg-tab-active)]"
-                        style={{ color: state ? "var(--text-primary)" : "var(--text-secondary)" }}
-                      >
-                        <span
-                          className="shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold"
-                          style={{
-                            border: state ? "none" : "1px solid var(--text-muted)",
-                            background: state === "full"
-                              ? "var(--color-selection)"
-                              : state === "partial"
-                                ? "transparent"
-                                : "transparent",
-                            color: state === "full"
-                              ? "#fff"
-                              : state === "partial"
-                                ? "var(--text-primary)"
-                                : "transparent",
-                            ...(state === "partial" ? { border: "1px solid var(--text-primary)" } : {}),
-                          }}
-                        >
-                          {state === "full" ? "✓" : state === "partial" ? "—" : ""}
-                        </span>
-                        <span className="flex-1 truncate font-mono">{folder}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-                {selectedFolders.size > 0 && (
+          <FilterDropdown
+            label={t("library.folders")}
+            selectedCount={selectedFolders.size}
+            searchPlaceholder={t("library.searchFolders")}
+            width={240}
+            onClear={() => setSelectedFolders(new Map())}
+            renderItems={(folderSearch) =>
+              (folderSearch.trim()
+                ? allFolders.filter((f) => f.toLowerCase().includes(folderSearch.trim().toLowerCase()))
+                : allFolders
+              ).map((folder) => {
+                const state = selectedFolders.get(folder);
+                return (
                   <button
-                    onClick={() => setSelectedFolders(new Map())}
-                    className="px-3 py-1.5 text-xs border-t text-left transition-colors hover:bg-[var(--bg-tab-active)]"
-                    style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
+                    key={folder}
+                    onClick={() => {
+                      setSelectedFolders((prev) => {
+                        const next = new Map(prev);
+                        const cur = next.get(folder);
+                        if (!cur) next.set(folder, "full");
+                        else if (cur === "full") next.set(folder, "partial");
+                        else next.delete(folder);
+                        return next;
+                      });
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                    style={{ color: state ? "var(--text-primary)" : "var(--text-secondary)" }}
                   >
-                    ✕ {t("library.folders")} ({selectedFolders.size})
+                    <span
+                      className="shrink-0 w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold"
+                      style={{
+                        border: state ? "none" : "1px solid var(--text-muted)",
+                        background: state === "full"
+                          ? "var(--color-selection)"
+                          : state === "partial"
+                            ? "transparent"
+                            : "transparent",
+                        color: state === "full"
+                          ? "#fff"
+                          : state === "partial"
+                            ? "var(--text-primary)"
+                            : "transparent",
+                        ...(state === "partial" ? { border: "1px solid var(--text-primary)" } : {}),
+                      }}
+                    >
+                      {state === "full" ? "✓" : state === "partial" ? "—" : ""}
+                    </span>
+                    <span className="flex-1 truncate font-mono">{folder}</span>
                   </button>
-                )}
-              </div>
-            )}
-          </div>
+                );
+              })
+            }
+          />
 
           {/* Tags filter dropdown */}
-          <div ref={tagsDropdownContainerRef} className="relative">
-            <button
-              onClick={() => { setTagsDropdownOpen((v) => !v); setTagSearch(""); }}
-              className="text-xs px-2 py-1 rounded transition-colors"
-              style={{
-                background: selectedTags.size > 0 ? "var(--color-selection)" : "var(--bg-tab-active)",
-                color: selectedTags.size > 0 ? "#fff" : "var(--text-secondary)",
-                border: "1px solid var(--border-nav)",
-              }}
-            >
-              {t("library.tags")}{selectedTags.size > 0 ? ` (${selectedTags.size})` : ""}
-            </button>
-
-            {tagsDropdownOpen && (
-              <div
-                className="absolute right-0 top-full mt-1 z-50 rounded shadow-lg flex flex-col"
-                style={{
-                  width: "220px",
-                  background: "var(--bg-nav)",
-                  border: "1px solid var(--border-nav)",
-                }}
-              >
-                <div className="p-2 border-b shrink-0" style={{ borderColor: "var(--border-nav)" }}>
-                  <input
-                    type="text"
-                    value={tagSearch}
-                    onChange={(e) => setTagSearch(e.target.value)}
-                    placeholder={t("library.searchTags")}
-                    className="w-full text-xs rounded px-2 py-1 outline-none"
-                    style={{
-                      background: "var(--bg-tab-active)",
-                      color: "var(--text-primary)",
-                      border: "1px solid var(--border-nav)",
-                    }}
-                    autoFocus
-                  />
-                </div>
-                <div style={{ overflowY: "auto", maxHeight: `${TAGS_DROPDOWN_MAX_HEIGHT}px` }}>
+          <FilterDropdown
+            label={t("library.tags")}
+            selectedCount={selectedTags.size}
+            searchPlaceholder={t("library.searchTags")}
+            width={220}
+            onClear={() => setSelectedTags(new Set())}
+            renderItems={(tagSearch) => {
+              const visibleTags = tagSearch.trim()
+                ? allTags.filter((tg) => tg.tag.value.toLowerCase().includes(tagSearch.trim().toLowerCase()))
+                : allTags;
+              return (
+                <>
                   {visibleTags.length === 0 && (
                     <p className="px-3 py-2 text-xs" style={{ color: "var(--text-muted)" }}>
                       {t("library.noTags")}
@@ -927,19 +805,10 @@ function LibraryView({
                       </button>
                     );
                   })}
-                </div>
-                {selectedTags.size > 0 && (
-                  <button
-                    onClick={() => setSelectedTags(new Set())}
-                    className="px-3 py-1.5 text-xs border-t text-left transition-colors hover:bg-[var(--bg-tab-active)]"
-                    style={{ borderColor: "var(--border-nav)", color: "var(--text-muted)" }}
-                  >
-                    ✕ {t("library.tags")} ({selectedTags.size})
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
+                </>
+              );
+            }}
+          />
 
           {/* Favorites filter */}
           <button
@@ -1108,83 +977,29 @@ function LibraryView({
             }
 
             {contextMenu && (
-              <div
-                className="fixed z-50 rounded shadow-lg overflow-hidden"
-                style={{
-                  top: contextMenu.y,
-                  left: contextMenu.x,
-                  background: "var(--bg-nav)",
-                  border: "1px solid var(--border-nav)",
+              <ContextMenu
+                x={contextMenu.x}
+                y={contextMenu.y}
+                entries={contextMenu.entries}
+                ambiguousCandidates={ambiguousCandidates}
+                onEditTags={(entries) => { setTagEditorEntries(entries); setContextMenu(null); }}
+                onResolveLocation={(entry, candidates) => { setResolveTarget({ entry, candidates }); setContextMenu(null); }}
+                onResetProgress={handleResetProgress}
+                onMarkAsRead={handleMarkAsRead}
+                onMoveToFolder={async (entries) => {
+                  const folders = await invoke<string[]>("list_subdirs", { root: activeLib!.rootPath });
+                  setAvailableFolders(folders);
+                  setMoveFolderTarget(entries);
+                  setContextMenu(null);
                 }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                  style={{ color: "var(--text-primary)" }}
-                  onClick={() => {
-                    setTagEditorEntries(contextMenu.entries);
-                    setContextMenu(null);
-                  }}
-                >
-                  {t("library.editTags")}
-                </button>
-                {contextMenu.entries.length === 1 && ambiguousCandidates.has(contextMenu.entries[0].id) && (
-                  <button
-                    className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                    style={{ color: "var(--color-progress-inprogress)" }}
-                    onClick={() => {
-                      const entry = contextMenu.entries[0];
-                      setResolveTarget({ entry, candidates: ambiguousCandidates.get(entry.id)! });
-                      setContextMenu(null);
-                    }}
-                  >
-                    {t("library.resolveLocation")}
-                  </button>
-                )}
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                  style={{ color: "var(--text-primary)" }}
-                  onClick={() => handleResetProgress(contextMenu.entries)}
-                >
-                  {t("library.resetProgress")}
-                </button>
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                  style={{ color: "var(--text-primary)" }}
-                  onClick={() => handleMarkAsRead(contextMenu.entries)}
-                >
-                  {t("library.markAsRead")}
-                </button>
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                  style={{ color: "var(--text-primary)" }}
-                  onClick={async () => {
-                    const entries = contextMenu.entries;
-                    const folders = await invoke<string[]>("list_subdirs", { root: activeLib!.rootPath });
-                    setAvailableFolders(folders);
-                    setMoveFolderTarget(entries);
-                    setContextMenu(null);
-                  }}
-                >
-                  {t("library.moveToFolder")}
-                </button>
-                <button
-                  className="block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors"
-                  style={{ color: "var(--color-danger)" }}
-                  onClick={() => {
-                    const entries = contextMenu.entries;
-                    const allGhost = entries.every((e) => notFoundIds.has(e.id));
-                    if (allGhost) {
-                      handleDeleteEntries(entries);
-                    } else {
-                      setDeleteConfirmEntries(entries);
-                    }
-                    setContextMenu(null);
-                  }}
-                >
-                  {t("library.delete")}
-                </button>
-              </div>
+                onDelete={(entries) => {
+                  const allGhost = entries.every((e) => notFoundIds.has(e.id));
+                  if (allGhost) handleDeleteEntries(entries);
+                  else setDeleteConfirmEntries(entries);
+                  setContextMenu(null);
+                }}
+                onClose={() => setContextMenu(null)}
+              />
             )}
           </div>
         </>
@@ -1218,46 +1033,13 @@ function LibraryView({
       )}
 
       {resolveTarget && (
-        <Modal onClose={() => setResolveTarget(null)}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-              {t("library.resolveLocationTitle")}
-            </h2>
-            <button
-              onClick={() => setResolveTarget(null)}
-              className="text-lg leading-none opacity-60 hover:opacity-100"
-              style={{ color: "var(--text-muted)" }}
-            >
-              ×
-            </button>
-          </div>
-          <p className="text-xs" style={{ color: "var(--text-secondary)" }}>
-            {t("library.resolveLocationHint")}
-          </p>
-          <div className="flex flex-col gap-1">
-            {resolveTarget.candidates.map((path) => {
-              const rootPath = activeLib?.rootPath ?? "";
-              const normalized = normalizePath(path);
-              const normalizedRoot = normalizePath(rootPath);
-              const display = normalized.startsWith(normalizedRoot + "/")
-                ? normalized.slice(normalizedRoot.length + 1)
-                : normalized;
-              return (
-                <button
-                  key={path}
-                  onClick={() => handleResolveLocation(resolveTarget.entry, path)}
-                  className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-                  style={{
-                    color: "var(--text-primary)",
-                    border: "1px solid var(--border-nav)",
-                  }}
-                >
-                  {display}
-                </button>
-              );
-            })}
-          </div>
-        </Modal>
+        <ResolveLocationModal
+          entry={resolveTarget.entry}
+          candidates={resolveTarget.candidates}
+          rootPath={activeLib?.rootPath ?? ""}
+          onResolve={handleResolveLocation}
+          onClose={() => setResolveTarget(null)}
+        />
       )}
     </div>
   );

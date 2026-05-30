@@ -44,7 +44,12 @@ src/
                                   export/import de biblioteca. Abre desde el engranaje de NavBar.
     Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
                                   stopPropagation. Children = panel content; panelClassName sets width.
-                                  Used by MoveFolderModal/DeleteConfirmModal/resolve-location in LibraryView.
+                                  Used by MoveFolderModal/DeleteConfirmModal (in LibraryView) + ResolveLocationModal.
+    ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
+    ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
+                                  Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
+    FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
+                                  clear footer + dismiss). Owns open/search state; caller passes renderItems(search).
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
