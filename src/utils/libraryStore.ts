@@ -79,69 +79,37 @@ export async function updateEntryPath(id: string, libraryId: string, newPath: st
   await store.save();
 }
 
-export async function setFavorite(id: string, libraryId: string, value: boolean): Promise<void> {
-  const store = await getStore();
-  const entries = await getEntries(libraryId);
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
-  entry.isFavorite = value;
-  await store.set(entriesKey(libraryId), entries);
-  await store.save();
-}
-
-export async function setReadingState(
+export async function updateEntry(
   id: string,
   libraryId: string,
-  state: ReadingState,
+  patch: Partial<LibraryEntry>,
 ): Promise<void> {
   const store = await getStore();
   const entries = await getEntries(libraryId);
   const entry = entries.find((e) => e.id === id);
   if (!entry) return;
-  entry.readingState = state;
+  Object.assign(entry, patch);
   await store.set(entriesKey(libraryId), entries);
   await store.save();
 }
 
-export async function setCustomTags(id: string, libraryId: string, tags: Tag[]): Promise<void> {
-  const store = await getStore();
-  const entries = await getEntries(libraryId);
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
-  entry.customTags = tags;
-  await store.set(entriesKey(libraryId), entries);
-  await store.save();
-}
+export const setFavorite = (id: string, libraryId: string, value: boolean) =>
+  updateEntry(id, libraryId, { isFavorite: value });
 
-export async function setRating(id: string, libraryId: string, rating: number | undefined): Promise<void> {
-  const store = await getStore();
-  const entries = await getEntries(libraryId);
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
-  entry.rating = rating;
-  await store.set(entriesKey(libraryId), entries);
-  await store.save();
-}
+export const setReadingState = (id: string, libraryId: string, state: ReadingState) =>
+  updateEntry(id, libraryId, { readingState: state });
 
-export async function setLastOpenedAt(id: string, libraryId: string, timestamp: number): Promise<void> {
-  const store = await getStore();
-  const entries = await getEntries(libraryId);
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
-  entry.lastOpenedAt = timestamp;
-  await store.set(entriesKey(libraryId), entries);
-  await store.save();
-}
+export const setCustomTags = (id: string, libraryId: string, tags: Tag[]) =>
+  updateEntry(id, libraryId, { customTags: tags });
 
-export async function setTotalPages(id: string, libraryId: string, total: number): Promise<void> {
-  const store = await getStore();
-  const entries = await getEntries(libraryId);
-  const entry = entries.find((e) => e.id === id);
-  if (!entry) return;
-  entry.totalPages = total;
-  await store.set(entriesKey(libraryId), entries);
-  await store.save();
-}
+export const setRating = (id: string, libraryId: string, rating: number | undefined) =>
+  updateEntry(id, libraryId, { rating });
+
+export const setLastOpenedAt = (id: string, libraryId: string, timestamp: number) =>
+  updateEntry(id, libraryId, { lastOpenedAt: timestamp });
+
+export const setTotalPages = (id: string, libraryId: string, total: number) =>
+  updateEntry(id, libraryId, { totalPages: total });
 
 export async function clearAllTotalPages(libraryId: string): Promise<void> {
   const store = await getStore();
