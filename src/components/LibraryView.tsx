@@ -26,7 +26,7 @@ import { clearThumbnailDiskCache } from "../utils/thumbnails";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
 import { getPageForPath } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
-import { getRelativeFolder } from "../utils/folderUtils";
+import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
@@ -364,7 +364,7 @@ function LibraryView({
   const handleAddLibrary = async () => {
     const folder = await open({ directory: true, multiple: false });
     if (!folder || typeof folder !== "string") return;
-    const name = folder.split(/[\\/]/).pop() ?? folder;
+    const name = basename(folder);
     const lib = await addLibrary(name, folder);
     setLibraries((prev) => [...prev, lib]);
     setActiveLibId(lib.id);
@@ -473,7 +473,7 @@ function LibraryView({
   }, []);
 
   const handleMoveToFolder = useCallback(async (targetEntries: LibraryEntry[], targetFolder: string) => {
-    const rootPath = (activeLib?.rootPath ?? "").replace(/\\/g, "/");
+    const rootPath = normalizePath(activeLib?.rootPath ?? "");
     const destDir = targetFolder === "/" ? rootPath : `${rootPath}/${targetFolder}`;
 
     if (targetFolder !== "/") {
@@ -483,7 +483,7 @@ function LibraryView({
     const movedPaths = new Map<string, string>();
     for (const entry of targetEntries) {
       const newPath = `${destDir}/${entry.filename}`;
-      const normalizedCurrent = entry.currentPath.replace(/\\/g, "/");
+      const normalizedCurrent = normalizePath(entry.currentPath);
       if (normalizedCurrent === newPath) continue;
       await rename(entry.currentPath, newPath);
       await updateEntryPath(entry.id, entry.libraryId, newPath);
@@ -750,8 +750,8 @@ function LibraryView({
       case "size":   cmp = a.sizeBytes - b.sizeBytes; break;
       case "date":   cmp = a.modifiedAt - b.modifiedAt; break;
       case "folder": {
-        const fa = a.currentPath.replace(/\\/g, "/").lastIndexOf("/");
-        const fb = b.currentPath.replace(/\\/g, "/").lastIndexOf("/");
+        const fa = normalizePath(a.currentPath).lastIndexOf("/");
+        const fb = normalizePath(b.currentPath).lastIndexOf("/");
         cmp = a.currentPath.slice(0, fa).localeCompare(b.currentPath.slice(0, fb));
         break;
       }
@@ -1277,8 +1277,8 @@ function LibraryView({
             <div className="flex flex-col gap-1">
               {resolveTarget.candidates.map((path) => {
                 const rootPath = activeLib?.rootPath ?? "";
-                const normalized = path.replace(/\\/g, "/");
-                const normalizedRoot = rootPath.replace(/\\/g, "/");
+                const normalized = normalizePath(path);
+                const normalizedRoot = normalizePath(rootPath);
                 const display = normalized.startsWith(normalizedRoot + "/")
                   ? normalized.slice(normalizedRoot.length + 1)
                   : normalized;

@@ -1,9 +1,16 @@
 import { useCallback, useEffect, type Dispatch, type RefObject, type SetStateAction } from "react";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readDir } from "@tauri-apps/plugin-fs";
 import { dirname, join } from "@tauri-apps/api/path";
 
 import { IMAGE_EXTS_SET, extOf } from "../loaders";
+import { basename } from "../utils/folderUtils";
+import { setWindowTitle } from "../utils/appWindow";
+import { isAtBottom, isAtTop, PAGE_SCROLL_FRACTION } from "../utils/scroll";
+
+// Zoom clamps for the image reader (distinct from the PDF reader's range).
+const ZOOM_STEP = 0.1;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 3;
 
 type Params = {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -94,7 +101,7 @@ export function useReaderShortcuts(params: Params) {
             .sort((a, b) => a.name!.localeCompare(b.name!, undefined, { numeric: true }));
           const siblingPaths = await Promise.all(siblings.map((f) => join(dir, f.name!)));
 
-          const currentName = filePath.split(/[/\\]/).pop()!;
+          const currentName = basename(filePath);
           const currentIndex = siblingPaths.findIndex((p) => p.endsWith(currentName));
 
           let newIndex = currentIndex;
@@ -128,14 +135,14 @@ export function useReaderShortcuts(params: Params) {
         case "+":
         case "=":
           setZoom((z) => {
-            const newZoom = Math.min(z + 0.1, 3);
+            const newZoom = Math.min(z + ZOOM_STEP, ZOOM_MAX);
             checkHeight(newZoom);
             return newZoom;
           });
           break;
         case "-":
           setZoom((z) => {
-            const newZoom = Math.max(z - 0.1, 0.5);
+            const newZoom = Math.max(z - ZOOM_STEP, ZOOM_MIN);
             checkHeight(newZoom);
             return newZoom;
           });
@@ -150,10 +157,8 @@ export function useReaderShortcuts(params: Params) {
           if (!cascadeMode) e.preventDefault();
           if (container) {
             const scrollDown = () =>
-              container.scrollBy({ top: container.clientHeight * 0.9, behavior: "smooth" });
-            const atBottom =
-              container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-            if (atBottom) {
+              container.scrollBy({ top: container.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
+            if (isAtBottom(container)) {
               if (cascadeMode) scrollDown(); else nextPage();
             } else {
               scrollDown();
@@ -164,9 +169,8 @@ export function useReaderShortcuts(params: Params) {
         case "PageUp": {
           if (container) {
             const scrollUp = () =>
-              container.scrollBy({ top: -container.clientHeight * 0.9, behavior: "smooth" });
-            const atTop = container.scrollTop <= 10;
-            if (atTop) {
+              container.scrollBy({ top: -container.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
+            if (isAtTop(container)) {
               if (cascadeMode) scrollUp(); else prevPage();
             } else {
               scrollUp();
@@ -175,7 +179,7 @@ export function useReaderShortcuts(params: Params) {
           break;
         }
         case "Escape":
-          getCurrentWindow().setTitle("KReader");
+          setWindowTitle();
           onClose();
           break;
         case "d":

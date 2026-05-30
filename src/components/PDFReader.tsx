@@ -9,8 +9,16 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
 import { getSavedPage, savePage } from "../utils/readingProgressStore";
+import { basename } from "../utils/folderUtils";
+import { setWindowTitle } from "../utils/appWindow";
+import { isAtBottom, isAtTop, PAGE_SCROLL_FRACTION, WHEEL_THROTTLE_MS } from "../utils/scroll";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
+
+// Zoom clamps for the PDF reader (distinct from the image reader's range).
+const ZOOM_STEP = 0.1;
+const ZOOM_MIN = 0.3;
+const ZOOM_MAX = 4;
 
 function PDFReader({
   data,
@@ -76,9 +84,7 @@ function PDFReader({
   }, [data, filePath, onLoadError, onPagesLoaded]);
 
   useEffect(() => {
-    const win = getCurrentWindow();
-    const fileName = filePath.split(/[/\\]/).pop() || "KReader";
-    win.setTitle(`${fileName} - KReader`);
+    setWindowTitle(basename(filePath));
   }, [filePath]);
 
   useEffect(() => {
@@ -214,9 +220,8 @@ function PDFReader({
         case "PageDown": {
           const c = containerRef.current;
           if (c) {
-            const atBottom = c.scrollTop + c.clientHeight >= c.scrollHeight - 10;
-            if (atBottom) setPageNum((p) => Math.min(p + 1, numPages));
-            else c.scrollBy({ top: c.clientHeight * 0.9, behavior: "smooth" });
+            if (isAtBottom(c)) setPageNum((p) => Math.min(p + 1, numPages));
+            else c.scrollBy({ top: c.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
           }
           e.preventDefault();
           break;
@@ -224,9 +229,8 @@ function PDFReader({
         case "PageUp": {
           const c = containerRef.current;
           if (c) {
-            const atTop = c.scrollTop <= 10;
-            if (atTop) setPageNum((p) => Math.max(p - 1, 1));
-            else c.scrollBy({ top: -c.clientHeight * 0.9, behavior: "smooth" });
+            if (isAtTop(c)) setPageNum((p) => Math.max(p - 1, 1));
+            else c.scrollBy({ top: -c.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
           }
           e.preventDefault();
           break;
@@ -241,10 +245,10 @@ function PDFReader({
           break;
         case "+":
         case "=":
-          setScale((s) => Math.min(+(s + 0.1).toFixed(1), 4));
+          setScale((s) => Math.min(+(s + ZOOM_STEP).toFixed(1), ZOOM_MAX));
           break;
         case "-":
-          setScale((s) => Math.max(+(s - 0.1).toFixed(1), 0.3));
+          setScale((s) => Math.max(+(s - ZOOM_STEP).toFixed(1), ZOOM_MIN));
           break;
         case "i":
         case "I": {
@@ -263,7 +267,7 @@ function PDFReader({
           setPinPageIndicator((p) => !p);
           break;
         case "Escape":
-          getCurrentWindow().setTitle("KReader");
+          setWindowTitle();
           onClose();
           break;
       }
@@ -285,17 +289,15 @@ function PDFReader({
 
     const handleWheel = (e: WheelEvent) => {
       if (throttled) return;
-      const atBottom = container.scrollTop + container.clientHeight >= container.scrollHeight - 10;
-      const atTop = container.scrollTop <= 10;
 
-      if (e.deltaY > 0 && atBottom) {
+      if (e.deltaY > 0 && isAtBottom(container)) {
         setPageNum((p) => Math.min(p + 1, numPages));
         throttled = true;
-        setTimeout(() => (throttled = false), 700);
-      } else if (e.deltaY < 0 && atTop) {
+        setTimeout(() => (throttled = false), WHEEL_THROTTLE_MS);
+      } else if (e.deltaY < 0 && isAtTop(container)) {
         setPageNum((p) => Math.max(p - 1, 1));
         throttled = true;
-        setTimeout(() => (throttled = false), 700);
+        setTimeout(() => (throttled = false), WHEEL_THROTTLE_MS);
       }
     };
 
@@ -324,7 +326,7 @@ function PDFReader({
         <p>{t("errors.pdfLoad")}</p>
         <p className="text-sm text-[var(--text-secondary)] font-mono break-all">{loadError}</p>
         <button
-          onClick={() => { getCurrentWindow().setTitle("KReader"); onClose(); }}
+          onClick={() => { setWindowTitle(); onClose(); }}
           className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
         >
           {t("errors.goBack")}

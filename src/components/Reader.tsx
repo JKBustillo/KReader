@@ -5,6 +5,9 @@ import { useReadingProgress } from "../hooks/useReadingProgress";
 import { useReaderShortcuts } from "../hooks/useReaderShortcuts";
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
+import { basename } from "../utils/folderUtils";
+import { setWindowTitle } from "../utils/appWindow";
+import { isAtBottom, isAtTop, WHEEL_THROTTLE_MS } from "../utils/scroll";
 import ReaderOverlay from "./ReaderOverlay";
 
 function Reader({
@@ -54,9 +57,7 @@ function Reader({
   }, [pageIndex, pages.length, onLastPage]);
 
   useEffect(() => {
-    const win = getCurrentWindow();
-    const name = pageNames?.[pageIndex] ?? filePath.split(/[/\\]/).pop() ?? "KReader";
-    win.setTitle(`${name} - KReader`);
+    setWindowTitle(pageNames?.[pageIndex] ?? basename(filePath));
   }, [filePath, pageIndex, pageNames]);
 
   useEffect(() => {
@@ -236,15 +237,11 @@ function Reader({
     const handleWheel = (e: WheelEvent) => {
       if (!container || isThrottled || cascadeMode || webtoonMode) return;
 
-      const { scrollTop, scrollHeight, clientHeight } = container;
-      const atBottom = scrollTop + clientHeight >= scrollHeight - 10;
-      const atTop = scrollTop <= 10;
-
       if (e.deltaY > 0) {
-        if (atBottom) {
+        if (isAtBottom(container)) {
           nextPage();
           isThrottled = true;
-          setTimeout(() => (isThrottled = false), 700);
+          setTimeout(() => (isThrottled = false), WHEEL_THROTTLE_MS);
         } else {
           container.scrollBy({
             top: e.deltaY,
@@ -252,10 +249,10 @@ function Reader({
           });
         }
       } else if (e.deltaY < 0) {
-        if (atTop) {
+        if (isAtTop(container)) {
           prevPage();
           isThrottled = true;
-          setTimeout(() => (isThrottled = false), 700);
+          setTimeout(() => (isThrottled = false), WHEEL_THROTTLE_MS);
         } else {
           container.scrollBy({
             top: e.deltaY,

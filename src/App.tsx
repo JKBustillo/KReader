@@ -13,6 +13,8 @@ import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFi
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { basename } from "./utils/folderUtils";
+import { setWindowTitle } from "./utils/appWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
 
@@ -152,7 +154,7 @@ function App() {
   // Clears reader state and navigates back to where the file was opened from.
   const handleClose = useCallback(() => {
     resetState();
-    getCurrentWindow().setTitle("KReader");
+    setWindowTitle();
     setView(returnTo);
   }, [resetState, returnTo]);
 
@@ -319,7 +321,7 @@ function App() {
                         className="truncate cursor-pointer hover:text-blue-400"
                         onClick={() => handleOpen(path, "home")}
                       >
-                        {path.split(/[\\/]/).pop()}
+                        {basename(path)}
                       </li>
                     ))}
                   </ul>

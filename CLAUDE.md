@@ -65,7 +65,9 @@ src/
     settingsStore.ts            Global settings CRUD against .settings.dat
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
-    folderUtils.ts              getRelativeFolder(entryPath, rootPath) shared util
+    folderUtils.ts              Path helpers: getRelativeFolder(entryPath, rootPath), basename(path), normalizePath(path)
+    scroll.ts                   Scroll-edge constants (SCROLL_EPSILON_PX, WHEEL_THROTTLE_MS, PAGE_SCROLL_FRACTION) + isAtTop/isAtBottom
+    appWindow.ts                APP_NAME + setWindowTitle(name?) → "${name} - KReader" or "KReader"
     readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks), read+write.
                                   Consumed by useReadingProgress and PDFReader; exposes getReadingProgress,
                                   getSavedPage, savePage/saveCascade/saveBookmarks, and getPageForPath(filePath).

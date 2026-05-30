@@ -1,6 +1,7 @@
 import { readFile, readDir } from "@tauri-apps/plugin-fs";
 import { dirname, join } from "@tauri-apps/api/path";
 import { IMAGE_EXTS_SET, extOf, mimeForExt, type LoaderResult } from "./types";
+import { basename } from "../utils/folderUtils";
 
 export async function loadImageFolder(path: string): Promise<LoaderResult> {
   const dir = await dirname(path);
@@ -21,7 +22,7 @@ export async function loadImageFolder(path: string): Promise<LoaderResult> {
     })
   );
 
-  const fileName = path.split(/[/\\]/).pop()!;
+  const fileName = basename(path);
   const imgIndex = imageNames.indexOf(fileName);
 
   return {
