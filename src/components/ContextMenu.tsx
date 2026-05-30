@@ -1,8 +1,11 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry } from "../types/library";
 
 const ITEM_CLASS = "block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors";
+
+// Keep the menu this many px away from every viewport edge.
+const VIEWPORT_MARGIN_PX = 8;
 
 function ContextMenu({
   x,
@@ -46,13 +49,30 @@ function ContextMenu({
     };
   }, []);
 
+  // Clamp the menu inside the viewport once its real size is known. Flip to the
+  // left/top of the cursor when it would overflow the right/bottom edge, then
+  // clamp so it never leaves the viewport even after flipping.
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState({ top: y, left: x });
+  useLayoutEffect(() => {
+    const el = menuRef.current;
+    if (!el) return;
+    const { width, height } = el.getBoundingClientRect();
+    let left = x + width + VIEWPORT_MARGIN_PX > window.innerWidth ? x - width : x;
+    let top = y + height + VIEWPORT_MARGIN_PX > window.innerHeight ? y - height : y;
+    left = Math.max(VIEWPORT_MARGIN_PX, Math.min(left, window.innerWidth - width - VIEWPORT_MARGIN_PX));
+    top = Math.max(VIEWPORT_MARGIN_PX, Math.min(top, window.innerHeight - height - VIEWPORT_MARGIN_PX));
+    setPos({ top, left });
+  }, [x, y]);
+
   const single = entries.length === 1 ? entries[0] : null;
   const candidates = single ? ambiguousCandidates.get(single.id) : undefined;
 
   return (
     <div
+      ref={menuRef}
       className="fixed z-50 rounded shadow-lg overflow-hidden"
-      style={{ top: y, left: x, background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
+      style={{ top: pos.top, left: pos.left, background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
       onClick={(e) => e.stopPropagation()}
     >
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onEditTags(entries)}>
