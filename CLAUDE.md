@@ -105,6 +105,7 @@ src/
 - `.library.dat` — library definitions and entries. Keys:
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
+- `.window-state.json` — window geometry (size, position, maximized, fullscreen, visible) per window label, owned by `tauri-plugin-window-state` (in `app_config_dir()`). Written automatically on window close / app exit, restored on launch. Only the `main` window (stable label) round-trips across sessions; `reader-*` labels change each launch (see [Multi-window](#multi-window-single-instance)). The `main` window is declared `"visible": false` in `tauri.conf.json` so the plugin can apply the saved geometry while hidden and then show it (the plugin's `restore_state` calls `show()` itself when the `VISIBLE` flag is set) — this avoids the open-at-default-size-then-resize flash. First launch (no saved state) still shows because the plugin defaults `should_show` to true.
 
 **Rule:** All store access must go through the utility wrappers (`libraryStore.ts`, `settingsStore.ts`, `recentFiles.ts`, `readingProgressStore.ts`). Never instantiate `Store` directly in a component or hook, and never use key strings outside the owning util file. The `pin-page-indicator` setting is owned by `settingsStore.ts`; `usePinPageIndicator` consumes it through that wrapper.
 
@@ -198,7 +199,7 @@ Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into W
 KReader runs as a **single process** with potentially multiple windows, via `tauri-plugin-single-instance` (registered as the *first* plugin in `lib.rs`). This is deliberate: the Tauri Store keeps its canonical map in Rust shared across all windows of a process, so multiple windows can read/write reading progress, bookmarks, and settings without clobbering each other. Separate *processes* would each hold an independent in-memory copy and overwrite the whole file on `save()` (last-write-wins), which is the bug this design avoids.
 
 - A second OS launch (e.g. file-association double-click while running) is intercepted by the single-instance callback, which spawns a new window via `create_reader_window` instead of starting a second process.
-- The NavBar "New window" button calls `open_new_window` to spawn a fresh window from inside the app.
+- The NavBar "New window" button calls `open_new_window` to spawn a fresh window from inside the app. New windows inherit the `main` window's current inner size (and maximized state) via `create_reader_window`, falling back to `DEFAULT_WINDOW_WIDTH`/`DEFAULT_WINDOW_HEIGHT` (800×600) when `main` is gone.
 - Each window resolves which file to open on mount by calling `take_window_file` (keyed by its own window label) — see the `PendingFiles` map in `lib.rs`. The `main` window's entry comes from the CLI argument.
 - New windows use labels `reader-{n}` (monotonic `WindowCounter`). The capability in `capabilities/default.json` must cover them — its `windows` list includes both `"main"` and `"reader-*"`; without the glob, new windows would have no store/fs/dialog/core permissions.
 - **Not handled:** live cross-window reactivity. If two windows share the same library, an in-memory change in one (e.g. folder filter) is not pushed to the other until it rescans/reopens. Disk state stays consistent; only the live React state can be momentarily stale.
@@ -261,3 +262,4 @@ If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permissi
 - `lopdf` (Rust) — PDF page counting (`count_pdf_pages` command). `default-features = false` to avoid pulling in rayon/chrono/time.
 - `react-hotkeys-hook` — present in `package.json` but unused; keyboard handling is done via `addEventListener` in `useReaderShortcuts` and `App.tsx`.
 - `@tauri-apps/plugin-store` — key-value persistence for recent files, reading progress, settings, and library data.
+- `tauri-plugin-window-state` (Rust) — persists/restores window geometry to `.window-state.json`. Registered right after `single_instance` in `lib.rs`. Used purely via its Rust autosave/restore; no JS commands invoked, so no capability entry is required.

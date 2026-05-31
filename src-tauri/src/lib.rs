@@ -9,6 +9,11 @@ use std::time::UNIX_EPOCH;
 
 const READER_WINDOW_LABEL_PREFIX: &str = "reader-";
 
+// Fallback window size used when there is no main window to inherit geometry
+// from (e.g. main was already closed). Matches the `main` defaults in tauri.conf.json.
+const DEFAULT_WINDOW_WIDTH: f64 = 800.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 600.0;
+
 const IMAGE_EXTS: &[&str] = &[".jpg", ".jpeg", ".png", ".gif", ".webp"];
 
 fn image_mime(lower_name: &str) -> &'static str {
@@ -43,9 +48,26 @@ fn create_reader_window(app: &tauri::AppHandle, path: Option<String>) -> Result<
             .insert(label.clone(), p);
     }
 
+    // Inherit geometry from the main window so new windows match the user's
+    // current sizing instead of a fixed default. If main is maximized, open
+    // maximized too but keep a sensible un-maximize size from the default.
+    let main = app.get_webview_window("main");
+    let maximized = main
+        .as_ref()
+        .and_then(|w| w.is_maximized().ok())
+        .unwrap_or(false);
+    let (width, height) = match main.as_ref() {
+        Some(w) if !maximized => match (w.inner_size(), w.scale_factor()) {
+            (Ok(size), Ok(scale)) => (size.width as f64 / scale, size.height as f64 / scale),
+            _ => (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT),
+        },
+        _ => (DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT),
+    };
+
     tauri::WebviewWindowBuilder::new(app, &label, tauri::WebviewUrl::App("index.html".into()))
         .title("KReader")
-        .inner_size(800.0, 600.0)
+        .inner_size(width, height)
+        .maximized(maximized)
         .build()
         .map_err(|e| e.to_string())?;
 
@@ -367,6 +389,10 @@ pub fn run() {
             let file = argv.get(1).filter(|s| !s.is_empty()).cloned();
             let _ = create_reader_window(app, file);
         }))
+        // Persists window size, position, maximized and fullscreen state per
+        // window label to .window-state.dat, restoring on launch. The main
+        // window (stable label) is the one that round-trips across sessions.
+        .plugin(tauri_plugin_window_state::Builder::default().build())
         .setup(|app| {
             let args: Vec<String> = std::env::args().collect();
             let startup_path = if args.len() > 1 { Some(args[1].clone()) } else { None };

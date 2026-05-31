@@ -1,6 +1,6 @@
 [package]
 name = "kreader"
-version = "0.12.10"
+version = "0.13.0"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"
@@ -25,6 +25,7 @@ tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-store = "2"
 tauri-plugin-single-instance = "2"
+tauri-plugin-window-state = "2"
 unrar = "0.5"
 zip = "2"
 trash = "3"
