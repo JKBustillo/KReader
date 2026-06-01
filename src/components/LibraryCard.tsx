@@ -114,22 +114,20 @@ function LibraryCard({
       onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
-      className="group flex flex-col rounded-lg overflow-hidden cursor-pointer select-none hover:brightness-[1.08]"
+      className="group flex flex-col cursor-pointer select-none transition-transform duration-200 hover:-translate-y-1"
       style={{
-        background: "var(--bg-tab-active)",
         opacity: notFound && !ambiguous ? 0.4 : 1,
-        border: selected
-          ? "2px solid var(--color-selection)"
-          : ambiguous
-            ? "2px solid var(--color-progress-inprogress)"
-            : "1px solid var(--border-nav)",
         contentVisibility: "auto",
         containIntrinsicSize: CARD_INTRINSIC_SIZE,
       }}
       title={ambiguous ? t("library.ambiguous") : notFound ? entry.currentPath : title}
     >
       {/* Cover area — 2:3 portrait ratio */}
-      <div className="relative w-full" style={{ aspectRatio: "2/3", background: "var(--bg-nav)" }}>
+      <div
+        className="kr-card-cover relative w-full rounded-xl overflow-hidden"
+        data-ring={selected ? "selected" : ambiguous ? "ambiguous" : undefined}
+        style={{ aspectRatio: "2/3", background: "var(--bg-nav)" }}
+      >
         {thumbLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
@@ -149,54 +147,54 @@ function LibraryCard({
           </div>
         )}
 
-        {/* Ambiguous badge — top-left of cover */}
-        {ambiguous && (
-          <span
-            className="absolute top-1.5 left-1.5 z-10 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
-            style={{ background: "var(--color-progress-inprogress)", color: "#fff" }}
-          >
-            ?
-          </span>
-        )}
+        {/* Bottom gradient for title legibility over the cover art */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ background: "linear-gradient(to top, rgba(0,0,0,0.8) 4%, transparent 46%)" }}
+        />
 
-        {/* Reading progress dot — bottom-left of cover */}
-        {entry.readingState !== "unread" && (
-          <span
-            className="absolute bottom-1.5 left-1.5 z-10 w-2.5 h-2.5 rounded-full"
-            style={{ background: PROGRESS_DOT_COLORS[entry.readingState] }}
-          />
-        )}
-
-        {/* Page count overlay — appears on hover */}
-        {(entry.totalPages ?? 0) > 0 && (
-          <div
-            className="absolute bottom-0 left-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity py-1 text-center text-[10px] select-none pointer-events-none"
-            style={{ background: "rgba(0,0,0,0.55)", color: "#fff" }}
-          >
-            {entry.totalPages} {t("library.pages")}
-          </div>
-        )}
+        {/* Status — top-left: ambiguous badge then reading dot (avoids the title) */}
+        <div className="absolute top-1.5 left-1.5 z-10 flex items-center gap-1">
+          {ambiguous && (
+            <span
+              className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold"
+              style={{ background: "var(--color-progress-inprogress)", color: "#fff" }}
+            >
+              ?
+            </span>
+          )}
+          {entry.readingState !== "unread" && (
+            <span
+              className="w-2.5 h-2.5 rounded-full"
+              style={{ background: PROGRESS_DOT_COLORS[entry.readingState], boxShadow: "0 0 8px currentColor", color: PROGRESS_DOT_COLORS[entry.readingState] }}
+            />
+          )}
+        </div>
 
         {/* Favorite toggle — always visible, top-right of cover */}
         <button
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(entry); }}
           className="absolute top-1.5 right-1.5 z-10 p-1 rounded-full"
           style={{
-            color: entry.isFavorite ? "var(--color-favorite)" : "var(--text-muted)",
-            background: "rgba(0,0,0,0.35)",
+            color: entry.isFavorite ? "var(--color-favorite)" : "rgba(255,255,255,0.7)",
+            background: "rgba(0,0,0,0.4)",
           }}
           title={entry.isFavorite ? t("library.removeFromFavorites") : t("library.addToFavorites")}
         >
           <StarIcon filled={entry.isFavorite} />
         </button>
-      </div>
 
-      {/* Title + rating + progress */}
-      <div className="px-2 py-1.5 flex flex-col gap-1">
-        <p className="text-xs leading-snug line-clamp-2 break-words"
-          style={{ color: "var(--text-secondary)" }}>
+        {/* Title — overlaid on the cover */}
+        <p
+          className="absolute left-2.5 right-2.5 bottom-2.5 z-10 font-display text-sm font-semibold leading-tight line-clamp-2 break-words"
+          style={{ color: "#fff", textShadow: "0 1px 6px rgba(0,0,0,0.65)" }}
+        >
           {title}
         </p>
+      </div>
+
+      {/* Rating + page count + progress */}
+      <div className="px-0.5 pt-2.5 flex flex-col gap-1.5">
         <RatingStars rating={entry.rating} onRate={(r) => onRate(entry, r)} />
         {showPageCount && (entry.totalPages ?? 0) > 0 && (
           <span className="text-[10px] tabular-nums" style={{ color: "var(--text-muted)" }}>
@@ -205,6 +203,7 @@ function LibraryCard({
         )}
         {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
           const progressPct = computeProgress(entry, currentPage);
+          const progressColor = PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"];
           return (
             <div
               className="w-full h-1 rounded-full overflow-hidden"
@@ -213,10 +212,7 @@ function LibraryCard({
             >
               <div
                 className="h-full rounded-full"
-                style={{
-                  width: `${progressPct}%`,
-                  background: PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"],
-                }}
+                style={{ width: `${progressPct}%`, background: progressColor, boxShadow: `0 0 8px ${progressColor}` }}
               />
             </div>
           );

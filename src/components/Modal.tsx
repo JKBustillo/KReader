@@ -1,7 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
 
-const PANEL_BASE = "w-full rounded-lg shadow-2xl p-5 flex flex-col gap-4";
-const BACKDROP_COLOR = "rgba(0,0,0,0.5)";
+const PANEL_BASE = "w-full rounded-2xl shadow-2xl p-5 flex flex-col gap-4";
+const BACKDROP_COLOR = "rgba(0,0,0,0.62)";
 
 /**
  * Centered modal shell: dimmed backdrop, Escape-to-close, click-outside-to-close,
@@ -31,7 +31,7 @@ function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
       style={{ background: BACKDROP_COLOR }}
       onClick={onClose}
     >

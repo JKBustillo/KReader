@@ -4,12 +4,58 @@ import { save, open } from "@tauri-apps/plugin-dialog";
 import { writeTextFile, readTextFile } from "@tauri-apps/plugin-fs";
 import { exportLibraryData, importLibraryData } from "../utils/libraryStore";
 import type { Theme } from "../utils/theme";
+import type { AccentId } from "../utils/accent";
+import Button from "./Button";
+
+// Accent options shown as swatches. Each swatch carries its own `data-accent`
+// attribute so `var(--accent)` resolves to that option's color (defined in
+// App.css) — no hardcoded hex in the component.
+const ACCENTS: { id: AccentId; labelKey: string }[] = [
+  { id: "ice", labelKey: "settings.accentIce" },
+  { id: "violet", labelKey: "settings.accentViolet" },
+];
+
+// Glyphs for the data-action buttons. Up = export (out of app), down = import (into app).
+const ICON_REFRESH = "↻";
+const ICON_EXPORT = "↥";
+const ICON_IMPORT = "↧";
+
+// Single display-preference row: label on the left, pill toggle on the right.
+function ToggleRow({
+  label,
+  active,
+  onToggle,
+}: {
+  label: string;
+  active: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+        {label}
+      </span>
+      <button
+        onClick={onToggle}
+        className="w-9 h-5 rounded-full relative transition-colors shrink-0"
+        style={{ background: active ? "var(--color-selection)" : "var(--border-nav)" }}
+      >
+        <span
+          className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
+          style={{ background: "#fff", left: active ? "calc(100% - 1.125rem)" : "0.125rem" }}
+        />
+      </button>
+    </div>
+  );
+}
 
 function SettingsModal({
   open: isOpen,
   onClose,
   theme,
   onToggleTheme,
+  accent,
+  onSetAccent,
   language,
   onSetLanguage,
   showProgressBar,
@@ -22,6 +68,8 @@ function SettingsModal({
   onClose: () => void;
   theme: Theme;
   onToggleTheme: () => void;
+  accent: AccentId;
+  onSetAccent: (accent: AccentId) => void;
   language: string;
   onSetLanguage: (lang: string) => void;
   showProgressBar: boolean;
@@ -78,12 +126,12 @@ function SettingsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: "rgba(0,0,0,0.5)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
+      style={{ background: "rgba(0,0,0,0.62)" }}
       onClick={onClose}
     >
       <div
-        className="max-w-sm w-full rounded-lg p-5 flex flex-col gap-5"
+        className="max-w-sm w-full rounded-2xl p-5 flex flex-col gap-5"
         style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -124,6 +172,27 @@ function SettingsModal({
           </div>
         </div>
 
+        {/* Accent color */}
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            {t("settings.accent")}
+          </p>
+          <div className="flex gap-2">
+            {ACCENTS.map(({ id, labelKey }) => (
+              <button
+                key={id}
+                data-accent={id}
+                onClick={() => onSetAccent(id)}
+                className="flex-1 flex items-center justify-center gap-2 py-1.5 text-xs rounded transition-colors"
+                style={accent === id ? chipActive : chipInactive}
+              >
+                <span className="w-3.5 h-3.5 rounded-full" style={{ background: "var(--accent)" }} />
+                {t(labelKey)}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Language */}
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -148,90 +217,54 @@ function SettingsModal({
         </div>
 
         {/* Library */}
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {t("settings.library")}
           </p>
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: "var(--text-primary)" }}>
-              {t("settings.progressBar")}
-            </span>
-            <button
-              onClick={onToggleProgressBar}
-              className="w-9 h-5 rounded-full relative transition-colors"
-              style={{ background: showProgressBar ? "var(--color-selection)" : "var(--border-nav)" }}
-            >
-              <span
-                className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
-                style={{
-                  background: "#fff",
-                  left: showProgressBar ? "calc(100% - 1.125rem)" : "0.125rem",
-                }}
-              />
-            </button>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs" style={{ color: "var(--text-primary)" }}>
-              {t("settings.pageCount")}
-            </span>
-            <button
-              onClick={onTogglePageCount}
-              className="w-9 h-5 rounded-full relative transition-colors"
-              style={{ background: showPageCount ? "var(--color-selection)" : "var(--border-nav)" }}
-            >
-              <span
-                className="absolute top-0.5 w-4 h-4 rounded-full transition-transform"
-                style={{
-                  background: "#fff",
-                  left: showPageCount ? "calc(100% - 1.125rem)" : "0.125rem",
-                }}
-              />
-            </button>
-          </div>
-          <button
-            className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
-            style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
-            onClick={onRefreshMetadata}
+
+          {/* Display preferences grouped in a subtle card */}
+          <div
+            className="flex flex-col gap-2.5 rounded-lg p-3"
+            style={{ background: "var(--bg-tab-active)", border: "1px solid var(--border-nav)" }}
           >
+            <ToggleRow label={t("settings.progressBar")} active={showProgressBar} onToggle={onToggleProgressBar} />
+            <ToggleRow label={t("settings.pageCount")} active={showPageCount} onToggle={onTogglePageCount} />
+          </div>
+
+          {/* Data actions */}
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            {t("settings.data")}
+          </p>
+          <Button variant="secondary" className="w-full" onClick={onRefreshMetadata}>
+            <span aria-hidden="true">{ICON_REFRESH}</span>
             {t("settings.refreshMetadata")}
-          </button>
-          <button
-            className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
-            style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
-            onClick={handleExport}
-          >
-            {t("settings.export")}
-          </button>
+          </Button>
+
           {importPending ? (
             <div className="flex flex-col gap-2">
               <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                 {t("settings.importConfirmMsg")}
               </p>
               <div className="flex gap-2">
-                <button
-                  className="flex-1 py-1.5 text-xs rounded transition-colors"
-                  style={{ background: "var(--color-danger)", color: "#fff" }}
-                  onClick={handleImportConfirm}
-                >
+                <Button variant="danger" className="flex-1" onClick={handleImportConfirm}>
                   {t("settings.importConfirm")}
-                </button>
-                <button
-                  className="flex-1 py-1.5 text-xs rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-                  style={{ color: "var(--text-muted)", border: "1px solid var(--border-nav)" }}
-                  onClick={() => setImportPending(false)}
-                >
+                </Button>
+                <Button variant="secondary" className="flex-1" onClick={() => setImportPending(false)}>
                   {t("settings.importCancel")}
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
-            <button
-              className="w-full py-1.5 text-xs rounded text-left px-3 transition-colors hover:bg-[var(--bg-tab-active)]"
-              style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
-              onClick={() => setImportPending(true)}
-            >
-              {t("settings.import")}
-            </button>
+            <div className="flex gap-2">
+              <Button variant="secondary" className="flex-1" onClick={handleExport}>
+                <span aria-hidden="true">{ICON_EXPORT}</span>
+                {t("settings.exportShort")}
+              </Button>
+              <Button variant="secondary" className="flex-1" onClick={() => setImportPending(true)}>
+                <span aria-hidden="true">{ICON_IMPORT}</span>
+                {t("settings.importShort")}
+              </Button>
+            </div>
           )}
         </div>
       </div>

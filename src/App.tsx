@@ -9,8 +9,10 @@ import PDFReader from "./components/PDFReader";
 import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
+import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
+import { applyAccent, getAccent, type AccentId } from "./utils/accent";
 import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
@@ -29,6 +31,7 @@ function App() {
   const [pageNames, setPageNames] = useState<string[] | undefined>(undefined);
   const [recentFiles, setRecentFiles] = useState<string[]>([]);
   const [theme, setTheme] = useState<Theme>(getTheme);
+  const [accent, setAccent] = useState<AccentId>(getAccent);
   const [language, setLanguage] = useState(i18n.language);
   const [view, setView] = useState<AppView>("home");
   const [returnTo, setReturnTo] = useState<"home" | "library">("home");
@@ -50,9 +53,12 @@ function App() {
   const startupCheckedRef = useRef(false);
 
   useEffect(() => { applyTheme(theme); }, [theme]);
+  useEffect(() => { applyAccent(accent); }, [accent]);
 
   const handleToggleTheme = useCallback(() =>
     setTheme(prev => prev === "dark" ? "light" : "dark"), []);
+
+  const handleSetAccent = useCallback((a: AccentId) => setAccent(a), []);
 
   const handleSetLanguage = useCallback((lang: string) => {
     i18n.changeLanguage(lang);
@@ -260,7 +266,7 @@ function App() {
   }
 
   if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} onRefreshMetadata={handleRefreshMetadata} />;
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} onRefreshMetadata={handleRefreshMetadata} />;
     if (pdfData !== null) {
       return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
     }
@@ -270,7 +276,7 @@ function App() {
   }
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] font-sans">
+    <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)] font-sans">
       <NavBar
         view={view === "reader" ? "home" : view}
         onNavigate={setView}
@@ -288,44 +294,72 @@ function App() {
           />
         ) : (
           /* Home view */
-          <div className="flex flex-col justify-center items-center h-full">
-            <div className="text-center">
-              <h1 className="text-3xl font-semibold mb-6 tracking-wide">
-                📚 KReader
-              </h1>
-              <p className="mb-8 text-[var(--text-secondary)]">
-                {t("home.subtitle")}
-              </p>
-              <button
-                onClick={openFileDialog}
-                className="px-6 py-3 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-indigo-500 hover:to-blue-500 transition-all duration-200 text-white font-medium shadow-md hover:shadow-lg"
+          <div className="h-full overflow-y-auto">
+            <div className="max-w-3xl mx-auto px-8 py-16">
+              <p
+                className="kr-rise text-xs font-semibold uppercase tracking-[0.28em] mb-5"
+                style={{ color: "var(--accent)", animationDelay: "0.05s" }}
               >
-                {t("home.openFile")}
-              </button>
+                {t("home.eyebrow")}
+              </p>
+              <h1
+                className="kr-rise font-display font-semibold leading-[0.98] tracking-tight"
+                style={{ fontSize: "clamp(2.75rem, 7vw, 4.75rem)", animationDelay: "0.12s" }}
+              >
+                {t(recentFiles.length > 0 ? "home.titleLead" : "home.titleLeadEmpty")}{" "}
+                <span style={{ color: "var(--accent)", textShadow: "0 0 38px var(--glow)" }}>
+                  {t(recentFiles.length > 0 ? "home.titleAccent" : "home.titleAccentEmpty")}
+                </span>
+              </h1>
+              <p
+                className="kr-rise mt-6 max-w-md text-lg leading-relaxed"
+                style={{ color: "var(--text-secondary)", animationDelay: "0.22s" }}
+              >
+                {t(recentFiles.length > 0 ? "home.subtitle" : "home.subtitleEmpty")}
+              </p>
+              <div className="kr-rise mt-9" style={{ animationDelay: "0.3s" }}>
+                <Button variant="primary" size="lg" onClick={openFileDialog}>
+                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 4h6l2 2h8v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z" />
+                  </svg>
+                  {t("home.openFile")}
+                </Button>
+              </div>
 
               {recentFiles.length > 0 && (
-                <div className="mt-8 w-80">
-                  <div className="flex justify-between items-center mb-2">
-                    <h2 className="text-lg font-semibold">{t("home.recent")}</h2>
+                <section className="kr-rise mt-16" style={{ animationDelay: "0.42s" }}>
+                  <div className="flex items-baseline justify-between mb-4 pb-3 border-b"
+                    style={{ borderColor: "var(--border-nav)" }}>
+                    <h2 className="font-display text-xl font-medium">{t("home.recent")}</h2>
                     <button
                       onClick={handleClear}
-                      className="text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      className="text-sm text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
                     >
                       {t("home.clear")}
                     </button>
                   </div>
-                  <ul className="space-y-2">
+                  <ul className="flex flex-col gap-0.5">
                     {recentFiles.map((path) => (
-                      <li
-                        key={path}
-                        className="truncate cursor-pointer hover:text-blue-400"
-                        onClick={() => handleOpen(path, "home")}
-                      >
-                        {basename(path)}
+                      <li key={path}>
+                        <button
+                          onClick={() => handleOpen(path, "home")}
+                          className="group w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"
+                            className="shrink-0 text-[var(--text-muted)] group-hover:text-[var(--accent)] transition-colors">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          <span className="truncate text-[var(--text-secondary)] group-hover:text-[var(--text-primary)] transition-colors">
+                            {basename(path)}
+                          </span>
+                        </button>
                       </li>
                     ))}
                   </ul>
-                </div>
+                </section>
               )}
             </div>
           </div>
@@ -336,6 +370,8 @@ function App() {
         onClose={() => setSettingsOpen(false)}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        accent={accent}
+        onSetAccent={handleSetAccent}
         language={language}
         onSetLanguage={handleSetLanguage}
         showProgressBar={showProgressBar}

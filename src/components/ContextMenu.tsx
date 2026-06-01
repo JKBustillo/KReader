@@ -2,7 +2,10 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { LibraryEntry } from "../types/library";
 
-const ITEM_CLASS = "block w-full text-left px-4 py-2 text-sm hover:bg-[var(--bg-tab-active)] transition-colors";
+const ITEM_CLASS = "block w-full text-left px-4 py-2 text-sm hover:bg-[var(--glow-soft)] transition-colors";
+// Destructive action: danger-colored text that flips to white on a danger fill.
+// Color lives in the class (not inline) so the hover:text-white can win.
+const DANGER_ITEM_CLASS = "block w-full text-left px-4 py-2 text-sm transition-colors text-[var(--color-danger)] hover:bg-[var(--color-danger)] hover:text-white";
 
 // Keep the menu this many px away from every viewport edge.
 const VIEWPORT_MARGIN_PX = 8;
@@ -71,8 +74,8 @@ function ContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 rounded shadow-lg overflow-hidden"
-      style={{ top: pos.top, left: pos.left, background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
+      className="kr-pop fixed z-50 rounded-xl shadow-2xl overflow-hidden py-1 min-w-[184px]"
+      style={{ top: pos.top, left: pos.left, background: "var(--bg-nav)", border: "1px solid var(--border-nav)", transformOrigin: "top left" }}
       onClick={(e) => e.stopPropagation()}
     >
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onEditTags(entries)}>
@@ -96,7 +99,8 @@ function ContextMenu({
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onMoveToFolder(entries)}>
         {t("library.moveToFolder")}
       </button>
-      <button className={ITEM_CLASS} style={{ color: "var(--color-danger)" }} onClick={() => onDelete(entries)}>
+      <div className="my-1 h-px" style={{ background: "var(--border-nav)" }} />
+      <button className={DANGER_ITEM_CLASS} onClick={() => onDelete(entries)}>
         {t("library.delete")}
       </button>
     </div>

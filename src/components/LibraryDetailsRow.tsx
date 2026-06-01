@@ -102,7 +102,7 @@ function LibraryDetailsRow({
       onClick={(e) => { if (e.detail < 2) onSelect(entry, e); }}
       onDoubleClick={() => !notFound && onOpen(entry)}
       onContextMenu={(e) => { e.preventDefault(); onContextMenu(entry, e.clientX, e.clientY); }}
-      className="relative flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors"
+      className="relative flex items-center gap-4 px-4 py-2 text-sm border-b cursor-pointer select-none transition-colors hover:bg-[var(--bg-tab-active)]"
       style={{
         borderColor: "var(--border-nav)",
         opacity: notFound && !ambiguous ? 0.45 : 1,
@@ -134,7 +134,7 @@ function LibraryDetailsRow({
         {entry.readingState !== "unread" && (
           <span
             className="shrink-0 w-2 h-2 rounded-full"
-            style={{ background: PROGRESS_DOT_COLORS[entry.readingState] }}
+            style={{ background: PROGRESS_DOT_COLORS[entry.readingState], color: PROGRESS_DOT_COLORS[entry.readingState], boxShadow: "0 0 6px currentColor" }}
           />
         )}
         <span className="truncate">{name}</span>
@@ -156,13 +156,11 @@ function LibraryDetailsRow({
       </span>
       {showProgressBar && (entry.totalPages ?? 0) > 0 && entry.readingState !== "unread" && (() => {
         const progressPct = computeProgress(entry, currentPage);
+        const progressColor = PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"];
         return (
           <div
             className="absolute bottom-0 left-0 h-[2px] rounded-full"
-            style={{
-              width: `${progressPct}%`,
-              background: PROGRESS_DOT_COLORS[entry.readingState === "completed" ? "completed" : "in_progress"],
-            }}
+            style={{ width: `${progressPct}%`, background: progressColor, boxShadow: `0 0 6px ${progressColor}` }}
             title={`${progressPct}%`}
           />
         );

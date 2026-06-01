@@ -14,41 +14,42 @@ function NavBar({
 }) {
   const { t } = useTranslation();
 
+  const tabClass = (active: boolean) =>
+    `px-3 py-1.5 rounded-lg text-sm transition-colors ${
+      active ? "font-medium" : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+    }`;
+  const tabStyle = (active: boolean) =>
+    active ? { background: "var(--accent)", color: "var(--accent-ink)" } : undefined;
+
   return (
     <nav className="fixed top-0 left-0 right-0 z-40 flex items-center justify-between px-4 h-11 border-b"
       style={{ background: "var(--bg-nav)", borderColor: "var(--border-nav)" }}
     >
-      <div className="flex items-center gap-1">
-        <button
-          onClick={() => onNavigate("home")}
-          className="px-3 py-1.5 rounded text-sm transition-colors"
-          style={
-            view === "home"
-              ? { background: "var(--bg-tab-active)", color: "var(--text-primary)", fontWeight: 500 }
-              : { color: "var(--text-muted)" }
-          }
-        >
-          {t("nav.home")}
-        </button>
-        <button
-          onClick={() => onNavigate("library")}
-          className="px-3 py-1.5 rounded text-sm transition-colors"
-          style={
-            view === "library"
-              ? { background: "var(--bg-tab-active)", color: "var(--text-primary)", fontWeight: 500 }
-              : { color: "var(--text-muted)" }
-          }
-        >
-          {t("nav.library")}
-        </button>
+      <div className="flex items-center">
+        {/* Brand mark */}
+        <div className="flex items-center gap-2 mr-4 select-none">
+          <span
+            className="w-[7px] h-[7px] rounded-full"
+            style={{ background: "var(--accent)", boxShadow: "0 0 10px var(--glow)" }}
+          />
+          <span className="font-display text-[15px] font-semibold tracking-tight">KReader</span>
+        </div>
+
+        <div className="flex items-center gap-1">
+          <button onClick={() => onNavigate("home")} className={tabClass(view === "home")} style={tabStyle(view === "home")}>
+            {t("nav.home")}
+          </button>
+          <button onClick={() => onNavigate("library")} className={tabClass(view === "library")} style={tabStyle(view === "library")}>
+            {t("nav.library")}
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
         <button
           onClick={() => { invoke("open_new_window").catch(console.error); }}
           title={t("nav.newWindow")}
-          className="transition-colors"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
@@ -62,8 +63,7 @@ function NavBar({
         <button
           onClick={onOpenSettings}
           title={t("settings.title")}
-          className="transition-colors"
-          style={{ color: "var(--text-muted)" }}
+          className="text-[var(--text-muted)] hover:text-[var(--accent)] transition-colors"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
             fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"

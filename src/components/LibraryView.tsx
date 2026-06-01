@@ -34,6 +34,7 @@ import Modal from "./Modal";
 import ResolveLocationModal from "./ResolveLocationModal";
 import ContextMenu from "./ContextMenu";
 import FilterDropdown from "./FilterDropdown";
+import Button from "./Button";
 
 type ScannedFile = {
   path: string;
@@ -78,6 +79,12 @@ function GridIcon() {
   );
 }
 
+// Folder-tree layout (rem). Each nesting level shifts the row right so the
+// list reads as a hierarchy; base padding aligns the top level with the header.
+const ROOT_FOLDER_PATH = "/";
+const FOLDER_BASE_PADDING_REM = 0.75;
+const FOLDER_INDENT_REM = 0.85;
+
 function MoveFolderModal({
   entries,
   folders,
@@ -110,18 +117,39 @@ function MoveFolderModal({
           ×
         </button>
       </div>
-      <div className="flex flex-col gap-1 max-h-64 overflow-y-auto">
-        {destinations.map((folder) => (
-          <button
-            key={folder}
-            onClick={() => onMove(entries, folder)}
-            className="text-left text-xs px-3 py-2 rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-            style={{ color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
-          >
-            {folder}
-          </button>
-        ))}
-      </div>
+      {destinations.length === 0 ? (
+        <p className="text-xs py-2" style={{ color: "var(--text-muted)" }}>
+          {t("library.moveNoDestinations")}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-0.5 max-h-64 overflow-y-auto">
+          {destinations.map((folder) => {
+            const isRoot = folder === ROOT_FOLDER_PATH;
+            const segments = isRoot ? [] : folder.split("/");
+            const name = isRoot ? t("library.rootFolder") : segments[segments.length - 1];
+            const paddingLeft = `${FOLDER_BASE_PADDING_REM + segments.length * FOLDER_INDENT_REM}rem`;
+            return (
+              <button
+                key={folder}
+                onClick={() => onMove(entries, folder)}
+                title={isRoot ? undefined : folder}
+                className="group flex items-center gap-2 text-left text-xs py-2 pr-3 rounded border-l-2 border-transparent transition-colors hover:bg-[var(--bg-tab-active)] hover:border-[var(--color-selection)]"
+                style={{ color: "var(--text-primary)", paddingLeft }}
+              >
+                <span aria-hidden="true">📁</span>
+                <span className="truncate">{name}</span>
+                <span
+                  aria-hidden="true"
+                  className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"
+                  style={{ color: "var(--color-selection)" }}
+                >
+                  →
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      )}
     </Modal>
   );
 }
@@ -143,22 +171,28 @@ function DeleteConfirmModal({
 
   return (
     <Modal onClose={onClose} panelClassName="max-w-sm">
-      <p className="text-sm" style={{ color: "var(--text-primary)" }}>{message}</p>
+      <div className="flex items-start gap-3.5">
+        <span
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+          style={{ border: "1px solid var(--color-danger)", color: "var(--color-danger)" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+            <line x1="10" y1="11" x2="10" y2="17" />
+            <line x1="14" y1="11" x2="14" y2="17" />
+          </svg>
+        </span>
+        <p className="text-sm leading-relaxed pt-1" style={{ color: "var(--text-primary)" }}>{message}</p>
+      </div>
       <div className="flex justify-end gap-2">
-        <button
-          onClick={onClose}
-          className="px-3 py-1.5 text-xs rounded transition-colors hover:bg-[var(--bg-tab-active)]"
-          style={{ color: "var(--text-secondary)", border: "1px solid var(--border-nav)" }}
-        >
+        <Button variant="secondary" onClick={onClose}>
           {t("library.cancel")}
-        </button>
-        <button
-          onClick={onConfirm}
-          className="px-3 py-1.5 text-xs rounded transition-colors"
-          style={{ background: "var(--color-danger)", color: "#fff" }}
-        >
+        </Button>
+        <Button variant="danger" onClick={onConfirm}>
           {t("library.deleteConfirmBtn")}
-        </button>
+        </Button>
       </div>
     </Modal>
   );
@@ -854,8 +888,8 @@ function LibraryView({
           )}
           <button
             onClick={handleAddLibrary}
-            className="text-xs px-3 py-1 rounded transition-colors"
-            style={{ background: "var(--bg-tab-active)", color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
+            className="text-xs px-3 py-1 rounded-lg font-medium transition-all duration-200 hover:shadow-[0_0_20px_var(--glow)] hover:-translate-y-px"
+            style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
           >
             + {t("library.addLibrary")}
           </button>
@@ -875,12 +909,7 @@ function LibraryView({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("library.search")}
-              className="w-full text-sm rounded px-3 py-1.5 outline-none"
-              style={{
-                background: "var(--bg-tab-active)",
-                color: "var(--text-primary)",
-                border: "1px solid var(--border-nav)",
-              }}
+              className="w-full text-sm rounded-lg px-3 py-1.5 outline-none transition-colors bg-[var(--bg-tab-active)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-nav)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--glow-soft)]"
             />
           </div>
 
@@ -952,7 +981,7 @@ function LibraryView({
               : (
                 <div
                   className="p-4"
-                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))", gap: "1rem" }}
+                  style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(150px, 1fr))", gap: "1.25rem" }}
                   onClick={(e) => { if (e.target === e.currentTarget) setSelectedIds(new Set()); }}
                 >
                   {sorted.map((entry) => (

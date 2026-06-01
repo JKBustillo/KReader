@@ -327,7 +327,8 @@ function PDFReader({
         <p className="text-sm text-[var(--text-secondary)] font-mono break-all">{loadError}</p>
         <button
           onClick={() => { setWindowTitle(); onClose(); }}
-          className="px-4 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+          className="px-4 py-2 rounded-lg font-medium transition-all duration-200 hover:shadow-[0_0_20px_var(--glow)]"
+          style={{ background: "var(--accent)", color: "var(--accent-ink)" }}
         >
           {t("errors.goBack")}
         </button>

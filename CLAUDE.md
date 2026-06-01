@@ -40,8 +40,12 @@ src/
     LibraryDetailsRow.tsx       Details-view row for a library entry
     TagEditor.tsx               Modal for adding/removing custom tags; supports single and
                                   multi-entry mode, autocomplete suggestions
-    SettingsModal.tsx           Modal de ajustes: tema (dark/light), idioma (ES/EN),
-                                  export/import de biblioteca. Abre desde el engranaje de NavBar.
+    SettingsModal.tsx           Modal de ajustes: tema (dark/light), color de acento (ice/violet),
+                                  idioma (ES/EN), export/import de biblioteca. Abre desde el engranaje de NavBar.
+    Button.tsx                  Shared action button: variant (primary solid-accent CTA + glow / secondary bordered /
+                                  danger red) + size (sm/lg). Forwards native button props. Used by App home,
+                                  SettingsModal, and DeleteConfirmModal. Specialized controls (toggles, chips,
+                                  icon-only, tag chips, folder rows) deliberately stay outside this component.
     Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
                                   stopPropagation. Children = panel content; panelClassName sets width.
                                   Used by MoveFolderModal/DeleteConfirmModal (in LibraryView) + ResolveLocationModal.
@@ -68,7 +72,9 @@ src/
                                   SortField, SortDirection, ViewMode
   utils/
     recentFiles.ts              Lazy-init wrapper around .recent-files.dat
-    theme.ts                    Theme persisted in localStorage
+    theme.ts                    Theme (dark/light) persisted in localStorage (key `kreader-theme`), applied via `data-theme`
+    accent.ts                   Accent color (`ice`/`violet`) persisted in localStorage (key `kreader-accent`), applied via
+                                  `data-accent`. Mirrors theme.ts; both applied pre-paint in main.tsx to avoid flash.
     libraryStore.ts             Library + entries CRUD against .library.dat
     settingsStore.ts            Global settings CRUD against .settings.dat
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
@@ -84,6 +90,16 @@ src/
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
 ```
+
+### Theming, fonts & accent
+
+The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light theme.
+
+- **Fonts** are vendored offline in `src/assets/fonts/` (`.woff2`): **Clash Display** (display, weights 500/600/700) and **Hanken Grotesk** (body, variable 300–700). `@font-face` + a Tailwind v4 `@theme` block in `App.css` expose them as `font-sans` (Hanken, the default body font) and `font-display` (Clash Display). Use `font-display` for headings/titles.
+- **Tokens** live in `App.css` as CSS variables. The neutral palette + state colors switch on `data-theme` (`dark` default / `light`). All component colors must go through these vars (e.g. `var(--bg-primary)`, `var(--text-primary)`, `var(--color-favorite)`) — never hardcode hex/Tailwind color utilities for chrome. (Exception: `TagEditor` tag-color presets are user-chosen swatches, not chrome.)
+- **Accent** is orthogonal to theme: `--accent`, `--accent-ink` (text on accent), `--glow`, `--glow-soft` are defined per `data-accent` (`ice` default / `violet`), with glow rgba **precomputed** (no `color-mix` at runtime). Selection (`--color-selection`/`--color-selection-bg`) and reader key hints (`--text-key`) derive from the accent. Accent is owned by `utils/accent.ts` (localStorage `kreader-accent`), selectable in `SettingsModal`, applied pre-paint in `main.tsx`.
+- **Atmosphere**: `html:not([data-theme="light"]) body` paints fixed radial accent-glow gradients. This only shows because the React root container is **transparent** (no `bg-*`); `body` paints `--bg-primary`. Keep the root container transparent.
+- **Animation**: `.kr-rise` (in `App.css`) is the staggered home page-load reveal (via inline `animationDelay`); it respects `prefers-reduced-motion`. `.kr-card-cover` owns library-card cover shadow/hover-glow and the selection/ambiguous ring (`data-ring`).
 
 ### Data flow
 
