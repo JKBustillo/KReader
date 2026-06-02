@@ -83,8 +83,8 @@ fn take_window_file(window: tauri::Window, state: tauri::State<PendingFiles>) ->
 // WebviewWindow (WebView2 on Windows) needs the main thread's event loop to be
 // pumping. Calling build() from a sync command deadlocks the UI. Running async
 // moves this off the main thread so build() can dispatch window creation to the
-// now-free main thread. The single-instance callback creates windows directly
-// (it isn't blocking an IPC response), so create_reader_window stays sync.
+// now-free main thread. The single-instance callback also runs on the main thread,
+// so it spawns create_reader_window onto the async runtime for the same reason.
 #[tauri::command]
 async fn open_new_window(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
     create_reader_window(&app, path)
@@ -387,7 +387,15 @@ pub fn run() {
         // primary process spawns a new window for the incoming file instead.
         .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             let file = argv.get(1).filter(|s| !s.is_empty()).cloned();
-            let _ = create_reader_window(app, file);
+            // The single-instance callback runs on the main thread (dispatched by
+            // the event loop on receiving the second instance's message). Building a
+            // WebView2 window synchronously here would deadlock — build() needs the
+            // main thread's event loop free to dispatch window creation. Spawn it off
+            // the main thread, mirroring why open_new_window is async.
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                let _ = create_reader_window(&app, file);
+            });
         }))
         // Persists window size, position, maximized and fullscreen state per
         // window label to .window-state.dat, restoring on launch. The main
