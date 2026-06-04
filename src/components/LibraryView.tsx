@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
@@ -55,6 +55,10 @@ let sessionSelectedTags: Set<string> = new Set();
 
 // Session-only favorites filter — same lifecycle as sessionSelectedTags.
 let sessionShowFavoritesOnly = false;
+
+// Session-only library scroll position — restored on LibraryView remount
+// (reader open/close); resets on app restart.
+let sessionScrollTop = 0;
 
 function makeEntryId(filename: string, sizeBytes: number): string {
   return `${filename}::${sizeBytes}`;
@@ -248,6 +252,8 @@ function LibraryView({
   const lastCtrlSelectedIdRef = useRef<string | null>(null);
   const sortedRef = useRef<LibraryEntry[]>([]);
   const folderFilterLoadedForLibRef = useRef<string | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollRestoredRef = useRef(false);
 
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
@@ -720,6 +726,18 @@ function LibraryView({
   // Keep ref in sync for range-selection inside handleItemClick.
   sortedRef.current = sorted;
 
+  // Restore the saved scroll position once the list is tall enough to scroll
+  // (one-shot per mount). useLayoutEffect avoids a top-then-jump flash.
+  useLayoutEffect(() => {
+    if (scrollRestoredRef.current) return;
+    const el = scrollContainerRef.current;
+    if (!el) return;
+    if (sessionScrollTop > 0 && el.scrollHeight > el.clientHeight) {
+      el.scrollTop = sessionScrollTop;
+      scrollRestoredRef.current = true;
+    }
+  }, [sorted.length]);
+
   const colHeaderClass = "flex items-center gap-1 cursor-pointer select-none text-xs font-medium uppercase tracking-wide hover:text-[var(--text-primary)] transition-colors";
 
   return (
@@ -951,7 +969,9 @@ function LibraryView({
 
           {/* Content */}
           <div
+            ref={scrollContainerRef}
             className="flex-1 overflow-y-auto"
+            onScroll={(e) => { sessionScrollTop = e.currentTarget.scrollTop; }}
             onClick={(e) => { if (e.target === e.currentTarget) setSelectedIds(new Set()); }}
           >
             {scanning && (
