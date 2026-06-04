@@ -157,6 +157,9 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions.
 - Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; survives component unmount but resets on app restart).
 
+**Favorites filter:**
+- "Show favorites only" toggle is session-only (module-level variable `sessionShowFavoritesOnly`; same lifecycle as the tag filter — survives LibraryView unmount on reader open/close but resets on app restart).
+
 **Folder filter:**
 - Three states per folder: unselected → `"full"` (✓, includes subdirectories recursively) → `"partial"` (—, direct children only) → unselected.
 - Union semantics: an entry matches if any selected folder covers it.

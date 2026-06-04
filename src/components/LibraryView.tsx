@@ -53,6 +53,9 @@ type ContextMenuState = {
 // but resets when the app is restarted.
 let sessionSelectedTags: Set<string> = new Set();
 
+// Session-only favorites filter — same lifecycle as sessionSelectedTags.
+let sessionShowFavoritesOnly = false;
+
 function makeEntryId(filename: string, sizeBytes: number): string {
   return `${filename}::${sizeBytes}`;
 }
@@ -219,7 +222,7 @@ function LibraryView({
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(() => sessionShowFavoritesOnly);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
@@ -553,6 +556,10 @@ function LibraryView({
   useEffect(() => {
     sessionSelectedTags = selectedTags;
   }, [selectedTags]);
+
+  useEffect(() => {
+    sessionShowFavoritesOnly = showFavoritesOnly;
+  }, [showFavoritesOnly]);
 
   useEffect(() => {
     if (!activeLibId) {
