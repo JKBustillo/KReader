@@ -13,7 +13,8 @@ import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { applyAccent, getAccent, type AccentId } from "./utils/accent";
-import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup } from "./utils/settingsStore";
+import { runAutoBackupIfDue } from "./utils/backup";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
 import { getEntryByPath } from "./utils/libraryStore";
@@ -23,6 +24,10 @@ import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
 
 type AppView = "home" | "library" | "reader";
+
+// Only the stable "main" window runs the startup auto-backup, so multiple
+// windows of the single-instance process don't each trigger one.
+const MAIN_WINDOW_LABEL = "main";
 
 function App() {
   const [loading, setLoading] = useState(false);
@@ -40,6 +45,7 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [showPageCount, setShowPageCount] = useState(false);
+  const [autoBackup, setAutoBackup] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { t } = useTranslation();
 
@@ -76,6 +82,10 @@ function App() {
     getRecentFiles().then(setRecentFiles);
     getShowProgressBar().then(setShowProgressBar);
     getShowPageCount().then(setShowPageCount);
+    getAutoBackup().then(setAutoBackup);
+    if (getCurrentWindow().label === MAIN_WINDOW_LABEL) {
+      runAutoBackupIfDue();
+    }
   }, []);
 
   // Clears reader state without changing the current view. Used internally
@@ -104,6 +114,14 @@ function App() {
     setShowPageCount((prev) => {
       const next = !prev;
       saveShowPageCount(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const handleToggleAutoBackup = useCallback(() => {
+    setAutoBackup((prev) => {
+      const next = !prev;
+      saveAutoBackup(next).catch(console.error);
       return next;
     });
   }, []);
@@ -285,7 +303,7 @@ function App() {
   }
 
   if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} onRefreshMetadata={handleRefreshMetadata} />;
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} autoBackup={autoBackup} onToggleAutoBackup={handleToggleAutoBackup} onRefreshMetadata={handleRefreshMetadata} />;
     if (pdfData !== null) {
       return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
     }
@@ -400,6 +418,8 @@ function App() {
         onToggleProgressBar={handleToggleProgressBar}
         showPageCount={showPageCount}
         onTogglePageCount={handleTogglePageCount}
+        autoBackup={autoBackup}
+        onToggleAutoBackup={handleToggleAutoBackup}
         onRefreshMetadata={handleRefreshMetadata}
       />
     </div>

@@ -83,6 +83,10 @@ src/
                                   opened outside LibraryView (sibling Ctrl+Arrow). Marks opened + returns
                                   onComplete/onPagesLoaded callbacks. See Sibling-file navigation.
     settingsStore.ts            Global settings CRUD against .settings.dat
+    backup.ts                   runAutoBackupIfDue(): startup auto-backup of .library.dat (via exportLibraryData)
+                                  to app_config_dir()/backups/kreader-backup-<epochMs>.json. Throttled to once/day
+                                  (last-backup-at), keeps the 5 most recent (rotates). Gated by the auto-backup
+                                  setting; runs only in the `main` window. Restore is manual via SettingsModal import.
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              Path helpers: getRelativeFolder(entryPath, rootPath), basename(path), normalizePath(path)
@@ -124,6 +128,9 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
   - `show-progress-bar` — boolean, show reading progress bar in library cards and rows (default false).
+  - `show-page-count` — boolean, show page count on library cards (default false).
+  - `auto-backup` — boolean, enable automatic library backups on startup (default false).
+  - `last-backup-at` — number, epoch-ms of the last auto-backup (throttle, default 0).
 - `.library.dat` — library definitions and entries. Keys:
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
@@ -276,8 +283,10 @@ The capability's `windows` list is bound to `["main", "reader-*"]` so dynamicall
 
 New fs operations require explicit entries here. Currently granted beyond `fs:default`:
 - `fs:allow-write-file` — writing files (used by store plugins)
-- `fs:allow-mkdir` — creating directories
+- `fs:allow-mkdir` — creating directories (also the `backups/` dir for auto-backup)
 - `fs:allow-rename` — moving/renaming files (used by "Move to folder")
+- `fs:allow-read-dir` — listing directories (auto-backup rotation)
+- `fs:allow-remove` — deleting files (auto-backup rotation prunes old backups)
 
 If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permission here.
 

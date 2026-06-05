@@ -107,6 +107,7 @@
     "data": "Data",
     "progressBar": "Reading progress",
     "pageCount": "Page count on card",
+    "autoBackup": "Automatic backup",
     "refreshMetadata": "Refresh metadata",
     "export": "Export library",
     "import": "Import library",

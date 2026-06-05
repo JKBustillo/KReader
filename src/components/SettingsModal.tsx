@@ -62,6 +62,8 @@ function SettingsModal({
   onToggleProgressBar,
   showPageCount,
   onTogglePageCount,
+  autoBackup,
+  onToggleAutoBackup,
   onRefreshMetadata,
 }: {
   open: boolean;
@@ -76,6 +78,8 @@ function SettingsModal({
   onToggleProgressBar: () => void;
   showPageCount: boolean;
   onTogglePageCount: () => void;
+  autoBackup: boolean;
+  onToggleAutoBackup: () => void;
   onRefreshMetadata: () => void;
 }) {
   const { t } = useTranslation();
@@ -235,6 +239,12 @@ function SettingsModal({
           <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             {t("settings.data")}
           </p>
+          <div
+            className="flex flex-col gap-2.5 rounded-lg p-3"
+            style={{ background: "var(--bg-tab-active)", border: "1px solid var(--border-nav)" }}
+          >
+            <ToggleRow label={t("settings.autoBackup")} active={autoBackup} onToggle={onToggleAutoBackup} />
+          </div>
           <Button variant="secondary" className="w-full" onClick={onRefreshMetadata}>
             <span aria-hidden="true">{ICON_REFRESH}</span>
             {t("settings.refreshMetadata")}

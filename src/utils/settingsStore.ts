@@ -69,6 +69,32 @@ export async function saveShowPageCount(value: boolean): Promise<void> {
   await store.save();
 }
 
+const KEY_AUTO_BACKUP = "auto-backup";
+
+export async function getAutoBackup(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_AUTO_BACKUP)) ?? false;
+}
+
+export async function saveAutoBackup(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_AUTO_BACKUP, value);
+  await store.save();
+}
+
+const KEY_LAST_BACKUP_AT = "last-backup-at";
+
+export async function getLastBackupAt(): Promise<number> {
+  const store = await getStore();
+  return (await store.get<number>(KEY_LAST_BACKUP_AT)) ?? 0;
+}
+
+export async function saveLastBackupAt(timestampMs: number): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_LAST_BACKUP_AT, timestampMs);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(
