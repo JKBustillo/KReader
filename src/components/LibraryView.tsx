@@ -211,7 +211,7 @@ function LibraryView({
   showPageCount,
   refreshTrigger,
 }: {
-  onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void) => void;
+  onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void, libraryId?: string) => void;
   showProgressBar: boolean;
   showPageCount: boolean;
   refreshTrigger: number;
@@ -410,7 +410,7 @@ function LibraryView({
         prev.map((e) => e.id === entry.id ? { ...e, totalPages: total } : e)
       );
     };
-    onOpen(entry.currentPath, onComplete, onPagesLoaded);
+    onOpen(entry.currentPath, onComplete, onPagesLoaded, entry.libraryId);
   }, [onOpen]);
 
   const handleItemClick = useCallback((entry: LibraryEntry, e: MouseEvent) => {

@@ -75,7 +75,11 @@ src/
     theme.ts                    Theme (dark/light) persisted in localStorage (key `kreader-theme`), applied via `data-theme`
     accent.ts                   Accent color (`ice`/`violet`) persisted in localStorage (key `kreader-accent`), applied via
                                   `data-accent`. Mirrors theme.ts; both applied pre-paint in main.tsx to avoid flash.
-    libraryStore.ts             Library + entries CRUD against .library.dat
+    libraryStore.ts             Library + entries CRUD against .library.dat. getEntryByPath(libraryId, path)
+                                  resolves an entry by normalized currentPath (used by sibling navigation).
+    readingSession.ts           startLibraryReadingSession(entry): disk-only reading bookkeeping for entries
+                                  opened outside LibraryView (sibling Ctrl+Arrow). Marks opened + returns
+                                  onComplete/onPagesLoaded callbacks. See Sibling-file navigation.
     settingsStore.ts            Global settings CRUD against .settings.dat
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
@@ -208,6 +212,8 @@ Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into W
 
 - **CBZ/CBR/ZIP/RAR**: reads the parent directory, lists files with the same extension, fires a `CustomEvent("openNewCbz", { detail: path })` on `window`. `App.tsx` listens for it and reloads.
 - **Standalone image**: the whole folder is already loaded as pages, so it just advances/rewinds the page index in place.
+
+When the current file was opened from the library, sibling navigation keeps library reading-state in sync. `App.tsx` tracks the active `libraryId` in `activeLibraryIdRef` (set via the 4th arg of `LibraryView`'s `onOpen`), and `handleOpenNewCbz` resolves the sibling's entry via `getEntryByPath(libraryId, path)` then calls `startLibraryReadingSession(entry)` (`utils/readingSession.ts`) to mark it `in_progress`/`completed` and record `totalPages`/`lastOpenedAt` — the same bookkeeping `LibraryView.handleOpen` does for the first open, but written straight to disk since `LibraryView` is unmounted during reading. Siblings not present in the library (unscanned) fall back to a plain reload with no tracking.
 
 ### System file associations
 

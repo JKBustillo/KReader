@@ -1,5 +1,6 @@
 import { Store } from "@tauri-apps/plugin-store";
 import type { Library, LibraryEntry, ReadingState, Tag } from "../types/library";
+import { normalizePath } from "./folderUtils";
 
 const STORE_FILE = ".library.dat";
 const LIBRARIES_KEY = "libraries";
@@ -38,6 +39,12 @@ export async function getEntries(libraryId: string): Promise<LibraryEntry[]> {
     ...e,
     readingState: (e.readingState as ReadingState | undefined) ?? "unread",
   }));
+}
+
+export async function getEntryByPath(libraryId: string, path: string): Promise<LibraryEntry | null> {
+  const entries = await getEntries(libraryId);
+  const target = normalizePath(path);
+  return entries.find((e) => normalizePath(e.currentPath) === target) ?? null;
 }
 
 export async function upsertEntry(entry: LibraryEntry): Promise<void> {

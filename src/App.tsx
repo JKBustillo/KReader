@@ -16,6 +16,8 @@ import { applyAccent, getAccent, type AccentId } from "./utils/accent";
 import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount } from "./utils/settingsStore";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
+import { getEntryByPath } from "./utils/libraryStore";
+import { startLibraryReadingSession } from "./utils/readingSession";
 import { setWindowTitle } from "./utils/appWindow";
 import { invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
@@ -44,6 +46,10 @@ function App() {
   const blobUrlsRef = useRef<string[]>([]);
   const onCompleteRef = useRef<(() => void) | null>(null);
   const onPagesLoadedRef = useRef<((total: number) => void) | null>(null);
+  // Library context of the file currently being read (when opened from the
+  // library), so sibling navigation (Ctrl+Arrow) can resolve the next file's
+  // entry and keep its reading state in sync.
+  const activeLibraryIdRef = useRef<string | null>(null);
   const viewInitializedRef = useRef(false);
   const revokeBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -246,7 +252,20 @@ function App() {
     const handleOpenNewCbz = async (event: Event) => {
       const e = event as CustomEvent<string>;
       if (!e.detail) return;
+      // Show the spinner before resolving the library entry: getEntryByPath
+      // awaits, and without loading=true that gap renders the empty reader
+      // chrome (flicker) between clearing the old comic and loading the next.
+      setLoading(true);
       resetState();
+      const libraryId = returnTo === "library" ? activeLibraryIdRef.current : null;
+      if (libraryId) {
+        const entry = await getEntryByPath(libraryId, e.detail);
+        if (entry) {
+          const { onComplete, onPagesLoaded } = startLibraryReadingSession(entry);
+          await handleOpen(e.detail, returnTo, onComplete, onPagesLoaded);
+          return;
+        }
+      }
       await handleOpen(e.detail, returnTo);
     };
 
@@ -290,7 +309,10 @@ function App() {
             showProgressBar={showProgressBar}
             showPageCount={showPageCount}
             refreshTrigger={refreshTrigger}
-            onOpen={(path, onComplete, onPagesLoaded) => handleOpen(path, "library", onComplete, onPagesLoaded)}
+            onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
+              activeLibraryIdRef.current = libraryId ?? null;
+              handleOpen(path, "library", onComplete, onPagesLoaded);
+            }}
           />
         ) : (
           /* Home view */
