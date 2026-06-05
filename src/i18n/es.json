@@ -9,6 +9,7 @@
     "title": "Biblioteca",
     "addLibrary": "Añadir biblioteca",
     "removeLibrary": "Eliminar biblioteca",
+    "removeLibraryConfirm": "¿Eliminar la biblioteca «{{name}}»? Se perderán los tags personalizados, favoritos, valoraciones y progreso de lectura. Los archivos en disco no se eliminan.",
     "noLibraries": "No hay bibliotecas añadidas. Haz clic en «Añadir biblioteca» para comenzar.",
     "empty": "Esta biblioteca está vacía o no se encontraron archivos compatibles.",
     "scanning": "Escaneando...",

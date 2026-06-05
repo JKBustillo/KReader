@@ -48,7 +48,9 @@ src/
                                   icon-only, tag chips, folder rows) deliberately stay outside this component.
     Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
                                   stopPropagation. Children = panel content; panelClassName sets width.
-                                  Used by MoveFolderModal/DeleteConfirmModal (in LibraryView) + ResolveLocationModal.
+                                  Used by MoveFolderModal/DeleteConfirmModal/RemoveLibraryConfirmModal (in LibraryView)
+                                  + ResolveLocationModal. RemoveLibraryConfirmModal guards the ✕ "remove library"
+                                  action, warning that custom tags/favorites/ratings/progress are lost (disk files untouched).
     ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.

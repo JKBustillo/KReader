@@ -9,6 +9,7 @@
     "title": "Library",
     "addLibrary": "Add library",
     "removeLibrary": "Remove library",
+    "removeLibraryConfirm": "Remove the library \"{{name}}\"? Custom tags, favorites, ratings and reading progress will be lost. The files on disk are not deleted.",
     "noLibraries": "No libraries added yet. Click «Add library» to get started.",
     "empty": "This library is empty or no supported files were found.",
     "scanning": "Scanning...",

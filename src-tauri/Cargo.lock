@@ -2034,7 +2034,7 @@ dependencies = [
 
 [[package]]
 name = "kreader"
-version = "0.14.4"
+version = "0.14.5"
 dependencies = [
  "lopdf",
  "serde",

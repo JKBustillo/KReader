@@ -205,6 +205,47 @@ function DeleteConfirmModal({
   );
 }
 
+function RemoveLibraryConfirmModal({
+  libraryName,
+  onConfirm,
+  onClose,
+}: {
+  libraryName: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+
+  return (
+    <Modal onClose={onClose} panelClassName="max-w-sm">
+      <div className="flex items-start gap-3.5">
+        <span
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+          style={{ border: "1px solid var(--color-danger)", color: "var(--color-danger)" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </span>
+        <p className="text-sm leading-relaxed pt-1" style={{ color: "var(--text-primary)" }}>
+          {t("library.removeLibraryConfirm", { name: libraryName })}
+        </p>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose}>
+          {t("library.cancel")}
+        </Button>
+        <Button variant="danger" onClick={onConfirm}>
+          {t("library.removeLibrary")}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 function LibraryView({
   onOpen,
   showProgressBar,
@@ -237,6 +278,7 @@ function LibraryView({
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
+  const [removeLibraryConfirm, setRemoveLibraryConfirm] = useState(false);
   const [pageMap, setPageMap] = useState<Map<string, number>>(new Map());
   const [bgScanQueue, setBgScanQueue] = useState<LibraryEntry[]>([]);
   const bgScanCancelRef = useRef(false);
@@ -903,7 +945,7 @@ function LibraryView({
 
           {activeLib && (
             <button
-              onClick={handleRemoveLibrary}
+              onClick={() => setRemoveLibraryConfirm(true)}
               className="text-xs px-2 py-1 rounded transition-colors"
               style={{ color: "var(--text-muted)" }}
               title={t("library.removeLibrary")}
@@ -1085,6 +1127,14 @@ function LibraryView({
           entries={deleteConfirmEntries}
           onConfirm={() => handleDeleteEntries(deleteConfirmEntries)}
           onClose={() => setDeleteConfirmEntries(null)}
+        />
+      )}
+
+      {removeLibraryConfirm && activeLib && (
+        <RemoveLibraryConfirmModal
+          libraryName={activeLib.name}
+          onConfirm={() => { handleRemoveLibrary(); setRemoveLibraryConfirm(false); }}
+          onClose={() => setRemoveLibraryConfirm(false)}
         />
       )}
 
