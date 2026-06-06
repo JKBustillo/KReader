@@ -64,6 +64,8 @@ function SettingsModal({
   onTogglePageCount,
   autoBackup,
   onToggleAutoBackup,
+  keepDataOnRemove,
+  onToggleKeepDataOnRemove,
   onRefreshMetadata,
 }: {
   open: boolean;
@@ -80,6 +82,8 @@ function SettingsModal({
   onTogglePageCount: () => void;
   autoBackup: boolean;
   onToggleAutoBackup: () => void;
+  keepDataOnRemove: boolean;
+  onToggleKeepDataOnRemove: () => void;
   onRefreshMetadata: () => void;
 }) {
   const { t } = useTranslation();
@@ -244,6 +248,7 @@ function SettingsModal({
             style={{ background: "var(--bg-tab-active)", border: "1px solid var(--border-nav)" }}
           >
             <ToggleRow label={t("settings.autoBackup")} active={autoBackup} onToggle={onToggleAutoBackup} />
+            <ToggleRow label={t("settings.keepDataOnRemove")} active={keepDataOnRemove} onToggle={onToggleKeepDataOnRemove} />
           </div>
           <Button variant="secondary" className="w-full" onClick={onRefreshMetadata}>
             <span aria-hidden="true">{ICON_REFRESH}</span>

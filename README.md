@@ -36,10 +36,13 @@ A built-in collection manager for browsing large libraries:
 - **Filtering** — by tags and by folders (recursive or direct-children-only), with union semantics.
 - **Tags** — auto-parsed from filename brackets (e.g. `[Circle (Author)]`) plus your own custom tags, editable individually or in bulk.
 - **Ratings** — 1–5 stars per entry.
+- **Favorites & reading state** — mark entries as favorite and as read / in-progress; filter to favorites only.
 - **Reading progress bar** — optional per-card/row progress indicator.
+- **Metadata that sticks to the file** — your custom tags, favorites, ratings and reading state are saved per file, so they're restored if you remove and re-add the same folder (toggleable in settings).
 - **Cover thumbnails** — extracted and cached on disk.
-- **File management** — move entries to subfolders or send them to the OS trash.
-- **Export / import** — back up or transfer your whole library.
+- **File management** — move entries to subfolders or send them to the OS trash. Removing a library asks for confirmation first.
+- **Export / import** — back up or transfer your whole library, including your per-file metadata.
+- **Automatic backups** — optional: KReader snapshots your library on startup (at most once a day) and keeps the most recent few.
 
 ### App
 

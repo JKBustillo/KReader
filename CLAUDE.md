@@ -79,12 +79,17 @@ src/
                                   `data-accent`. Mirrors theme.ts; both applied pre-paint in main.tsx to avoid flash.
     libraryStore.ts             Library + entries CRUD against .library.dat. getEntryByPath(libraryId, path)
                                   resolves an entry by normalized currentPath (used by sibling navigation).
+                                  setFavorite/setReadingState/setCustomTags/setRating/batchSetCustomTags also
+                                  write-through to entryMetaStore; export/importLibraryData carry entryMeta.
+    entryMetaStore.ts           Sticky user metadata (customTags/isFavorite/rating/readingState) keyed by entry id
+                                  (filename::size), library-independent, in .entry-meta.dat (single `entry-meta` key →
+                                  Record<id, EntryMeta>). Lets that data survive a library delete + re-add. See Library system.
     readingSession.ts           startLibraryReadingSession(entry): disk-only reading bookkeeping for entries
                                   opened outside LibraryView (sibling Ctrl+Arrow). Marks opened + returns
                                   onComplete/onPagesLoaded callbacks. See Sibling-file navigation.
     settingsStore.ts            Global settings CRUD against .settings.dat
-    backup.ts                   runAutoBackupIfDue(): startup auto-backup of .library.dat (via exportLibraryData)
-                                  to app_config_dir()/backups/kreader-backup-<epochMs>.json. Throttled to once/day
+    backup.ts                   runAutoBackupIfDue(): startup auto-backup via exportLibraryData (libraries + entries
+                                  + entryMeta) to app_config_dir()/backups/kreader-backup-<epochMs>.json. Throttled to once/day
                                   (last-backup-at), keeps the 5 most recent (rotates). Gated by the auto-backup
                                   setting; runs only in the `main` window. Restore is manual via SettingsModal import.
     thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
@@ -131,6 +136,9 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
   - `show-page-count` — boolean, show page count on library cards (default false).
   - `auto-backup` — boolean, enable automatic library backups on startup (default false).
   - `last-backup-at` — number, epoch-ms of the last auto-backup (throttle, default 0).
+  - `keep-data-on-remove` — boolean, keep sticky entry metadata when a library is removed (default true).
+- `.entry-meta.dat` — sticky user metadata keyed by entry id. Single key `entry-meta` → `Record<id, EntryMeta>` where
+  `EntryMeta = { customTags?, isFavorite?, rating?, readingState? }`. Owned by `entryMetaStore.ts`. See Library system.
 - `.library.dat` — library definitions and entries. Keys:
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
@@ -148,6 +156,13 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - Multiple matches (same name+size in different subfolders) → stored in `ambiguousCandidates`; user resolves via context menu "Resolver ubicación" → resolution modal.
 
 **Entry identity:** `id = "{filename}::{sizeBytes}"`. This means renames are treated as new files; moving within the library root is auto-resolved on next scan.
+
+**Sticky entry metadata (`entryMetaStore.ts`):**
+- `customTags`, `isFavorite`, `rating` and `readingState` are mirrored into `.entry-meta.dat`, keyed by entry id (so they're library-independent). The `LibraryEntry` in `.library.dat` remains the live mirror the UI reads/sorts/filters; the meta store is the durable copy.
+- **Write-through:** the libraryStore setters (`setFavorite`/`setReadingState`/`setCustomTags`/`setRating`/`batchSetCustomTags`) write both the entry and the meta. `setReadingState` is the single choke point, so all readingState writers (LibraryView open/mark-as-read/reset, `readingSession.ts` sibling nav) are covered.
+- **Overlay + migration on scan:** `LibraryView` overlays saved meta onto entries before `upsertEntries` (so a re-added folder restores them); entries with no saved meta backfill it from their current values, so pre-feature data is never wiped.
+- **Forget toggle:** `keep-data-on-remove` setting (default true). On `handleRemoveLibrary`, when false, meta is purged for the removed library's entry ids that aren't present in any remaining library (`deleteEntryMeta`). `removeLibrary` still deletes `entries:<libId>` regardless. `RemoveLibraryConfirmModal` shows a keep/forget message based on the live setting (read fresh when the modal opens).
+- **Limitation:** keyed by `filename::size`, so renaming a file or changing its size breaks the association (treated as a new file).
 
 **Rating system:**
 - `rating?: number` (1–5) stored per entry in `LibraryEntry`. Optional — entries without rating have `undefined`.

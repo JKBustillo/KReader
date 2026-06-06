@@ -95,6 +95,19 @@ export async function saveLastBackupAt(timestampMs: number): Promise<void> {
   await store.save();
 }
 
+const KEY_KEEP_DATA_ON_REMOVE = "keep-data-on-remove";
+
+export async function getKeepDataOnRemove(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_KEEP_DATA_ON_REMOVE)) ?? true;
+}
+
+export async function saveKeepDataOnRemove(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_KEEP_DATA_ON_REMOVE, value);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(

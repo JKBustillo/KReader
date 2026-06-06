@@ -1,6 +1,7 @@
 import { Store } from "@tauri-apps/plugin-store";
 import type { Library, LibraryEntry, ReadingState, Tag } from "../types/library";
 import { normalizePath } from "./folderUtils";
+import { setEntryMetaFields, batchSetEntryMeta, getAllEntryMeta, replaceAllEntryMeta, type EntryMeta } from "./entryMetaStore";
 
 const STORE_FILE = ".library.dat";
 const LIBRARIES_KEY = "libraries";
@@ -100,17 +101,27 @@ export async function updateEntry(
   await store.save();
 }
 
-export const setFavorite = (id: string, libraryId: string, value: boolean) =>
-  updateEntry(id, libraryId, { isFavorite: value });
+// These five fields are "sticky to the file" — every write also mirrors into
+// entryMetaStore (keyed by entry id) so they survive a library delete + re-add.
+export const setFavorite = async (id: string, libraryId: string, value: boolean) => {
+  await updateEntry(id, libraryId, { isFavorite: value });
+  await setEntryMetaFields(id, { isFavorite: value });
+};
 
-export const setReadingState = (id: string, libraryId: string, state: ReadingState) =>
-  updateEntry(id, libraryId, { readingState: state });
+export const setReadingState = async (id: string, libraryId: string, state: ReadingState) => {
+  await updateEntry(id, libraryId, { readingState: state });
+  await setEntryMetaFields(id, { readingState: state });
+};
 
-export const setCustomTags = (id: string, libraryId: string, tags: Tag[]) =>
-  updateEntry(id, libraryId, { customTags: tags });
+export const setCustomTags = async (id: string, libraryId: string, tags: Tag[]) => {
+  await updateEntry(id, libraryId, { customTags: tags });
+  await setEntryMetaFields(id, { customTags: tags });
+};
 
-export const setRating = (id: string, libraryId: string, rating: number | undefined) =>
-  updateEntry(id, libraryId, { rating });
+export const setRating = async (id: string, libraryId: string, rating: number | undefined) => {
+  await updateEntry(id, libraryId, { rating });
+  await setEntryMetaFields(id, { rating });
+};
 
 export const setLastOpenedAt = (id: string, libraryId: string, timestamp: number) =>
   updateEntry(id, libraryId, { lastOpenedAt: timestamp });
@@ -126,22 +137,33 @@ export async function clearAllTotalPages(libraryId: string): Promise<void> {
   await store.save();
 }
 
-export async function exportLibraryData(): Promise<{ libraries: Library[]; entries: Record<string, LibraryEntry[]> }> {
+export async function exportLibraryData(): Promise<{
+  libraries: Library[];
+  entries: Record<string, LibraryEntry[]>;
+  entryMeta: Record<string, EntryMeta>;
+}> {
   const libraries = await getLibraries();
   const entries: Record<string, LibraryEntry[]> = {};
   for (const lib of libraries) {
     entries[lib.id] = await getEntries(lib.id);
   }
-  return { libraries, entries };
+  const entryMeta = await getAllEntryMeta();
+  return { libraries, entries, entryMeta };
 }
 
-export async function importLibraryData(data: { libraries: Library[]; entries: Record<string, LibraryEntry[]> }): Promise<void> {
+export async function importLibraryData(data: {
+  libraries: Library[];
+  entries: Record<string, LibraryEntry[]>;
+  entryMeta?: Record<string, EntryMeta>;
+}): Promise<void> {
   const store = await getStore();
   await store.set(LIBRARIES_KEY, data.libraries);
   for (const [libId, libEntries] of Object.entries(data.entries)) {
     await store.set(entriesKey(libId), libEntries);
   }
   await store.save();
+  // entryMeta is optional so backups predating the sticky-metadata feature still import.
+  if (data.entryMeta) await replaceAllEntryMeta(data.entryMeta);
 }
 
 export async function batchSetCustomTags(
@@ -157,4 +179,5 @@ export async function batchSetCustomTags(
   }
   await store.set(entriesKey(libraryId), entries);
   await store.save();
+  await batchSetEntryMeta(updates.map((u) => ({ id: u.id, meta: { customTags: u.tags } })));
 }

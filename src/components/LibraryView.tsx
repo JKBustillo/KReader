@@ -21,9 +21,10 @@ import {
   clearAllTotalPages,
   batchSetCustomTags,
 } from "../utils/libraryStore";
+import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove } from "../utils/settingsStore";
 import { getPageForPath } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
@@ -207,14 +208,19 @@ function DeleteConfirmModal({
 
 function RemoveLibraryConfirmModal({
   libraryName,
+  keepData,
   onConfirm,
   onClose,
 }: {
   libraryName: string;
+  keepData: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
+  const messageKey = keepData
+    ? "library.removeLibraryConfirmKeep"
+    : "library.removeLibraryConfirmForget";
 
   return (
     <Modal onClose={onClose} panelClassName="max-w-sm">
@@ -231,7 +237,7 @@ function RemoveLibraryConfirmModal({
           </svg>
         </span>
         <p className="text-sm leading-relaxed pt-1" style={{ color: "var(--text-primary)" }}>
-          {t("library.removeLibraryConfirm", { name: libraryName })}
+          {t(messageKey, { name: libraryName })}
         </p>
       </div>
       <div className="flex justify-end gap-2">
@@ -279,6 +285,10 @@ function LibraryView({
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
   const [removeLibraryConfirm, setRemoveLibraryConfirm] = useState(false);
+  // Read fresh when the confirm modal opens (the setting can change in
+  // SettingsModal while LibraryView stays mounted), used for both the modal
+  // wording and the purge decision below.
+  const [keepDataOnRemove, setKeepDataOnRemove] = useState(true);
   const [pageMap, setPageMap] = useState<Map<string, number>>(new Map());
   const [bgScanQueue, setBgScanQueue] = useState<LibraryEntry[]>([]);
   const bgScanCancelRef = useRef(false);
@@ -377,6 +387,36 @@ function LibraryView({
         }
 
         const allEntries = [...updatedEntries, ...newEntries];
+
+        // Sticky user metadata (tags/favorite/rating/readingState), keyed by
+        // entry id and independent of the library. Overlay saved meta onto the
+        // entries so it survives delete + re-add; entries with no saved meta
+        // backfill it from their current values (first scan / pre-feature data),
+        // so nothing existing is wiped. Runs before the upsert below so restored
+        // values get persisted into the library blob.
+        const metaMap = await getEntryMetaMap();
+        const metaBackfill: { id: string; meta: EntryMeta }[] = [];
+        for (const entry of allEntries) {
+          const meta = metaMap.get(entry.id);
+          if (meta) {
+            entry.customTags = meta.customTags ?? [];
+            entry.isFavorite = meta.isFavorite ?? false;
+            entry.rating = meta.rating;
+            entry.readingState = meta.readingState ?? "unread";
+          } else {
+            metaBackfill.push({
+              id: entry.id,
+              meta: {
+                customTags: entry.customTags,
+                isFavorite: entry.isFavorite,
+                rating: entry.rating,
+                readingState: entry.readingState,
+              },
+            });
+          }
+        }
+        if (metaBackfill.length > 0) await batchSetEntryMeta(metaBackfill);
+
         const toUpsert = [...newEntries, ...needsTagging.filter((e) => !newEntries.includes(e))];
         if (toUpsert.length > 0) await upsertEntries(activeLib.id, toUpsert);
 
@@ -626,15 +666,36 @@ function LibraryView({
     saveFolderFilter(activeLibId, selectedFolders).catch(console.error);
   }, [selectedFolders, activeLibId]);
 
+  const openRemoveLibraryConfirm = useCallback(async () => {
+    setKeepDataOnRemove(await getKeepDataOnRemove());
+    setRemoveLibraryConfirm(true);
+  }, []);
+
   const handleRemoveLibrary = useCallback(async () => {
     if (!activeLib) return;
-    await removeLibrary(activeLib.id);
-    const updated = libraries.filter((l) => l.id !== activeLib.id);
-    setLibraries(updated);
-    setActiveLibId(updated.length > 0 ? updated[0].id : null);
+    const removedId = activeLib.id;
+    const remaining = libraries.filter((l) => l.id !== removedId);
+
+    // When "forget" is selected, drop the sticky metadata for files that were
+    // only in this library (keep it for files still present in another library).
+    if (!keepDataOnRemove) {
+      const removedEntries = await getEntries(removedId);
+      const idsInOtherLibs = new Set<string>();
+      for (const lib of remaining) {
+        for (const e of await getEntries(lib.id)) idsInOtherLibs.add(e.id);
+      }
+      const toForget = removedEntries
+        .map((e) => e.id)
+        .filter((id) => !idsInOtherLibs.has(id));
+      await deleteEntryMeta(toForget);
+    }
+
+    await removeLibrary(removedId);
+    setLibraries(remaining);
+    setActiveLibId(remaining.length > 0 ? remaining[0].id : null);
     setEntries([]);
     setNotFoundIds(new Set());
-  }, [activeLib, libraries]);
+  }, [activeLib, libraries, keepDataOnRemove]);
 
   // Background page-count scan: processes entries without totalPages one at a time.
   useEffect(() => {
@@ -945,7 +1006,7 @@ function LibraryView({
 
           {activeLib && (
             <button
-              onClick={() => setRemoveLibraryConfirm(true)}
+              onClick={openRemoveLibraryConfirm}
               className="text-xs px-2 py-1 rounded transition-colors"
               style={{ color: "var(--text-muted)" }}
               title={t("library.removeLibrary")}
@@ -1133,6 +1194,7 @@ function LibraryView({
       {removeLibraryConfirm && activeLib && (
         <RemoveLibraryConfirmModal
           libraryName={activeLib.name}
+          keepData={keepDataOnRemove}
           onConfirm={() => { handleRemoveLibrary(); setRemoveLibraryConfirm(false); }}
           onClose={() => setRemoveLibraryConfirm(false)}
         />

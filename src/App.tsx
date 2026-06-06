@@ -13,7 +13,7 @@ import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { applyAccent, getAccent, type AccentId } from "./utils/accent";
-import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup, getKeepDataOnRemove, saveKeepDataOnRemove } from "./utils/settingsStore";
 import { runAutoBackupIfDue } from "./utils/backup";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
@@ -46,6 +46,7 @@ function App() {
   const [showProgressBar, setShowProgressBar] = useState(false);
   const [showPageCount, setShowPageCount] = useState(false);
   const [autoBackup, setAutoBackup] = useState(false);
+  const [keepDataOnRemove, setKeepDataOnRemove] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const { t } = useTranslation();
 
@@ -83,6 +84,7 @@ function App() {
     getShowProgressBar().then(setShowProgressBar);
     getShowPageCount().then(setShowPageCount);
     getAutoBackup().then(setAutoBackup);
+    getKeepDataOnRemove().then(setKeepDataOnRemove);
     if (getCurrentWindow().label === MAIN_WINDOW_LABEL) {
       runAutoBackupIfDue();
     }
@@ -122,6 +124,14 @@ function App() {
     setAutoBackup((prev) => {
       const next = !prev;
       saveAutoBackup(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const handleToggleKeepDataOnRemove = useCallback(() => {
+    setKeepDataOnRemove((prev) => {
+      const next = !prev;
+      saveKeepDataOnRemove(next).catch(console.error);
       return next;
     });
   }, []);
@@ -303,7 +313,7 @@ function App() {
   }
 
   if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} autoBackup={autoBackup} onToggleAutoBackup={handleToggleAutoBackup} onRefreshMetadata={handleRefreshMetadata} />;
+    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} autoBackup={autoBackup} onToggleAutoBackup={handleToggleAutoBackup} keepDataOnRemove={keepDataOnRemove} onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove} onRefreshMetadata={handleRefreshMetadata} />;
     if (pdfData !== null) {
       return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
     }
@@ -420,6 +430,8 @@ function App() {
         onTogglePageCount={handleTogglePageCount}
         autoBackup={autoBackup}
         onToggleAutoBackup={handleToggleAutoBackup}
+        keepDataOnRemove={keepDataOnRemove}
+        onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove}
         onRefreshMetadata={handleRefreshMetadata}
       />
     </div>
