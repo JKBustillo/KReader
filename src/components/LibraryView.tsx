@@ -252,6 +252,65 @@ function RemoveLibraryConfirmModal({
   );
 }
 
+function PurgeGhostsModal({
+  ghosts,
+  onConfirm,
+  onClose,
+}: {
+  ghosts: LibraryEntry[];
+  onConfirm: () => Promise<void>;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const [loading, setLoading] = useState(false);
+
+  async function handleConfirm() {
+    setLoading(true);
+    await onConfirm();
+  }
+
+  return (
+    <Modal onClose={loading ? () => {} : onClose} panelClassName="max-w-md">
+      <div className="flex items-start gap-3.5">
+        <span
+          className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center"
+          style={{ border: "1px solid var(--color-danger)", color: "var(--color-danger)" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+        </span>
+        <p className="text-sm leading-relaxed pt-1" style={{ color: "var(--text-primary)" }}>
+          {t("library.purgeGhostsConfirm", { count: ghosts.length })}
+        </p>
+      </div>
+      <div className="flex flex-col gap-0.5 max-h-52 overflow-y-auto">
+        {ghosts.map((e) => (
+          <div
+            key={e.id}
+            className="text-xs font-mono py-0.5 px-2 rounded"
+            style={{ color: "var(--text-primary)" }}
+            title={e.currentPath}
+          >
+            {e.filename}
+          </div>
+        ))}
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose} disabled={loading}>
+          {t("library.cancel")}
+        </Button>
+        <Button variant="danger" onClick={handleConfirm} disabled={loading}>
+          {loading ? t("library.purgeGhostsBusy") : t("library.purgeGhostsBtn")}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
+
 function LibraryView({
   onOpen,
   showProgressBar,
@@ -285,6 +344,7 @@ function LibraryView({
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
   const [removeLibraryConfirm, setRemoveLibraryConfirm] = useState(false);
+  const [purgeGhostsConfirm, setPurgeGhostsConfirm] = useState(false);
   // Read fresh when the confirm modal opens (the setting can change in
   // SettingsModal while LibraryView stays mounted), used for both the modal
   // wording and the purge decision below.
@@ -609,6 +669,28 @@ function LibraryView({
     setDeleteConfirmEntries(null);
   }, []);
 
+  const handlePurgeGhosts = useCallback(async (ghostEntries: LibraryEntry[]) => {
+    for (const entry of ghostEntries) {
+      await removeEntry(entry.id, entry.libraryId);
+    }
+    const purgedIds = new Set(ghostEntries.map((e) => e.id));
+    setEntries((prev) => prev.filter((e) => !purgedIds.has(e.id)));
+    setNotFoundIds((prev) => {
+      const next = new Set(prev);
+      for (const id of purgedIds) next.delete(id);
+      return next;
+    });
+    setSelectedIds((prev) => {
+      if ([...prev].some((id) => purgedIds.has(id))) {
+        const next = new Set(prev);
+        for (const id of purgedIds) next.delete(id);
+        return next;
+      }
+      return prev;
+    });
+    setPurgeGhostsConfirm(false);
+  }, []);
+
   const handleTagSave = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
     if (updates.length === 0) return;
     const firstEntry = entriesRef.current.find((e) => e.id === updates[0].id);
@@ -814,6 +896,8 @@ function LibraryView({
     return true;
   });
 
+  const filteredGhosts = filtered.filter((e) => notFoundIds.has(e.id));
+
   const sorted = [...filtered].sort((a, b) => {
     let cmp = 0;
     switch (sortField) {
@@ -977,6 +1061,29 @@ function LibraryView({
               );
             }}
           />
+
+          {/* Purge ghosts button — visible only when filtered view contains ghost entries */}
+          {filteredGhosts.length > 0 && (
+            <button
+              onClick={() => setPurgeGhostsConfirm(true)}
+              title={t("library.purgeGhosts")}
+              className="flex items-center gap-1 text-xs px-2 py-1 rounded transition-colors"
+              style={{
+                background: "var(--bg-tab-active)",
+                color: "var(--color-danger)",
+                border: "1px solid var(--border-nav)",
+              }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                aria-hidden="true">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {filteredGhosts.length}
+            </button>
+          )}
 
           {/* Favorites filter */}
           <button
@@ -1214,6 +1321,14 @@ function LibraryView({
           rootPath={activeLib?.rootPath ?? ""}
           onResolve={handleResolveLocation}
           onClose={() => setResolveTarget(null)}
+        />
+      )}
+
+      {purgeGhostsConfirm && (
+        <PurgeGhostsModal
+          ghosts={filteredGhosts}
+          onConfirm={() => handlePurgeGhosts(filteredGhosts)}
+          onClose={() => setPurgeGhostsConfirm(false)}
         />
       )}
     </div>

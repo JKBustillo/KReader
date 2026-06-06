@@ -53,7 +53,11 @@
     "cancel": "Cancelar",
     "colLastOpened": "Último abierto",
     "colPages": "Páginas",
-    "pages": "páginas"
+    "pages": "páginas",
+    "purgeGhosts": "Limpiar fantasmas",
+    "purgeGhostsConfirm": "{{count}} entrada(s) fantasma serán eliminadas de la biblioteca. Los archivos no existen en disco y no se moverán a la papelera.",
+    "purgeGhostsBtn": "Limpiar",
+    "purgeGhostsBusy": "Limpiando..."
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",

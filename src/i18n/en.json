@@ -53,7 +53,11 @@
     "cancel": "Cancel",
     "colLastOpened": "Last opened",
     "colPages": "Pages",
-    "pages": "pages"
+    "pages": "pages",
+    "purgeGhosts": "Clean up ghosts",
+    "purgeGhostsConfirm": "{{count}} ghost entry(s) will be removed from the library. The files do not exist on disk and will not be moved to the trash.",
+    "purgeGhostsBtn": "Clean up",
+    "purgeGhostsBusy": "Cleaning..."
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",
