@@ -42,6 +42,7 @@
     "resolveLocationTitle": "Resolver ubicación",
     "resolveLocationHint": "Varios archivos comparten el mismo nombre y tamaño. Elige el correcto:",
     "moveToFolder": "Mover a carpeta",
+    "copyFilename": "Copiar nombre",
     "moveToFolderTitle": "Mover a carpeta",
     "rootFolder": "Raíz",
     "moveNoDestinations": "No hay otras carpetas disponibles",

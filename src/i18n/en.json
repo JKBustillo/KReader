@@ -42,6 +42,7 @@
     "resolveLocationTitle": "Resolve location",
     "resolveLocationHint": "Multiple files share the same name and size. Choose the correct one:",
     "moveToFolder": "Move to folder",
+    "copyFilename": "Copy filename",
     "moveToFolderTitle": "Move to folder",
     "rootFolder": "Root",
     "moveNoDestinations": "No other folders available",

@@ -40,7 +40,7 @@ A built-in collection manager for browsing large libraries:
 - **Reading progress bar** — optional per-card/row progress indicator.
 - **Metadata that sticks to the file** — your custom tags, favorites, ratings and reading state are saved per file, so they're restored if you remove and re-add the same folder (toggleable in settings).
 - **Cover thumbnails** — extracted and cached on disk.
-- **File management** — move entries to subfolders or send them to the OS trash. Removing a library asks for confirmation first.
+- **File management** — move entries to subfolders, send them to the OS trash, or copy file names to the clipboard (right-click; multi-selection copies one name per line). Removing a library asks for confirmation first.
 - **Export / import** — back up or transfer your whole library, including your per-file metadata.
 - **Automatic backups** — optional: KReader snapshots your library on startup (at most once a day) and keeps the most recent few.
 

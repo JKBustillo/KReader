@@ -556,6 +556,12 @@ function LibraryView({
     setContextMenu(null);
   }, []);
 
+  const handleCopyFilename = useCallback((targetEntries: LibraryEntry[]) => {
+    const text = targetEntries.map((e) => e.filename).join("\n");
+    navigator.clipboard.writeText(text).catch(console.error);
+    setContextMenu(null);
+  }, []);
+
   const handleRate = useCallback(async (entry: LibraryEntry, rating: number | undefined) => {
     await setRating(entry.id, entry.libraryId, rating);
     setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, rating } : e));
@@ -1151,6 +1157,7 @@ function LibraryView({
                   setMoveFolderTarget(entries);
                   setContextMenu(null);
                 }}
+                onCopyFilename={handleCopyFilename}
                 onDelete={(entries) => {
                   const allGhost = entries.every((e) => notFoundIds.has(e.id));
                   if (allGhost) handleDeleteEntries(entries);
