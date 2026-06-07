@@ -1144,14 +1144,17 @@ function LibraryView({
       ) : (
         <>
           {/* Search */}
-          <div className="px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--border-nav)" }}>
+          <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--border-nav)" }}>
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t("library.search")}
-              className="w-full text-sm rounded-lg px-3 py-1.5 outline-none transition-colors bg-[var(--bg-tab-active)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-nav)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--glow-soft)]"
+              className="flex-1 text-sm rounded-lg px-3 py-1.5 outline-none transition-colors bg-[var(--bg-tab-active)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-nav)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--glow-soft)]"
             />
+            <span className="text-sm shrink-0 tabular-nums" style={{ color: "var(--text-secondary)" }}>
+              {t("library.resultCount", { count: filtered.length })}
+            </span>
           </div>
 
           {/* Column headers — details mode only */}

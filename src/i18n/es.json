@@ -54,6 +54,7 @@
     "colLastOpened": "Último abierto",
     "colPages": "Páginas",
     "pages": "páginas",
+    "resultCount": "{{count}}",
     "purgeGhosts": "Limpiar fantasmas",
     "purgeGhostsConfirm": "{{count}} entrada(s) fantasma serán eliminadas de la biblioteca. Los archivos no existen en disco y no se moverán a la papelera.",
     "purgeGhostsBtn": "Limpiar",

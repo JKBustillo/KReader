@@ -54,6 +54,7 @@
     "colLastOpened": "Last opened",
     "colPages": "Pages",
     "pages": "pages",
+    "resultCount": "{{count}}",
     "purgeGhosts": "Clean up ghosts",
     "purgeGhostsConfirm": "{{count}} ghost entry(s) will be removed from the library. The files do not exist on disk and will not be moved to the trash.",
     "purgeGhostsBtn": "Clean up",
