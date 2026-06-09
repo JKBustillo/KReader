@@ -48,6 +48,10 @@ function App() {
   const [autoBackup, setAutoBackup] = useState(false);
   const [keepDataOnRemove, setKeepDataOnRemove] = useState(true);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  // Once the library has been visited it stays mounted (hidden via CSS when not
+  // active) for the rest of the session, so its state, scroll position and warm
+  // thumbnail cache survive entering/leaving the reader.
+  const [libraryMounted, setLibraryMounted] = useState(false);
   const { t } = useTranslation();
 
   const blobUrlsRef = useRef<string[]>([]);
@@ -222,6 +226,10 @@ function App() {
     }
   }, [view]);
 
+  useEffect(() => {
+    if (view === "library") setLibraryMounted(true);
+  }, [view]);
+
   const openFileDialog = async () => {
     const filePath = await open({
       filters: [{ name: "Comics & Images", extensions: ["cbz", "cbr", "zip", "rar", "pdf", ...IMAGE_EXTS] }],
@@ -301,48 +309,38 @@ function App() {
     return () => window.removeEventListener("openNewCbz", handleOpenNewCbz as EventListener);
   }, [handleOpen, resetState, returnTo]);
 
-  if (loading) {
-    return (
-      <div className="flex flex-col justify-center items-center min-h-screen bg-[var(--bg-primary)] font-sans">
-        <div className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
-          <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
-          <span className="mt-4 text-white font-medium">{t("loading")}</span>
-        </div>
-      </div>
-    );
-  }
-
-  if (view === "reader") {
-    const settingsModal = <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} theme={theme} onToggleTheme={handleToggleTheme} accent={accent} onSetAccent={handleSetAccent} language={language} onSetLanguage={handleSetLanguage} showProgressBar={showProgressBar} onToggleProgressBar={handleToggleProgressBar} showPageCount={showPageCount} onTogglePageCount={handleTogglePageCount} autoBackup={autoBackup} onToggleAutoBackup={handleToggleAutoBackup} keepDataOnRemove={keepDataOnRemove} onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove} onRefreshMetadata={handleRefreshMetadata} />;
-    if (pdfData !== null) {
-      return <>{settingsModal}<PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} /></>;
-    }
-    if (pages.length > 0) {
-      return <>{settingsModal}<Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} /></>;
-    }
-  }
-
   return (
-    <div className="flex flex-col h-screen overflow-hidden text-[var(--text-primary)] font-sans">
-      <NavBar
-        view={view === "reader" ? "home" : view}
-        onNavigate={setView}
-        onOpenSettings={() => setSettingsOpen(true)}
-      />
+    <>
+      {/* App chrome (home/library). Hidden — not unmounted — while reading so
+          LibraryView keeps its state, scroll and warm thumbnail cache. */}
+      <div className={view === "reader"
+        ? "hidden"
+        : "flex flex-col h-screen overflow-hidden text-[var(--text-primary)] font-sans"}>
+        <NavBar
+          view={view === "reader" ? "home" : view}
+          onNavigate={setView}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
 
-      {/* Content area — offset by NavBar height (h-11 = 44px) */}
-      <div className="flex-1 pt-11 min-h-0 overflow-hidden">
-        {view === "library" ? (
-          <LibraryView
-            showProgressBar={showProgressBar}
-            showPageCount={showPageCount}
-            refreshTrigger={refreshTrigger}
-            onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
-              activeLibraryIdRef.current = libraryId ?? null;
-              handleOpen(path, "library", onComplete, onPagesLoaded);
-            }}
-          />
-        ) : (
+        {/* Content area — offset by NavBar height (h-11 = 44px) */}
+        <div className="flex-1 pt-11 min-h-0 overflow-hidden">
+          {/* LibraryView stays mounted for the rest of the session once
+              visited; only hidden when it isn't the active view. */}
+          {libraryMounted && (
+            <div className={view === "library" ? "h-full" : "hidden"}>
+              <LibraryView
+                active={view === "library"}
+                showProgressBar={showProgressBar}
+                showPageCount={showPageCount}
+                refreshTrigger={refreshTrigger}
+                onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
+                  activeLibraryIdRef.current = libraryId ?? null;
+                  handleOpen(path, "library", onComplete, onPagesLoaded);
+                }}
+              />
+            </div>
+          )}
+          {view === "home" && (
           /* Home view */
           <div className="h-full overflow-y-auto">
             <div className="max-w-3xl mx-auto px-8 py-16">
@@ -413,8 +411,27 @@ function App() {
               )}
             </div>
           </div>
-        )}
+          )}
+        </div>
       </div>
+
+      {/* Reader overlay — rendered above the hidden chrome so LibraryView is
+          preserved underneath while reading. */}
+      {view === "reader" && pdfData !== null && (
+        <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} />
+      )}
+      {view === "reader" && pdfData === null && pages.length > 0 && (
+        <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />
+      )}
+
+      {/* Loading overlay — above everything, dims whatever is underneath. */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
+          <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
+          <span className="mt-4 text-white font-medium">{t("loading")}</span>
+        </div>
+      )}
+
       <SettingsModal
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
@@ -434,7 +451,7 @@ function App() {
         onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove}
         onRefreshMetadata={handleRefreshMetadata}
       />
-    </div>
+    </>
   );
 }
 

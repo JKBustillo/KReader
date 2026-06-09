@@ -55,3 +55,17 @@ export async function saveBookmarks(filePath: string, bookmarks: number[]): Prom
 export async function getPageForPath(filePath: string): Promise<number> {
   return (await getSavedPage(filePath)) ?? 0;
 }
+
+// Reads all page-progress values in a single IPC call.
+// Returns a map of filePath → saved page number (entries without a saved page are absent).
+export async function getAllPageProgress(): Promise<Map<string, number>> {
+  const store = await getStore();
+  const all = await store.entries<number>();
+  const result = new Map<string, number>();
+  for (const [key, value] of all) {
+    if (key.endsWith(PAGE_SUFFIX) && typeof value === "number") {
+      result.set(key.slice(0, -PAGE_SUFFIX.length), value);
+    }
+  }
+  return result;
+}

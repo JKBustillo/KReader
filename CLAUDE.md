@@ -155,6 +155,13 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - Single match → auto-relocates `currentPath` if it changed.
 - Multiple matches (same name+size in different subfolders) → stored in `ambiguousCandidates`; user resolves via context menu "Resolver ubicación" → resolution modal.
 
+**Scan lifecycle (`reconcileScan` + two effects):** The filesystem diff (relocations, new/missing/ambiguous, sticky-meta overlay, page-count queueing) lives in the `reconcileScan(lib, baseline, allPageProgress)` callback. Two effects drive it:
+- *Initial* (keyed on `activeLib`): Phase A loads stored entries + reading progress via `getAllPageProgress()` (one IPC) and renders them immediately (<100ms); Phase B calls `reconcileScan` with the stored set as baseline, then records `scannedLibRef`.
+- *Background re-scan* (keyed on `active`): when the library becomes the visible view again (`active` flips false→true after the initial scan completed), `reconcileScan` re-runs with the **live** entries as baseline, so files added/moved while away reconcile without clearing the rendered list. Only the small toolbar spinner shows.
+- `scanRef` guards against concurrent scans; `scanAbortRef` (set by `handleOpen`) makes a scan drop its results if the user opens a file mid-scan, avoiding store-write contention with file loading.
+
+**Mounting model:** `App.tsx` keeps the home/library chrome mounted and renders the Reader/PDFReader and the loading spinner as **overlays** (the chrome gets `hidden` while `view === "reader"`, not unmounted). Once visited, `LibraryView` stays mounted for the session (`libraryMounted`), so its state, scroll position and warm in-memory thumbnail cache survive entering/leaving the reader — opening a comic and returning is instant. The `active` prop (`view === "library"`) tells `LibraryView` when it's the visible view (drives the background re-scan above).
+
 **Entry identity:** `id = "{filename}::{sizeBytes}"`. This means renames are treated as new files; moving within the library root is auto-resolved on next scan.
 
 **Sticky entry metadata (`entryMetaStore.ts`):**
@@ -183,10 +190,10 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.
 - `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions.
-- Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; survives component unmount but resets on app restart).
+- Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; resets on app restart). Now that `LibraryView` stays mounted for the session (see Mounting model), the module-level vars are a redundant safety net rather than the primary persistence mechanism.
 
 **Favorites filter:**
-- "Show favorites only" toggle is session-only (module-level variable `sessionShowFavoritesOnly`; same lifecycle as the tag filter — survives LibraryView unmount on reader open/close but resets on app restart).
+- "Show favorites only" toggle is session-only (module-level variable `sessionShowFavoritesOnly`; same lifecycle as the tag filter — resets on app restart).
 
 **Folder filter:**
 - Three states per folder: unselected → `"full"` (✓, includes subdirectories recursively) → `"partial"` (—, direct children only) → unselected.

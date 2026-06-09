@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { exists, rename, mkdir } from "@tauri-apps/plugin-fs";
+import { rename, mkdir } from "@tauri-apps/plugin-fs";
 
 import type { Library, LibraryEntry, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
@@ -25,7 +25,7 @@ import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, type EntryMeta } f
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove } from "../utils/settingsStore";
-import { getPageForPath } from "../utils/readingProgressStore";
+import { getAllPageProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
@@ -316,17 +316,23 @@ function LibraryView({
   showProgressBar,
   showPageCount,
   refreshTrigger,
+  active = true,
 }: {
   onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void, libraryId?: string) => void;
   showProgressBar: boolean;
   showPageCount: boolean;
   refreshTrigger: number;
+  // Whether the library is the currently visible view. LibraryView stays
+  // mounted across reader sessions; this flips false while reading and back to
+  // true on return, which triggers a background re-scan of the filesystem.
+  active?: boolean;
 }) {
   const { t } = useTranslation();
   const [libraries, setLibraries] = useState<Library[]>([]);
   const [activeLibId, setActiveLibId] = useState<string | null>(null);
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   const [notFoundIds, setNotFoundIds] = useState<Set<string>>(new Set());
+  const [librariesLoaded, setLibrariesLoaded] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("name");
@@ -373,6 +379,7 @@ function LibraryView({
     getLibraries().then((libs) => {
       setLibraries(libs);
       if (libs.length > 0) setActiveLibId(libs[0].id);
+      setLibrariesLoaded(true);
     });
     getLibraryViewMode().then(setViewMode);
   }, []);
@@ -384,131 +391,204 @@ function LibraryView({
   };
 
   const scanRef = useRef(false);
+  const scanAbortRef = useRef(false);
+  // Library id whose initial scan has already completed in this mount. Gates
+  // the background re-scan effect so it never runs before the first scan.
+  const scannedLibRef = useRef<string | null>(null);
+
+  // Phase B: scan the filesystem and reconcile it against a baseline set of
+  // entries — relocations, new files, missing/ambiguous detection, sticky
+  // metadata overlay and page-count queueing. `baseline` is the stored set on
+  // the initial scan, or the live entries on a background re-scan when the user
+  // returns to the library. Bails (leaving the rendered list untouched) if the
+  // user opens a file mid-scan; the caller's finally clears the scan flags.
+  const reconcileScan = useCallback(async (
+    lib: Library,
+    baseline: LibraryEntry[],
+    allPageProgress: Map<string, number>,
+  ) => {
+    setScanning(true);
+    const scanned = await invoke<ScannedFile[]>("scan_library", { root: lib.rootPath });
+
+    // If the user opened a file while scan_library was running in Rust, drop
+    // the results to avoid competing store writes with file loading. The scan
+    // runs cleanly on the next library visit.
+    if (scanAbortRef.current) return;
+
+    const scannedByPath = new Map(scanned.map((f) => [f.path, f]));
+    const storedById = new Map(baseline.map((e) => [e.id, e]));
+
+    const newAmbiguous = new Map<string, string[]>();
+    const updatedEntries = await Promise.all(
+      baseline.map(async (entry) => {
+        if (scannedByPath.has(entry.currentPath)) return entry;
+        const matches = scanned.filter(
+          (f) => f.filename === entry.filename && f.size_bytes === entry.sizeBytes
+        );
+        if (matches.length === 1) {
+          await updateEntryPath(entry.id, entry.libraryId, matches[0].path);
+          return { ...entry, currentPath: matches[0].path };
+        }
+        if (matches.length > 1) {
+          newAmbiguous.set(entry.id, matches.map((f) => f.path));
+        }
+        return entry;
+      })
+    );
+    setAmbiguousCandidates(newAmbiguous);
+
+    const now = Math.floor(Date.now() / 1000);
+    const newEntries: LibraryEntry[] = [];
+    for (const file of scanned) {
+      const id = makeEntryId(file.filename, file.size_bytes);
+      if (!storedById.has(id)) {
+        newEntries.push({
+          id,
+          libraryId: lib.id,
+          currentPath: file.path,
+          filename: file.filename,
+          sizeBytes: file.size_bytes,
+          modifiedAt: file.modified_secs,
+          autoTags: [],
+          customTags: [],
+          isFavorite: false,
+          addedAt: now,
+          readingState: "unread",
+        });
+      }
+    }
+
+    // Apply auto-parse to any entry that has no autoTags yet (new or pre-feature).
+    const needsTagging = [...updatedEntries, ...newEntries].filter((e) => e.autoTags.length === 0);
+    for (const entry of needsTagging) {
+      entry.autoTags = parseAutoTags(entry.filename);
+    }
+
+    const allEntries = [...updatedEntries, ...newEntries];
+
+    // Sticky user metadata (tags/favorite/rating/readingState), keyed by entry
+    // id and independent of the library. Overlay saved meta onto the entries so
+    // it survives delete + re-add; entries with no saved meta backfill it from
+    // their current values (first scan / pre-feature data), so nothing existing
+    // is wiped. Runs before the upsert below so restored values get persisted
+    // into the library blob.
+    const metaMap = await getEntryMetaMap();
+    const metaBackfill: { id: string; meta: EntryMeta }[] = [];
+    for (const entry of allEntries) {
+      const meta = metaMap.get(entry.id);
+      if (meta) {
+        entry.customTags = meta.customTags ?? [];
+        entry.isFavorite = meta.isFavorite ?? false;
+        entry.rating = meta.rating;
+        entry.readingState = meta.readingState ?? "unread";
+      } else {
+        metaBackfill.push({
+          id: entry.id,
+          meta: {
+            customTags: entry.customTags,
+            isFavorite: entry.isFavorite,
+            rating: entry.rating,
+            readingState: entry.readingState,
+          },
+        });
+      }
+    }
+    if (metaBackfill.length > 0) await batchSetEntryMeta(metaBackfill);
+
+    const toUpsert = [...newEntries, ...needsTagging.filter((e) => !newEntries.includes(e))];
+    if (toUpsert.length > 0) await upsertEntries(lib.id, toUpsert);
+
+    // Mark entries absent from the scan as missing — scan_library does a full
+    // recursive walk so any path not found is gone from the library root.
+    // Ambiguous entries are excluded: they have candidates, just unresolved.
+    const missing = new Set<string>();
+    for (const entry of allEntries) {
+      if (!scannedByPath.has(entry.currentPath) && !newAmbiguous.has(entry.id)) {
+        missing.add(entry.id);
+      }
+    }
+
+    setEntries(allEntries);
+    setNotFoundIds(missing);
+
+    const toCount = allEntries.filter((e) => e.totalPages === undefined && !missing.has(e.id));
+    setBgScanQueue(toCount);
+
+    const toRead = allEntries.filter(
+      (e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread"
+    );
+    if (toRead.length > 0) {
+      const pMap = new Map<string, number>();
+      for (const entry of toRead) {
+        const page = allPageProgress.get(entry.currentPath) ?? 0;
+        if (page > 0) pMap.set(entry.id, page);
+      }
+      setPageMap(pMap);
+    }
+  }, []);
+
+  // Initial scan on mount / library switch: Phase A renders stored entries +
+  // reading progress immediately (interactive in <100ms), then Phase B
+  // reconciles against the filesystem in the background.
   useEffect(() => {
     if (!activeLib) return;
     if (scanRef.current) return;
     scanRef.current = true;
+    const lib = activeLib;
 
     (async () => {
-      setScanning(true);
+      // Reset abort flag at the start of each scan cycle so a previous
+      // handleOpen call doesn't cancel this fresh scan.
+      scanAbortRef.current = false;
       try {
-        const [scanned, stored] = await Promise.all([
-          invoke<ScannedFile[]>("scan_library", { root: activeLib.rootPath }),
-          getEntries(activeLib.id),
+        const [stored, allPageProgress] = await Promise.all([
+          getEntries(lib.id),
+          getAllPageProgress(),
         ]);
-
-        const scannedByPath = new Map(scanned.map((f) => [f.path, f]));
-        const storedById = new Map(stored.map((e) => [e.id, e]));
-
-        const newAmbiguous = new Map<string, string[]>();
-        const updatedEntries = await Promise.all(
-          stored.map(async (entry) => {
-            if (scannedByPath.has(entry.currentPath)) return entry;
-            const matches = scanned.filter(
-              (f) => f.filename === entry.filename && f.size_bytes === entry.sizeBytes
-            );
-            if (matches.length === 1) {
-              await updateEntryPath(entry.id, entry.libraryId, matches[0].path);
-              return { ...entry, currentPath: matches[0].path };
-            }
-            if (matches.length > 1) {
-              newAmbiguous.set(entry.id, matches.map((f) => f.path));
-            }
-            return entry;
-          })
-        );
-        setAmbiguousCandidates(newAmbiguous);
-
-        const now = Math.floor(Date.now() / 1000);
-        const newEntries: LibraryEntry[] = [];
-        for (const file of scanned) {
-          const id = makeEntryId(file.filename, file.size_bytes);
-          if (!storedById.has(id)) {
-            newEntries.push({
-              id,
-              libraryId: activeLib.id,
-              currentPath: file.path,
-              filename: file.filename,
-              sizeBytes: file.size_bytes,
-              modifiedAt: file.modified_secs,
-              autoTags: [],
-              customTags: [],
-              isFavorite: false,
-              addedAt: now,
-              readingState: "unread",
-            });
-          }
-        }
-
-        // Apply auto-parse to any entry that has no autoTags yet (new or pre-feature).
-        const needsTagging = [...updatedEntries, ...newEntries].filter((e) => e.autoTags.length === 0);
-        for (const entry of needsTagging) {
-          entry.autoTags = parseAutoTags(entry.filename);
-        }
-
-        const allEntries = [...updatedEntries, ...newEntries];
-
-        // Sticky user metadata (tags/favorite/rating/readingState), keyed by
-        // entry id and independent of the library. Overlay saved meta onto the
-        // entries so it survives delete + re-add; entries with no saved meta
-        // backfill it from their current values (first scan / pre-feature data),
-        // so nothing existing is wiped. Runs before the upsert below so restored
-        // values get persisted into the library blob.
-        const metaMap = await getEntryMetaMap();
-        const metaBackfill: { id: string; meta: EntryMeta }[] = [];
-        for (const entry of allEntries) {
-          const meta = metaMap.get(entry.id);
-          if (meta) {
-            entry.customTags = meta.customTags ?? [];
-            entry.isFavorite = meta.isFavorite ?? false;
-            entry.rating = meta.rating;
-            entry.readingState = meta.readingState ?? "unread";
-          } else {
-            metaBackfill.push({
-              id: entry.id,
-              meta: {
-                customTags: entry.customTags,
-                isFavorite: entry.isFavorite,
-                rating: entry.rating,
-                readingState: entry.readingState,
-              },
-            });
-          }
-        }
-        if (metaBackfill.length > 0) await batchSetEntryMeta(metaBackfill);
-
-        const toUpsert = [...newEntries, ...needsTagging.filter((e) => !newEntries.includes(e))];
-        if (toUpsert.length > 0) await upsertEntries(activeLib.id, toUpsert);
-
-        const missing = new Set<string>();
-        for (const entry of allEntries) {
-          if (!scannedByPath.has(entry.currentPath)) {
-            const fileExists = await exists(entry.currentPath);
-            if (!fileExists) missing.add(entry.id);
-          }
-        }
-
-        setEntries(allEntries);
-        setNotFoundIds(missing);
-
-        const toCount = allEntries.filter((e) => e.totalPages === undefined && !missing.has(e.id));
-        setBgScanQueue(toCount);
-
-        const toRead = allEntries.filter(
-          (e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread"
-        );
-        if (toRead.length > 0) {
-          const pageNums = await Promise.all(toRead.map((e) => getPageForPath(e.currentPath)));
+        setEntries(stored);
+        const initialToRead = stored.filter((e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread");
+        if (initialToRead.length > 0) {
           const pMap = new Map<string, number>();
-          toRead.forEach((e, i) => pMap.set(e.id, pageNums[i]));
+          for (const entry of initialToRead) {
+            const page = allPageProgress.get(entry.currentPath) ?? 0;
+            if (page > 0) pMap.set(entry.id, page);
+          }
           setPageMap(pMap);
         }
+
+        // Skip the filesystem scan if the user already opened a file during Phase A.
+        if (scanAbortRef.current) return;
+        await reconcileScan(lib, stored, allPageProgress);
+        scannedLibRef.current = lib.id;
       } finally {
         setScanning(false);
         scanRef.current = false;
       }
     })();
-  }, [activeLib]);
+  }, [activeLib, reconcileScan]);
+
+  // Returning to the library (active flips false→true) after the initial scan
+  // completed: re-reconcile against disk in the background so files added or
+  // moved while away show up, without clearing the already-rendered list.
+  useEffect(() => {
+    if (!active || !activeLib) return;
+    if (scannedLibRef.current !== activeLib.id) return;
+    if (scanRef.current) return;
+    scanRef.current = true;
+    const lib = activeLib;
+
+    (async () => {
+      scanAbortRef.current = false;
+      try {
+        const allPageProgress = await getAllPageProgress();
+        if (scanAbortRef.current) return;
+        await reconcileScan(lib, entriesRef.current, allPageProgress);
+      } finally {
+        setScanning(false);
+        scanRef.current = false;
+      }
+    })();
+  }, [active, activeLib, reconcileScan]);
 
   const handleAddLibrary = async () => {
     const folder = await open({ directory: true, multiple: false });
@@ -526,18 +606,9 @@ function LibraryView({
     setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, isFavorite: next } : e));
   }, []);
 
-  const handleOpen = useCallback(async (entry: LibraryEntry) => {
+  const handleOpen = useCallback((entry: LibraryEntry) => {
+    scanAbortRef.current = true;
     const now = Math.floor(Date.now() / 1000);
-    await setLastOpenedAt(entry.id, entry.libraryId, now);
-    setEntries((prev) =>
-      prev.map((e) => e.id === entry.id ? { ...e, lastOpenedAt: now } : e)
-    );
-    if (entry.readingState !== "completed") {
-      await setReadingState(entry.id, entry.libraryId, "in_progress");
-      setEntries((prev) =>
-        prev.map((e) => e.id === entry.id ? { ...e, readingState: "in_progress" as const } : e)
-      );
-    }
     const onComplete = entry.readingState !== "completed"
       ? () => {
           setReadingState(entry.id, entry.libraryId, "completed").catch(console.error);
@@ -552,7 +623,19 @@ function LibraryView({
         prev.map((e) => e.id === entry.id ? { ...e, totalPages: total } : e)
       );
     };
+    // Open the file immediately — store writes are fire-and-forget so they don't
+    // block the reader from opening while a background scan may be active.
     onOpen(entry.currentPath, onComplete, onPagesLoaded, entry.libraryId);
+    setLastOpenedAt(entry.id, entry.libraryId, now).catch(console.error);
+    setEntries((prev) =>
+      prev.map((e) => e.id === entry.id ? { ...e, lastOpenedAt: now } : e)
+    );
+    if (entry.readingState !== "completed") {
+      setReadingState(entry.id, entry.libraryId, "in_progress").catch(console.error);
+      setEntries((prev) =>
+        prev.map((e) => e.id === entry.id ? { ...e, readingState: "in_progress" as const } : e)
+      );
+    }
   }, [onOpen]);
 
   const handleItemClick = useCallback((entry: LibraryEntry, e: MouseEvent) => {
@@ -1117,6 +1200,14 @@ function LibraryView({
             {viewMode === "details" ? <GridIcon /> : <DetailsIcon />}
           </button>
 
+          {scanning && entries.length > 0 && (
+            <div
+              className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin shrink-0"
+              style={{ borderColor: "var(--text-muted)", borderTopColor: "transparent" }}
+              title={t("library.scanning")}
+            />
+          )}
+
           {activeLib && (
             <button
               onClick={openRemoveLibraryConfirm}
@@ -1137,7 +1228,13 @@ function LibraryView({
         </div>
       </div>
 
-      {libraries.length === 0 ? (
+      {!librariesLoaded ? (
+        <div className="flex-1 flex items-center justify-center py-8" style={{ color: "var(--text-muted)" }}>
+          <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin mr-2"
+            style={{ borderColor: "var(--text-muted)", borderTopColor: "transparent" }} />
+          {t("library.scanning")}
+        </div>
+      ) : libraries.length === 0 ? (
         <div className="flex-1 flex items-center justify-center px-8 text-center" style={{ color: "var(--text-muted)" }}>
           <p className="max-w-sm">{t("library.noLibraries")}</p>
         </div>
@@ -1193,7 +1290,7 @@ function LibraryView({
             onScroll={(e) => { sessionScrollTop = e.currentTarget.scrollTop; }}
             onClick={(e) => { if (e.target === e.currentTarget) setSelectedIds(new Set()); }}
           >
-            {scanning && (
+            {scanning && entries.length === 0 && (
               <div className="flex items-center justify-center py-8" style={{ color: "var(--text-muted)" }}>
                 <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin mr-2"
                   style={{ borderColor: "var(--text-muted)", borderTopColor: "transparent" }} />
