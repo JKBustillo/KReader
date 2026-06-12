@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { rename, mkdir } from "@tauri-apps/plugin-fs";
+import { rename, mkdir, exists } from "@tauri-apps/plugin-fs";
 
 import type { Library, LibraryEntry, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
@@ -11,6 +11,7 @@ import {
   removeLibrary,
   getEntries,
   upsertEntries,
+  upsertEntry,
   updateEntryPath,
   removeEntry,
   setFavorite,
@@ -21,11 +22,11 @@ import {
   clearAllTotalPages,
   batchSetCustomTags,
 } from "../utils/libraryStore";
-import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
+import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove } from "../utils/settingsStore";
-import { getAllPageProgress } from "../utils/readingProgressStore";
+import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
@@ -92,6 +93,111 @@ function GridIcon() {
 const ROOT_FOLDER_PATH = "/";
 const FOLDER_BASE_PADDING_REM = 0.75;
 const FOLDER_INDENT_REM = 0.85;
+
+// Characters not allowed in a filename on Windows (and unsafe cross-platform).
+const INVALID_FILENAME_CHARS = /[\\/:*?"<>|]/;
+
+// Splits a filename into its base name and extension (incl. the dot). A leading
+// dot (dotfile with no extension) is treated as all-base.
+function splitFilename(filename: string): { base: string; ext: string } {
+  const dot = filename.lastIndexOf(".");
+  if (dot <= 0) return { base: filename, ext: "" };
+  return { base: filename.slice(0, dot), ext: filename.slice(dot) };
+}
+
+function RenameModal({
+  entry,
+  onRename,
+  onClose,
+}: {
+  entry: LibraryEntry;
+  // Returns false when the target name already exists on disk (kept open so the
+  // user can pick another name); true closes the modal via the parent.
+  onRename: (entry: LibraryEntry, newFilename: string) => Promise<boolean>;
+  onClose: () => void;
+}) {
+  const { t } = useTranslation();
+  const { base, ext } = splitFilename(entry.filename);
+  const [value, setValue] = useState(base);
+  const [collision, setCollision] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the field and pre-select the base name (not the extension) on open.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    el.select();
+  }, []);
+
+  const trimmed = value.trim();
+  const invalid = INVALID_FILENAME_CHARS.test(trimmed);
+  const unchanged = trimmed === base;
+  const canSave = trimmed !== "" && !invalid && !unchanged && !busy;
+
+  async function handleSubmit() {
+    if (!canSave) return;
+    setBusy(true);
+    setCollision(false);
+    try {
+      const ok = await onRename(entry, trimmed + ext);
+      // false = destination already exists; keep open so the user can retry.
+      if (!ok) setCollision(true);
+    } catch {
+      // Disk error (e.g. missing/locked file): unstick without a misleading
+      // "already exists" message. The user can retry or cancel.
+    } finally {
+      setBusy(false);
+    }
+    // On success the parent unmounts this modal; the setBusy above is a no-op.
+  }
+
+  return (
+    <Modal onClose={busy ? () => {} : onClose} panelClassName="max-w-md">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
+          {t("library.renameTitle")}
+        </h2>
+        <button
+          onClick={onClose}
+          disabled={busy}
+          className="text-lg leading-none opacity-60 hover:opacity-100"
+          style={{ color: "var(--text-muted)" }}
+        >
+          ×
+        </button>
+      </div>
+      <div className="flex items-center gap-1">
+        <input
+          ref={inputRef}
+          type="text"
+          value={value}
+          onChange={(e) => { setValue(e.target.value); setCollision(false); }}
+          onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
+          className="flex-1 min-w-0 text-sm rounded-lg px-3 py-1.5 outline-none transition-colors bg-[var(--bg-tab-active)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-nav)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--glow-soft)]"
+        />
+        {ext && (
+          <span className="text-sm shrink-0 font-mono" style={{ color: "var(--text-muted)" }}>{ext}</span>
+        )}
+      </div>
+      {invalid && (
+        <p className="text-xs" style={{ color: "var(--color-danger)" }}>{t("library.renameInvalid")}</p>
+      )}
+      {collision && (
+        <p className="text-xs" style={{ color: "var(--color-danger)" }}>{t("library.renameExists")}</p>
+      )}
+      <div className="flex justify-end gap-2">
+        <Button variant="secondary" onClick={onClose} disabled={busy}>
+          {t("library.cancel")}
+        </Button>
+        <Button variant="primary" onClick={handleSubmit} disabled={!canSave}>
+          {t("library.renameBtn")}
+        </Button>
+      </div>
+    </Modal>
+  );
+}
 
 function MoveFolderModal({
   entries,
@@ -347,6 +453,7 @@ function LibraryView({
   const [resolveTarget, setResolveTarget] = useState<{ entry: LibraryEntry; candidates: string[] } | null>(null);
   const [selectedFolders, setSelectedFolders] = useState<Map<string, "full" | "partial">>(new Map());
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
+  const [renameTarget, setRenameTarget] = useState<LibraryEntry | null>(null);
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
   const [removeLibraryConfirm, setRemoveLibraryConfirm] = useState(false);
@@ -733,6 +840,69 @@ function LibraryView({
     );
     setMoveFolderTarget(null);
   }, [activeLib]);
+
+  // Renames the file on disk and migrates every id-/path-keyed record, since the
+  // entry id is derived from the filename ({filename}::{sizeBytes}). Returns
+  // false (without renaming) when a file already exists at the destination, so
+  // the modal can stay open for the user to choose another name.
+  const handleRename = useCallback(async (entry: LibraryEntry, newFilename: string): Promise<boolean> => {
+    if (newFilename === entry.filename) { setRenameTarget(null); return true; }
+
+    // Preserve the original directory and path separator, swapping only the
+    // basename. Keeping the separator style avoids a needless relocation on the
+    // next scan (which compares against the OS-native path from scan_library).
+    const sep = Math.max(entry.currentPath.lastIndexOf("/"), entry.currentPath.lastIndexOf("\\"));
+    const newPath = entry.currentPath.slice(0, sep + 1) + newFilename;
+
+    if (await exists(newPath)) return false;
+    await rename(entry.currentPath, newPath);
+
+    const oldId = entry.id;
+    const newId = makeEntryId(newFilename, entry.sizeBytes);
+    const newEntry: LibraryEntry = {
+      ...entry,
+      id: newId,
+      filename: newFilename,
+      currentPath: newPath,
+      autoTags: parseAutoTags(newFilename),
+    };
+
+    await removeEntry(oldId, entry.libraryId);
+    await upsertEntry(newEntry);
+    await renameEntryMeta(oldId, newId);
+    await migrateReadingProgress(entry.currentPath, newPath);
+    await clearThumbnailDiskCache([oldId]);
+
+    setEntries((prev) => prev.map((e) => e.id === oldId ? newEntry : e));
+    setSelectedIds((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Set(prev);
+      next.delete(oldId);
+      next.add(newId);
+      return next;
+    });
+    setPageMap((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Map(prev);
+      next.set(newId, next.get(oldId)!);
+      next.delete(oldId);
+      return next;
+    });
+    setNotFoundIds((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Set(prev);
+      next.delete(oldId);
+      return next;
+    });
+    setAmbiguousCandidates((prev) => {
+      if (!prev.has(oldId)) return prev;
+      const next = new Map(prev);
+      next.delete(oldId);
+      return next;
+    });
+    setRenameTarget(null);
+    return true;
+  }, []);
 
   const handleDeleteEntries = useCallback(async (targetEntries: LibraryEntry[]) => {
     for (const entry of targetEntries) {
@@ -1364,6 +1534,7 @@ function LibraryView({
                   setMoveFolderTarget(entries);
                   setContextMenu(null);
                 }}
+                onRename={(entry) => { setRenameTarget(entry); setContextMenu(null); }}
                 onCopyFilename={handleCopyFilename}
                 onDelete={(entries) => {
                   const allGhost = entries.every((e) => notFoundIds.has(e.id));
@@ -1394,6 +1565,14 @@ function LibraryView({
           rootPath={activeLib?.rootPath ?? ""}
           onMove={handleMoveToFolder}
           onClose={() => setMoveFolderTarget(null)}
+        />
+      )}
+
+      {renameTarget && (
+        <RenameModal
+          entry={renameTarget}
+          onRename={handleRename}
+          onClose={() => setRenameTarget(null)}
         />
       )}
 

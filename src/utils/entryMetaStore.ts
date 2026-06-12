@@ -59,6 +59,22 @@ export async function deleteEntryMeta(ids: string[]): Promise<void> {
   }
 }
 
+/**
+ * Moves the meta record from `oldId` to `newId` (used when a file is renamed,
+ * which changes its id). Merges onto any existing record at `newId` and deletes
+ * the old key. No-op if there is no record at `oldId`.
+ */
+export async function renameEntryMeta(oldId: string, newId: string): Promise<void> {
+  if (oldId === newId) return;
+  const store = await getStore();
+  const all = await readAll(store);
+  if (!(oldId in all)) return;
+  all[newId] = { ...all[newId], ...all[oldId] };
+  delete all[oldId];
+  await store.set(META_KEY, all);
+  await store.save();
+}
+
 /** Merges a partial patch into the record for `id` (read-modify-write). */
 export async function setEntryMetaFields(id: string, patch: EntryMeta): Promise<void> {
   const store = await getStore();

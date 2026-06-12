@@ -20,6 +20,7 @@ function ContextMenu({
   onResetProgress,
   onMarkAsRead,
   onMoveToFolder,
+  onRename,
   onCopyFilename,
   onDelete,
   onClose,
@@ -33,6 +34,7 @@ function ContextMenu({
   onResetProgress: (entries: LibraryEntry[]) => void;
   onMarkAsRead: (entries: LibraryEntry[]) => void;
   onMoveToFolder: (entries: LibraryEntry[]) => void;
+  onRename: (entry: LibraryEntry) => void;
   onCopyFilename: (entries: LibraryEntry[]) => void;
   onDelete: (entries: LibraryEntry[]) => void;
   onClose: () => void;
@@ -101,6 +103,11 @@ function ContextMenu({
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onMoveToFolder(entries)}>
         {t("library.moveToFolder")}
       </button>
+      {single && (
+        <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onRename(single)}>
+          {t("library.rename")}
+        </button>
+      )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onCopyFilename(entries)}>
         {t("library.copyFilename")}
       </button>

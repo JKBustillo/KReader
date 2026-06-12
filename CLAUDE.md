@@ -35,7 +35,7 @@ src/
     ReaderOverlay.tsx           Floating shortcuts panel + page info indicator
     NavBar.tsx                  Top nav: home/library toggle + botón engranaje (abre SettingsModal)
     LibraryView.tsx             Main library UI: scan, filter (tags + folders), sort, view mode,
-                                  ambiguous-file resolution, tag editor modal
+                                  ambiguous-file resolution, tag editor modal, rename-file modal
     LibraryCard.tsx             Grid-view card for a library entry (cover thumbnail + metadata)
     LibraryDetailsRow.tsx       Details-view row for a library entry
     TagEditor.tsx               Modal for adding/removing custom tags; supports single and
@@ -54,6 +54,7 @@ src/
     ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
+                                  "Rename" entry is single-selection only (onRename receives one entry).
     FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
                                   clear footer + dismiss). Owns open/search state; caller passes renderItems(search).
   hooks/
@@ -84,6 +85,7 @@ src/
     entryMetaStore.ts           Sticky user metadata (customTags/isFavorite/rating/readingState) keyed by entry id
                                   (filename::size), library-independent, in .entry-meta.dat (single `entry-meta` key →
                                   Record<id, EntryMeta>). Lets that data survive a library delete + re-add. See Library system.
+                                  renameEntryMeta(oldId, newId) migrates a record when a file is renamed (id changes).
     readingSession.ts           startLibraryReadingSession(entry): disk-only reading bookkeeping for entries
                                   opened outside LibraryView (sibling Ctrl+Arrow). Marks opened + returns
                                   onComplete/onPagesLoaded callbacks. See Sibling-file navigation.
@@ -100,6 +102,7 @@ src/
     readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks), read+write.
                                   Consumed by useReadingProgress and PDFReader; exposes getReadingProgress,
                                   getSavedPage, savePage/saveCascade/saveBookmarks, and getPageForPath(filePath).
+                                  migrateReadingProgress(oldPath, newPath) moves all three keys when a file is renamed.
     countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats.
     progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
@@ -162,7 +165,9 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 
 **Mounting model:** `App.tsx` keeps the home/library chrome mounted and renders the Reader/PDFReader and the loading spinner as **overlays** (the chrome gets `hidden` while `view === "reader"`, not unmounted). Once visited, `LibraryView` stays mounted for the session (`libraryMounted`), so its state, scroll position and warm in-memory thumbnail cache survive entering/leaving the reader — opening a comic and returning is instant. The `active` prop (`view === "library"`) tells `LibraryView` when it's the visible view (drives the background re-scan above).
 
-**Entry identity:** `id = "{filename}::{sizeBytes}"`. This means renames are treated as new files; moving within the library root is auto-resolved on next scan.
+**Entry identity:** `id = "{filename}::{sizeBytes}"`. This means an *external* rename is treated as a new file; moving within the library root is auto-resolved on next scan.
+
+**Rename (context menu, single entry):** `handleRename` renames the file on disk via `rename` (`@tauri-apps/plugin-fs`, same directory, separator/path preserved) and, because the id is filename-derived, migrates every id-/path-keyed record so nothing is orphaned or duplicated on the next scan: it swaps the library entry (new id/filename/currentPath, `autoTags` re-parsed, `customTags` kept), `renameEntryMeta(oldId→newId)`, `migrateReadingProgress(oldPath→newPath)` (page/cascade/bookmarks), and clears the old thumbnail cache (`clearThumbnailDiskCache([oldId])`, regenerates lazily). The `RenameModal` pre-fills the base name with the extension shown as a fixed suffix, validates against `INVALID_FILENAME_CHARS`, and stays open if the destination already `exists` (handler returns false).
 
 **Sticky entry metadata (`entryMetaStore.ts`):**
 - `customTags`, `isFavorite`, `rating` and `readingState` are mirrored into `.entry-meta.dat`, keyed by entry id (so they're library-independent). The `LibraryEntry` in `.library.dat` remains the live mirror the UI reads/sorts/filters; the meta store is the durable copy.

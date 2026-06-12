@@ -56,6 +56,28 @@ export async function getPageForPath(filePath: string): Promise<number> {
   return (await getSavedPage(filePath)) ?? 0;
 }
 
+// Moves all reading-progress keys (page/cascade/bookmarks) from one file path to
+// another, deleting the originals. Used when a library file is renamed so its
+// reading position survives the path change. No-op for keys that are unset.
+export async function migrateReadingProgress(oldPath: string, newPath: string): Promise<void> {
+  if (oldPath === newPath) return;
+  const store = await getStore();
+  const moves: [string, string][] = [
+    [pageKey(oldPath), pageKey(newPath)],
+    [cascadeKey(oldPath), cascadeKey(newPath)],
+    [bookmarksKey(oldPath), bookmarksKey(newPath)],
+  ];
+  let changed = false;
+  for (const [from, to] of moves) {
+    const value = await store.get(from);
+    if (value === undefined || value === null) continue;
+    await store.set(to, value);
+    await store.delete(from);
+    changed = true;
+  }
+  if (changed) await store.save();
+}
+
 // Reads all page-progress values in a single IPC call.
 // Returns a map of filePath → saved page number (entries without a saved page are absent).
 export async function getAllPageProgress(): Promise<Map<string, number>> {
