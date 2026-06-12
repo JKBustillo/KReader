@@ -25,7 +25,7 @@ import {
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
@@ -448,6 +448,7 @@ function LibraryView({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
+  const [recentTags, setRecentTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set(sessionSelectedTags));
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
   const [resolveTarget, setResolveTarget] = useState<{ entry: LibraryEntry; candidates: string[] } | null>(null);
@@ -489,6 +490,7 @@ function LibraryView({
       setLibrariesLoaded(true);
     });
     getLibraryViewMode().then(setViewMode);
+    getRecentTags().then(setRecentTags);
   }, []);
 
   const handleViewModeToggle = () => {
@@ -953,6 +955,11 @@ function LibraryView({
     setEntries((prev) =>
       prev.map((e) => updateMap.has(e.id) ? { ...e, customTags: updateMap.get(e.id)! } : e)
     );
+  }, []);
+
+  const handleRecordRecentTags = useCallback(async (values: string[]) => {
+    await pushRecentTags(values);
+    setRecentTags(await getRecentTags());
   }, []);
 
   const handleResolveLocation = useCallback(async (entry: LibraryEntry, chosenPath: string) => {
@@ -1555,6 +1562,8 @@ function LibraryView({
           onSave={handleTagSave}
           onClose={() => setTagEditorEntries(null)}
           allTagValues={allTagValues}
+          recentTags={recentTags}
+          onRecordRecent={handleRecordRecentTags}
         />
       )}
 

@@ -39,7 +39,8 @@ src/
     LibraryCard.tsx             Grid-view card for a library entry (cover thumbnail + metadata)
     LibraryDetailsRow.tsx       Details-view row for a library entry
     TagEditor.tsx               Modal for adding/removing custom tags; supports single and
-                                  multi-entry mode, autocomplete suggestions
+                                  multi-entry mode, autocomplete suggestions, and a recently-assigned
+                                  quick-pick list shown when the input is focused but empty (recentTags prop)
     SettingsModal.tsx           Modal de ajustes: tema (dark/light), color de acento (ice/violet),
                                   idioma (ES/EN), export/import de biblioteca. Abre desde el engranaje de NavBar.
     Button.tsx                  Shared action button: variant (primary solid-accent CTA + glow / secondary bordered /
@@ -140,6 +141,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
   - `auto-backup` — boolean, enable automatic library backups on startup (default false).
   - `last-backup-at` — number, epoch-ms of the last auto-backup (throttle, default 0).
   - `keep-data-on-remove` — boolean, keep sticky entry metadata when a library is removed (default true).
+  - `recent-custom-tags` — `string[]`, recently-assigned custom tag values (MRU, deduped case-insensitively, capped). Feeds the TagEditor quick-pick list shown on empty-input focus.
 - `.entry-meta.dat` — sticky user metadata keyed by entry id. Single key `entry-meta` → `Record<id, EntryMeta>` where
   `EntryMeta = { customTags?, isFavorite?, rating?, readingState? }`. Owned by `entryMetaStore.ts`. See Library system.
 - `.library.dat` — library definitions and entries. Keys:
@@ -194,7 +196,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.
-- `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions.
+- `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions. On save, the curated tag values are recorded into the `recent-custom-tags` MRU (`pushRecentTags`); `LibraryView` loads them and passes `recentTags` to `TagEditor`, which surfaces them as a quick-pick list when the input is focused but empty.
 - Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; resets on app restart). Now that `LibraryView` stays mounted for the session (see Mounting model), the module-level vars are a redundant safety net rather than the primary persistence mechanism.
 
 **Favorites filter:**

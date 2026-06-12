@@ -35,6 +35,7 @@
     "editingFiles": "Editando {{count}} archivos",
     "autoTagsLabel": "Detectados",
     "customTagsLabel": "Personalizados",
+    "recentTags": "Recientes",
     "folders": "Carpetas",
     "searchFolders": "Buscar carpetas...",
     "ambiguous": "Ubicación ambigua — varios archivos coinciden",

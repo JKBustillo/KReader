@@ -129,11 +129,18 @@ function TagEditor({
   onSave,
   onClose,
   allTagValues,
+  recentTags,
+  onRecordRecent,
 }: {
   entries: LibraryEntry[];
   onSave: (updates: { id: string; tags: Tag[] }[]) => void;
   onClose: () => void;
   allTagValues?: string[];
+  // Recently-assigned custom tag values (most recent first), shown as a
+  // quick-pick list when the input is focused but empty.
+  recentTags?: string[];
+  // Reports the curated tag values on save so they can be remembered as recent.
+  onRecordRecent?: (values: string[]) => void;
 }) {
   const { t } = useTranslation();
   const isMulti = entries.length > 1;
@@ -152,6 +159,7 @@ function TagEditor({
 
   const [customTags, setCustomTags] = useState<Tag[]>(computeInitialTags);
   const [input, setInput] = useState("");
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Register the Escape listener once on mount, reading the latest onClose via a
@@ -160,15 +168,17 @@ function TagEditor({
   const onCloseRef = useRef(onClose);
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
 
+  // Intentionally no autofocus: focusing the input opens the recent-tags
+  // quick-pick, which would otherwise cover the modal's actions on open. The
+  // user focuses the input themselves to summon it.
   useEffect(() => {
-    inputRef.current?.focus();
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
   const trimmed = input.trim();
-  const suggestions = trimmed.length > 0 && allTagValues
+  const querySuggestions = trimmed.length > 0 && allTagValues
     ? allTagValues
         .filter(
           (v) =>
@@ -177,6 +187,17 @@ function TagEditor({
         )
         .slice(0, MAX_SUGGESTIONS)
     : [];
+
+  // With an empty, focused input, surface recently-assigned tags so the user can
+  // re-apply a common tag without retyping it (excludes already-added ones).
+  const recentSuggestions = trimmed.length === 0 && focused && recentTags
+    ? recentTags
+        .filter((v) => !customTags.some((t) => t.value === v))
+        .slice(0, MAX_SUGGESTIONS)
+    : [];
+
+  const showingRecent = trimmed.length === 0 && recentSuggestions.length > 0;
+  const suggestions = trimmed.length > 0 ? querySuggestions : recentSuggestions;
 
   const addTag = (value?: string) => {
     const val = (value ?? input).trim();
@@ -217,6 +238,7 @@ function TagEditor({
 
       onSave(updates);
     }
+    onRecordRecent?.(customTags.map((t) => t.value));
     onClose();
   };
 
@@ -293,6 +315,8 @@ function TagEditor({
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onFocus={() => setFocused(true)}
+                onBlur={() => setFocused(false)}
                 onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTag(); } }}
                 placeholder={t("library.addTag")}
                 className="w-full text-sm rounded px-3 py-1.5 outline-none"
@@ -310,6 +334,14 @@ function TagEditor({
                     border: "1px solid var(--border-nav)",
                   }}
                 >
+                  {showingRecent && (
+                    <div
+                      className="px-3 pt-1.5 pb-1 text-[10px] font-medium uppercase tracking-wide"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {t("library.recentTags")}
+                    </div>
+                  )}
                   {suggestions.map((val) => (
                     <button
                       key={val}

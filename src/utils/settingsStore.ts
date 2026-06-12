@@ -108,6 +108,35 @@ export async function saveKeepDataOnRemove(value: boolean): Promise<void> {
   await store.save();
 }
 
+const KEY_RECENT_TAGS = "recent-custom-tags";
+// How many recently-assigned custom tag values to remember for the quick-pick
+// list shown when the tag input is focused but empty.
+const MAX_RECENT_TAGS = 12;
+
+export async function getRecentTags(): Promise<string[]> {
+  const store = await getStore();
+  return (await store.get<string[]>(KEY_RECENT_TAGS)) ?? [];
+}
+
+// Records assigned tag values as most-recent-first, de-duplicated
+// case-insensitively (newest occurrence wins), capped at MAX_RECENT_TAGS.
+export async function pushRecentTags(values: string[]): Promise<void> {
+  const incoming = values.map((v) => v.trim()).filter((v) => v.length > 0);
+  if (incoming.length === 0) return;
+  const store = await getStore();
+  const existing = (await store.get<string[]>(KEY_RECENT_TAGS)) ?? [];
+  const seen = new Set<string>();
+  const merged: string[] = [];
+  for (const value of [...incoming, ...existing]) {
+    const key = value.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    merged.push(value);
+  }
+  await store.set(KEY_RECENT_TAGS, merged.slice(0, MAX_RECENT_TAGS));
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(
