@@ -82,6 +82,14 @@ function ContextMenu({
       style={{ top: pos.top, left: pos.left, background: "var(--bg-nav)", border: "1px solid var(--border-nav)", transformOrigin: "top left" }}
       onClick={(e) => e.stopPropagation()}
     >
+      {entries.length > 1 && (
+        <>
+          <div className="px-4 py-2 text-xs font-medium" style={{ color: "var(--text-secondary)" }}>
+            {t("library.selectedCount", { count: entries.length })}
+          </div>
+          <div className="my-1 h-px" style={{ background: "var(--border-nav)" }} />
+        </>
+      )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onEditTags(entries)}>
         {t("library.editTags")}
       </button>

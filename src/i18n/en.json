@@ -30,6 +30,7 @@
     "tags": "Tags",
     "searchTags": "Search tags...",
     "editTags": "Edit tags",
+    "selectedCount": "{{count}} selected",
     "addTag": "Add tag",
     "noTags": "No tags",
     "editingFiles": "Editing {{count}} files",

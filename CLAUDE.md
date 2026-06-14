@@ -56,6 +56,7 @@ src/
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
                                   "Rename" entry is single-selection only (onRename receives one entry).
+                                  Shows a non-clickable count header (library.selectedCount) when entries.length > 1.
     FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
                                   clear footer + dismiss). Owns open/search state; caller passes renderItems(search).
   hooks/
