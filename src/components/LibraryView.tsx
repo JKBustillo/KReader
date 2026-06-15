@@ -32,6 +32,7 @@ import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
+import TagManager from "./TagManager";
 import Modal from "./Modal";
 import ResolveLocationModal from "./ResolveLocationModal";
 import ContextMenu from "./ContextMenu";
@@ -448,6 +449,7 @@ function LibraryView({
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
+  const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [recentTags, setRecentTags] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<Set<string>>(() => new Set(sessionSelectedTags));
   const [ambiguousCandidates, setAmbiguousCandidates] = useState<Map<string, string[]>>(new Map());
@@ -946,7 +948,10 @@ function LibraryView({
     setPurgeGhostsConfirm(false);
   }, []);
 
-  const handleTagSave = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
+  // Persist a batch of per-entry customTags updates (store write-through +
+  // optimistic local state). Shared by the per-entry TagEditor and the
+  // library-wide TagManager (rename/recolor/delete).
+  const persistCustomTagUpdates = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
     if (updates.length === 0) return;
     const firstEntry = entriesRef.current.find((e) => e.id === updates[0].id);
     if (!firstEntry) return;
@@ -957,10 +962,64 @@ function LibraryView({
     );
   }, []);
 
+  const handleTagSave = useCallback(async (updates: { id: string; tags: Tag[] }[]) => {
+    await persistCustomTagUpdates(updates);
+  }, [persistCustomTagUpdates]);
+
   const handleRecordRecentTags = useCallback(async (values: string[]) => {
     await pushRecentTags(values);
     setRecentTags(await getRecentTags());
   }, []);
+
+  // Rename a custom tag across the whole library. If an entry already carries
+  // the destination value, the rename merges (dedupe, keeping first occurrence).
+  const handleRenameTag = useCallback(async (from: string, to: string) => {
+    const updates = entriesRef.current
+      .filter((e) => e.customTags.some((t) => t.value === from))
+      .map((e) => {
+        const renamed = e.customTags.map((t) => t.value === from ? { ...t, value: to } : t);
+        const seen = new Set<string>();
+        const tags: Tag[] = [];
+        for (const t of renamed) {
+          if (!seen.has(t.value)) { seen.add(t.value); tags.push(t); }
+        }
+        return { id: e.id, tags };
+      });
+    await persistCustomTagUpdates(updates);
+    setSelectedTags((prev) => {
+      if (!prev.has(from)) return prev;
+      const next = new Set(prev);
+      next.delete(from);
+      next.add(to);
+      return next;
+    });
+    await handleRecordRecentTags([to]);
+  }, [persistCustomTagUpdates, handleRecordRecentTags]);
+
+  // Set the same color on a custom tag across every entry that carries it.
+  const handleRecolorTag = useCallback(async (value: string, color: string | undefined) => {
+    const updates = entriesRef.current
+      .filter((e) => e.customTags.some((t) => t.value === value))
+      .map((e) => ({
+        id: e.id,
+        tags: e.customTags.map((t) => t.value === value ? { ...t, color } : t),
+      }));
+    await persistCustomTagUpdates(updates);
+  }, [persistCustomTagUpdates]);
+
+  // Remove a custom tag from every entry in the library.
+  const handleDeleteTag = useCallback(async (value: string) => {
+    const updates = entriesRef.current
+      .filter((e) => e.customTags.some((t) => t.value === value))
+      .map((e) => ({ id: e.id, tags: e.customTags.filter((t) => t.value !== value) }));
+    await persistCustomTagUpdates(updates);
+    setSelectedTags((prev) => {
+      if (!prev.has(value)) return prev;
+      const next = new Set(prev);
+      next.delete(value);
+      return next;
+    });
+  }, [persistCustomTagUpdates]);
 
   const handleResolveLocation = useCallback(async (entry: LibraryEntry, chosenPath: string) => {
     await updateEntryPath(entry.id, entry.libraryId, chosenPath);
@@ -1320,6 +1379,15 @@ function LibraryView({
                 </>
               );
             }}
+            footer={
+              <button
+                onClick={() => setTagManagerOpen(true)}
+                className="w-full px-3 py-1.5 text-xs text-left transition-colors hover:bg-[var(--bg-tab-active)]"
+                style={{ color: "var(--text-secondary)" }}
+              >
+                {t("library.manageTags")}
+              </button>
+            }
           />
 
           {/* Purge ghosts button — visible only when filtered view contains ghost entries */}
@@ -1564,6 +1632,16 @@ function LibraryView({
           allTagValues={allTagValues}
           recentTags={recentTags}
           onRecordRecent={handleRecordRecentTags}
+        />
+      )}
+
+      {tagManagerOpen && (
+        <TagManager
+          entries={entries}
+          onRename={handleRenameTag}
+          onRecolor={handleRecolorTag}
+          onDelete={handleDeleteTag}
+          onClose={() => setTagManagerOpen(false)}
         />
       )}
 

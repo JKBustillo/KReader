@@ -41,6 +41,13 @@ src/
     TagEditor.tsx               Modal for adding/removing custom tags; supports single and
                                   multi-entry mode, autocomplete suggestions, and a recently-assigned
                                   quick-pick list shown when the input is focused but empty (recentTags prop)
+    TagManager.tsx              Modal (uses Modal) for managing custom tags library-wide: lists each distinct
+                                  custom tag with its entry count + a representative color, and per-tag actions
+                                  rename (inline, merges on collision), recolor (ColorSwatch), and delete
+                                  (inline confirm showing affected count). Opened from the tags FilterDropdown
+                                  footer in LibraryView; operates on the active library's full entry list.
+    ColorSwatch.tsx             Shared tag color picker (swatch button + palette popover) + the PALETTE presets.
+                                  Used by TagEditor and TagManager. Colors are user-chosen content, not chrome.
     SettingsModal.tsx           Modal de ajustes: tema (dark/light), color de acento (ice/violet),
                                   idioma (ES/EN), export/import de biblioteca. Abre desde el engranaje de NavBar.
     Button.tsx                  Shared action button: variant (primary solid-accent CTA + glow / secondary bordered /
@@ -59,6 +66,8 @@ src/
                                   Shows a non-clickable count header (library.selectedCount) when entries.length > 1.
     FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
                                   clear footer + dismiss). Owns open/search state; caller passes renderItems(search).
+                                  Optional `footer` prop pins extra content below the clear footer (tags dropdown
+                                  uses it for the "Manage tags" action that opens TagManager).
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
@@ -198,6 +207,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.
 - `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions. On save, the curated tag values are recorded into the `recent-custom-tags` MRU (`pushRecentTags`); `LibraryView` loads them and passes `recentTags` to `TagEditor`, which surfaces them as a quick-pick list when the input is focused but empty.
+- **Library-wide management (`TagManager`):** rename, recolor and delete a custom tag across every entry at once. `LibraryView` handlers (`handleRenameTag`/`handleRecolorTag`/`handleDeleteTag`) compute the affected-entry updates and funnel them through a shared `persistCustomTagUpdates` helper (`batchSetCustomTags` + optimistic `setEntries`), the same path `handleTagSave` uses. Rename merges (dedupes) when an entry already has the destination tag, syncs the `selectedTags` filter (swap on rename, drop on delete), and records the new value into the recents MRU. Only `customTags` are managed — `autoTags` regenerate on scan.
 - Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; resets on app restart). Now that `LibraryView` stays mounted for the session (see Mounting model), the module-level vars are a redundant safety net rather than the primary persistence mechanism.
 
 **Favorites filter:**

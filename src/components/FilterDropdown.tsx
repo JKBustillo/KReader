@@ -15,6 +15,7 @@ function FilterDropdown({
   width,
   onClear,
   renderItems,
+  footer,
 }: {
   label: string;
   selectedCount: number;
@@ -22,6 +23,8 @@ function FilterDropdown({
   width: number;
   onClear: () => void;
   renderItems: (search: string) => ReactNode;
+  // Optional extra content pinned below the list/clear footer (e.g. a "Manage tags" action).
+  footer?: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -84,6 +87,11 @@ function FilterDropdown({
             >
               ✕ {label} ({selectedCount})
             </button>
+          )}
+          {footer && (
+            <div className="border-t shrink-0" style={{ borderColor: "var(--border-nav)" }}>
+              {footer}
+            </div>
           )}
         </div>
       )}
