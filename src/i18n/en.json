@@ -29,6 +29,7 @@
     "markAsRead": "Mark as read",
     "tags": "Tags",
     "searchTags": "Search tags...",
+    "openInNewWindow": "Open in new window",
     "editTags": "Edit tags",
     "selectedCount": "{{count}} selected",
     "manageTags": "Manage tags",

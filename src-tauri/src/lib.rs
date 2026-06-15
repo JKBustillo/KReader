@@ -23,20 +23,32 @@ fn image_mime(lower_name: &str) -> &'static str {
     else { "image/jpeg" }
 }
 
-// Maps a window label to the file path it should open on mount. Each window
-// reads (and clears) its own entry via `take_window_file`. The initial window
+// A file queued for a window to open on mount, plus the optional library it
+// belongs to. When a window is spawned from the library's "Open in new window"
+// action, library_id lets that window keep the library's reading state in sync
+// (in_progress / completed / total pages), matching an in-library open. CLI /
+// file-association launches have no library context, so library_id is None.
+#[derive(serde::Serialize)]
+struct PendingFile {
+    path: String,
+    library_id: Option<String>,
+}
+
+// Maps a window label to the file it should open on mount. Each window reads
+// (and clears) its own entry via `take_window_file`. The initial window
 // ("main") gets the CLI-argument file; windows spawned by the single-instance
 // callback or `open_new_window` get their target file here too. A single
 // shared store lives in this one process, so multiple windows never clobber
 // each other's persisted state.
-struct PendingFiles(Mutex<HashMap<String, String>>);
+struct PendingFiles(Mutex<HashMap<String, PendingFile>>);
 
 // Monotonic counter for unique reader-window labels. Tauri panics on duplicate
 // labels, so this must never repeat within a process.
 struct WindowCounter(AtomicU32);
 
 // Spawns a new app window in the current process, optionally pre-loading a file.
-fn create_reader_window(app: &tauri::AppHandle, path: Option<String>) -> Result<(), String> {
+// library_id is carried only when the file belongs to a library entry (see PendingFile).
+fn create_reader_window(app: &tauri::AppHandle, path: Option<String>, library_id: Option<String>) -> Result<(), String> {
     let n = app.state::<WindowCounter>().0.fetch_add(1, Ordering::SeqCst);
     let label = format!("{}{}", READER_WINDOW_LABEL_PREFIX, n);
 
@@ -45,7 +57,7 @@ fn create_reader_window(app: &tauri::AppHandle, path: Option<String>) -> Result<
             .0
             .lock()
             .unwrap()
-            .insert(label.clone(), p);
+            .insert(label.clone(), PendingFile { path: p, library_id });
     }
 
     // Inherit geometry from the main window so new windows match the user's
@@ -75,7 +87,7 @@ fn create_reader_window(app: &tauri::AppHandle, path: Option<String>) -> Result<
 }
 
 #[tauri::command]
-fn take_window_file(window: tauri::Window, state: tauri::State<PendingFiles>) -> Option<String> {
+fn take_window_file(window: tauri::Window, state: tauri::State<PendingFiles>) -> Option<PendingFile> {
     state.0.lock().unwrap().remove(window.label())
 }
 
@@ -86,8 +98,8 @@ fn take_window_file(window: tauri::Window, state: tauri::State<PendingFiles>) ->
 // now-free main thread. The single-instance callback also runs on the main thread,
 // so it spawns create_reader_window onto the async runtime for the same reason.
 #[tauri::command]
-async fn open_new_window(app: tauri::AppHandle, path: Option<String>) -> Result<(), String> {
-    create_reader_window(&app, path)
+async fn open_new_window(app: tauri::AppHandle, path: Option<String>, library_id: Option<String>) -> Result<(), String> {
+    create_reader_window(&app, path, library_id)
 }
 
 // Binary response layout:
@@ -394,7 +406,7 @@ pub fn run() {
             // the main thread, mirroring why open_new_window is async.
             let app = app.clone();
             tauri::async_runtime::spawn(async move {
-                let _ = create_reader_window(&app, file);
+                let _ = create_reader_window(&app, file, None);
             });
         }))
         // Persists window size, position, maximized and fullscreen state per
@@ -406,7 +418,7 @@ pub fn run() {
             let startup_path = if args.len() > 1 { Some(args[1].clone()) } else { None };
             let mut pending = HashMap::new();
             if let Some(p) = startup_path {
-                pending.insert("main".to_string(), p);
+                pending.insert("main".to_string(), PendingFile { path: p, library_id: None });
             }
             app.manage(PendingFiles(Mutex::new(pending)));
             app.manage(WindowCounter(AtomicU32::new(1)));

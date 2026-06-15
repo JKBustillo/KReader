@@ -25,6 +25,11 @@ import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
 
 type AppView = "home" | "library" | "reader";
 
+// Shape returned by the `take_window_file` IPC: the file this window should open
+// on mount, plus the library it belongs to (null for CLI / file-association
+// launches). Mirrors the Rust `PendingFile` struct.
+type PendingFile = { path: string; library_id: string | null };
+
 // Only the stable "main" window runs the startup auto-backup, so multiple
 // windows of the single-instance process don't each trigger one.
 const MAIN_WINDOW_LABEL = "main";
@@ -206,12 +211,24 @@ function App() {
     if (startupCheckedRef.current) return;
     startupCheckedRef.current = true;
     (async () => {
-      const [savedView, startupPath] = await Promise.all([
+      const [savedView, startup] = await Promise.all([
         getLastAppView(),
-        invoke<string | null>("take_window_file"),
+        invoke<PendingFile | null>("take_window_file"),
       ]);
-      if (startupPath) {
-        handleOpen(startupPath, "home");
+      if (startup) {
+        // When the file belongs to a library (spawned via the library's "Open in
+        // new window" action), keep that library's reading state in sync the same
+        // way sibling navigation does — straight to disk, since no LibraryView is
+        // mounted in this window.
+        const entry = startup.library_id
+          ? await getEntryByPath(startup.library_id, startup.path)
+          : null;
+        if (entry) {
+          const { onComplete, onPagesLoaded } = startLibraryReadingSession(entry);
+          handleOpen(startup.path, "home", onComplete, onPagesLoaded);
+        } else {
+          handleOpen(startup.path, "home");
+        }
       } else {
         setView(savedView);
       }

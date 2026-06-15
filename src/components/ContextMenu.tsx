@@ -15,6 +15,7 @@ function ContextMenu({
   y,
   entries,
   ambiguousCandidates,
+  onOpenInNewWindow,
   onEditTags,
   onResolveLocation,
   onResetProgress,
@@ -29,6 +30,7 @@ function ContextMenu({
   y: number;
   entries: LibraryEntry[];
   ambiguousCandidates: Map<string, string[]>;
+  onOpenInNewWindow: (entry: LibraryEntry) => void;
   onEditTags: (entries: LibraryEntry[]) => void;
   onResolveLocation: (entry: LibraryEntry, candidates: string[]) => void;
   onResetProgress: (entries: LibraryEntry[]) => void;
@@ -89,6 +91,11 @@ function ContextMenu({
           </div>
           <div className="my-1 h-px" style={{ background: "var(--border-nav)" }} />
         </>
+      )}
+      {single && (
+        <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onOpenInNewWindow(single)}>
+          {t("library.openInNewWindow")}
+        </button>
       )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onEditTags(entries)}>
         {t("library.editTags")}

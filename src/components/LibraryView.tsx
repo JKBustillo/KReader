@@ -25,7 +25,7 @@ import {
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
@@ -993,6 +993,8 @@ function LibraryView({
       next.add(to);
       return next;
     });
+    // Drop the stale old value from recents and surface the new one in its place.
+    await removeRecentTags([from]);
     await handleRecordRecentTags([to]);
   }, [persistCustomTagUpdates, handleRecordRecentTags]);
 
@@ -1019,6 +1021,9 @@ function LibraryView({
       next.delete(value);
       return next;
     });
+    // A deleted tag shouldn't keep surfacing in the recents quick-pick.
+    await removeRecentTags([value]);
+    setRecentTags(await getRecentTags());
   }, [persistCustomTagUpdates]);
 
   const handleResolveLocation = useCallback(async (entry: LibraryEntry, chosenPath: string) => {
@@ -1599,6 +1604,7 @@ function LibraryView({
                 y={contextMenu.y}
                 entries={contextMenu.entries}
                 ambiguousCandidates={ambiguousCandidates}
+                onOpenInNewWindow={(entry) => { invoke("open_new_window", { path: entry.currentPath, libraryId: entry.libraryId }).catch(console.error); setContextMenu(null); }}
                 onEditTags={(entries) => { setTagEditorEntries(entries); setContextMenu(null); }}
                 onResolveLocation={(entry, candidates) => { setResolveTarget({ entry, candidates }); setContextMenu(null); }}
                 onResetProgress={handleResetProgress}

@@ -137,6 +137,20 @@ export async function pushRecentTags(values: string[]): Promise<void> {
   await store.save();
 }
 
+// Removes values from the recents MRU (case-insensitive). Called when a custom
+// tag is renamed or deleted library-wide so stale values stop appearing in the
+// quick-pick.
+export async function removeRecentTags(values: string[]): Promise<void> {
+  const drop = new Set(values.map((v) => v.trim().toLowerCase()).filter((v) => v.length > 0));
+  if (drop.size === 0) return;
+  const store = await getStore();
+  const existing = (await store.get<string[]>(KEY_RECENT_TAGS)) ?? [];
+  const filtered = existing.filter((v) => !drop.has(v.toLowerCase()));
+  if (filtered.length === existing.length) return;
+  await store.set(KEY_RECENT_TAGS, filtered);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(

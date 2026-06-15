@@ -62,7 +62,10 @@ src/
     ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
-                                  "Rename" entry is single-selection only (onRename receives one entry).
+                                  First entry "Open in new window" (onOpenInNewWindow) and "Rename" (onRename) are
+                                  single-selection only (each receives one entry). Open-in-new-window calls the
+                                  open_new_window IPC with the entry's currentPath + libraryId, so the spawned window
+                                  tracks reading state for that library entry (see Open-in-new-window tracking).
                                   Shows a non-clickable count header (library.selectedCount) when entries.length > 1.
     FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
                                   clear footer + dismiss). Owns open/search state; caller passes renderItems(search).
@@ -207,7 +210,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 **Tag system:**
 - `autoTags` — parsed on scan from filename brackets, e.g. `[Circle (Author)]` → circle + author tags. Stored but never manually edited.
 - `customTags` — user-defined, stored per entry. Multi-entry edits use `batchSetCustomTags` (single read-modify-write) to avoid concurrent-write race conditions. On save, the curated tag values are recorded into the `recent-custom-tags` MRU (`pushRecentTags`); `LibraryView` loads them and passes `recentTags` to `TagEditor`, which surfaces them as a quick-pick list when the input is focused but empty.
-- **Library-wide management (`TagManager`):** rename, recolor and delete a custom tag across every entry at once. `LibraryView` handlers (`handleRenameTag`/`handleRecolorTag`/`handleDeleteTag`) compute the affected-entry updates and funnel them through a shared `persistCustomTagUpdates` helper (`batchSetCustomTags` + optimistic `setEntries`), the same path `handleTagSave` uses. Rename merges (dedupes) when an entry already has the destination tag, syncs the `selectedTags` filter (swap on rename, drop on delete), and records the new value into the recents MRU. Only `customTags` are managed — `autoTags` regenerate on scan.
+- **Library-wide management (`TagManager`):** rename, recolor and delete a custom tag across every entry at once. `LibraryView` handlers (`handleRenameTag`/`handleRecolorTag`/`handleDeleteTag`) compute the affected-entry updates and funnel them through a shared `persistCustomTagUpdates` helper (`batchSetCustomTags` + optimistic `setEntries`), the same path `handleTagSave` uses. Rename merges (dedupes) when an entry already has the destination tag, syncs the `selectedTags` filter (swap on rename, drop on delete), and keeps the `recent-custom-tags` MRU consistent (`removeRecentTags` drops the old/deleted value; rename then pushes the new one) so stale values don't linger in the TagEditor quick-pick. Only `customTags` are managed — `autoTags` regenerate on scan.
 - Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; resets on app restart). Now that `LibraryView` stays mounted for the session (see Mounting model), the module-level vars are a redundant safety net rather than the primary persistence mechanism.
 
 **Favorites filter:**
@@ -229,8 +232,8 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 
 - `main.rs` — trivial: just calls `kreader_lib::run()`.
 - `lib.rs` — exposes Tauri commands:
-  - `take_window_file` — returns (and clears) the file path the calling window should open on mount, looked up by its label in the `PendingFiles` map. The initial `main` window's entry is seeded from the CLI argument in `setup()`; windows spawned by `open_new_window` or the single-instance callback seed their own entry. Returns `None` once consumed.
-  - `open_new_window(path?)` — spawns a new app window in the current process (label `reader-{n}`), optionally pre-loading `path`. Used by the NavBar "New window" button.
+  - `take_window_file` — returns (and clears) the `PendingFile` (`{ path, library_id }`) the calling window should open on mount, looked up by its label in the `PendingFiles` map. `library_id` is `None` for CLI / file-association launches and `Some` when the window was spawned from the library "Open in new window" action (lets that window keep library reading state in sync — see Library system). The initial `main` window's entry is seeded from the CLI argument in `setup()`; windows spawned by `open_new_window` or the single-instance callback seed their own entry. Returns `None` once consumed.
+  - `open_new_window(path?, libraryId?)` — spawns a new app window in the current process (label `reader-{n}`), optionally pre-loading `path` (with `libraryId` when the file is a library entry). Used by the NavBar "New window" button (no args) and the library "Open in new window" context-menu action (path + libraryId).
   - `extract_cbr(path)` — unpacks a full CBR/RAR archive; returns all images as raw binary response.
   - `extract_cbr_cover(path)` — returns only the first image from a CBR/RAR (for thumbnails). Stops after first image found.
   - `extract_cbz_cover(path)` — returns only the first image from a CBZ/ZIP (alphabetically sorted); reads only the central directory + one compressed entry.
@@ -264,6 +267,10 @@ Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into W
 
 When the current file was opened from the library, sibling navigation keeps library reading-state in sync. `App.tsx` tracks the active `libraryId` in `activeLibraryIdRef` (set via the 4th arg of `LibraryView`'s `onOpen`), and `handleOpenNewCbz` resolves the sibling's entry via `getEntryByPath(libraryId, path)` then calls `startLibraryReadingSession(entry)` (`utils/readingSession.ts`) to mark it `in_progress`/`completed` and record `totalPages`/`lastOpenedAt` — the same bookkeeping `LibraryView.handleOpen` does for the first open, but written straight to disk since `LibraryView` is unmounted during reading. Siblings not present in the library (unscanned) fall back to a plain reload with no tracking.
 
+### Open-in-new-window tracking
+
+The library context-menu "Open in new window" action calls `open_new_window` with the entry's `currentPath` **and** `libraryId`. On mount, the spawned window's startup effect reads the `PendingFile` from `take_window_file`; when `library_id` is present it resolves the entry via `getEntryByPath` and runs `startLibraryReadingSession(entry)` — the **same** disk-only bookkeeping as sibling navigation — so the comic is marked `in_progress`/`lastOpenedAt` on open, `totalPages` on load, and `completed` when finished. The `main` window picks these up on its next re-scan (the shared single-process store, see Multi-window). The window opens with `returnTo: "home"` (it's a standalone reader, not a library browser), so Ctrl+Arrow sibling nav **within** the spawned window does not track — consistent with the cross-window-reactivity limitation below.
+
 ### System file associations
 
 `App.tsx` also listens for the Tauri event `openCbzFromSystem` (emitted when the OS opens a registered file with KReader via the file association in `tauri.conf.json`).
@@ -274,7 +281,7 @@ KReader runs as a **single process** with potentially multiple windows, via `tau
 
 - A second OS launch (e.g. file-association double-click while running) is intercepted by the single-instance callback, which spawns a new window via `create_reader_window` instead of starting a second process.
 - The NavBar "New window" button calls `open_new_window` to spawn a fresh window from inside the app. New windows inherit the `main` window's current inner size (and maximized state) via `create_reader_window`, falling back to `DEFAULT_WINDOW_WIDTH`/`DEFAULT_WINDOW_HEIGHT` (800×600) when `main` is gone.
-- Each window resolves which file to open on mount by calling `take_window_file` (keyed by its own window label) — see the `PendingFiles` map in `lib.rs`. The `main` window's entry comes from the CLI argument.
+- Each window resolves which file to open on mount by calling `take_window_file` (keyed by its own window label), which returns a `PendingFile` (`{ path, library_id }`) — see the `PendingFiles` map in `lib.rs`. The `main` window's entry comes from the CLI argument (no `library_id`); the library "Open in new window" action seeds an entry that carries `library_id` (see Open-in-new-window tracking).
 - New windows use labels `reader-{n}` (monotonic `WindowCounter`). The capability in `capabilities/default.json` must cover them — its `windows` list includes both `"main"` and `"reader-*"`; without the glob, new windows would have no store/fs/dialog/core permissions.
 - **Not handled:** live cross-window reactivity. If two windows share the same library, an in-memory change in one (e.g. folder filter) is not pushed to the other until it rescans/reopens. Disk state stays consistent; only the live React state can be momentarily stale.
 
