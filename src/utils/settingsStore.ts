@@ -151,6 +151,32 @@ export async function removeRecentTags(values: string[]): Promise<void> {
   await store.save();
 }
 
+const KEY_FAVORITES_RESPECT_FOLDERS = "favorites-respect-folders";
+
+export async function getFavoritesRespectFolders(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_FAVORITES_RESPECT_FOLDERS)) ?? false;
+}
+
+export async function saveFavoritesRespectFolders(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_FAVORITES_RESPECT_FOLDERS, value);
+  await store.save();
+}
+
+const favoritesFilterKey = (libraryId: string) => `favorites-filter:${libraryId}`;
+
+export async function getFavoritesFilter(libraryId: string): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(favoritesFilterKey(libraryId))) ?? false;
+}
+
+export async function saveFavoritesFilter(libraryId: string, value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(favoritesFilterKey(libraryId), value);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(

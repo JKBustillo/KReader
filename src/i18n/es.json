@@ -127,6 +127,7 @@
     "data": "Datos",
     "progressBar": "Progreso de lectura",
     "pageCount": "Páginas en card",
+    "favoritesRespectFolders": "Favoritos respetan filtro de carpeta",
     "autoBackup": "Backup automático",
     "keepDataOnRemove": "Conservar datos al eliminar biblioteca",
     "refreshMetadata": "Actualizar metadatos",

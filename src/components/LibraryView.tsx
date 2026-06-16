@@ -25,7 +25,7 @@ import {
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
@@ -55,9 +55,6 @@ type ContextMenuState = {
 // Session-only tag filter — survives LibraryView unmount (reader open/close)
 // but resets when the app is restarted.
 let sessionSelectedTags: Set<string> = new Set();
-
-// Session-only favorites filter — same lifecycle as sessionSelectedTags.
-let sessionShowFavoritesOnly = false;
 
 // Session-only library scroll position — restored on LibraryView remount
 // (reader open/close); resets on app restart.
@@ -422,12 +419,17 @@ function LibraryView({
   onOpen,
   showProgressBar,
   showPageCount,
+  favoritesRespectFolders,
   refreshTrigger,
   active = true,
 }: {
   onOpen: (path: string, onComplete?: () => void, onPagesLoaded?: (total: number) => void, libraryId?: string) => void;
   showProgressBar: boolean;
   showPageCount: boolean;
+  // When false (default), the favorites filter ignores the active folder
+  // filter (shows favorites from every folder); when true, favorites are
+  // intersected with the folder filter.
+  favoritesRespectFolders: boolean;
   refreshTrigger: number;
   // Whether the library is the currently visible view. LibraryView stays
   // mounted across reader sessions; this flips false while reading and back to
@@ -445,7 +447,7 @@ function LibraryView({
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
-  const [showFavoritesOnly, setShowFavoritesOnly] = useState(() => sessionShowFavoritesOnly);
+  const [showFavoritesOnly, setShowFavoritesOnly] = useState(false);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [tagEditorEntries, setTagEditorEntries] = useState<LibraryEntry[] | null>(null);
@@ -480,6 +482,7 @@ function LibraryView({
   const lastCtrlSelectedIdRef = useRef<string | null>(null);
   const sortedRef = useRef<LibraryEntry[]>([]);
   const folderFilterLoadedForLibRef = useRef<string | null>(null);
+  const favoritesFilterLoadedForLibRef = useRef<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollRestoredRef = useRef(false);
 
@@ -1058,10 +1061,6 @@ function LibraryView({
   }, [selectedTags]);
 
   useEffect(() => {
-    sessionShowFavoritesOnly = showFavoritesOnly;
-  }, [showFavoritesOnly]);
-
-  useEffect(() => {
     if (!activeLibId) {
       setSelectedFolders(new Map());
       return;
@@ -1077,6 +1076,23 @@ function LibraryView({
     if (!activeLibId || folderFilterLoadedForLibRef.current !== activeLibId) return;
     saveFolderFilter(activeLibId, selectedFolders).catch(console.error);
   }, [selectedFolders, activeLibId]);
+
+  useEffect(() => {
+    if (!activeLibId) {
+      setShowFavoritesOnly(false);
+      return;
+    }
+    favoritesFilterLoadedForLibRef.current = null;
+    getFavoritesFilter(activeLibId).then((saved) => {
+      setShowFavoritesOnly(saved);
+      favoritesFilterLoadedForLibRef.current = activeLibId;
+    });
+  }, [activeLibId]);
+
+  useEffect(() => {
+    if (!activeLibId || favoritesFilterLoadedForLibRef.current !== activeLibId) return;
+    saveFavoritesFilter(activeLibId, showFavoritesOnly).catch(console.error);
+  }, [showFavoritesOnly, activeLibId]);
 
   const openRemoveLibraryConfirm = useCallback(async () => {
     setKeepDataOnRemove(await getKeepDataOnRemove());
@@ -1196,6 +1212,10 @@ function LibraryView({
     });
   }, [entries, activeLib]);
 
+  // When the favorites filter is active and favorites are set to ignore folders
+  // (toggle off), skip the folder filter so favorites from every folder show.
+  const applyFolderFilter = !(showFavoritesOnly && !favoritesRespectFolders);
+
   const filtered = entries.filter((e) => {
     if (showFavoritesOnly && !e.isFavorite) return false;
     if (search.trim() !== "" && !e.filename.toLowerCase().includes(search.trim().toLowerCase())) return false;
@@ -1205,7 +1225,7 @@ function LibraryView({
         if (!vals.has(tag)) return false;
       }
     }
-    if (selectedFolders.size > 0) {
+    if (applyFolderFilter && selectedFolders.size > 0) {
       const rootPath = activeLib?.rootPath ?? "";
       const entryFolder = getRelativeFolder(e.currentPath, rootPath);
       const matches = [...selectedFolders.entries()].some(([folder, mode]) => {

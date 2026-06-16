@@ -13,7 +13,7 @@ import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { applyAccent, getAccent, type AccentId } from "./utils/accent";
-import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup, getKeepDataOnRemove, saveKeepDataOnRemove } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup, getKeepDataOnRemove, saveKeepDataOnRemove, getFavoritesRespectFolders, saveFavoritesRespectFolders } from "./utils/settingsStore";
 import { runAutoBackupIfDue } from "./utils/backup";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
@@ -52,6 +52,7 @@ function App() {
   const [showPageCount, setShowPageCount] = useState(false);
   const [autoBackup, setAutoBackup] = useState(false);
   const [keepDataOnRemove, setKeepDataOnRemove] = useState(true);
+  const [favoritesRespectFolders, setFavoritesRespectFolders] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   // Once the library has been visited it stays mounted (hidden via CSS when not
   // active) for the rest of the session, so its state, scroll position and warm
@@ -94,6 +95,7 @@ function App() {
     getShowPageCount().then(setShowPageCount);
     getAutoBackup().then(setAutoBackup);
     getKeepDataOnRemove().then(setKeepDataOnRemove);
+    getFavoritesRespectFolders().then(setFavoritesRespectFolders);
     if (getCurrentWindow().label === MAIN_WINDOW_LABEL) {
       runAutoBackupIfDue();
     }
@@ -141,6 +143,14 @@ function App() {
     setKeepDataOnRemove((prev) => {
       const next = !prev;
       saveKeepDataOnRemove(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const handleToggleFavoritesRespectFolders = useCallback(() => {
+    setFavoritesRespectFolders((prev) => {
+      const next = !prev;
+      saveFavoritesRespectFolders(next).catch(console.error);
       return next;
     });
   }, []);
@@ -349,6 +359,7 @@ function App() {
                 active={view === "library"}
                 showProgressBar={showProgressBar}
                 showPageCount={showPageCount}
+                favoritesRespectFolders={favoritesRespectFolders}
                 refreshTrigger={refreshTrigger}
                 onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
                   activeLibraryIdRef.current = libraryId ?? null;
@@ -466,6 +477,8 @@ function App() {
         onToggleAutoBackup={handleToggleAutoBackup}
         keepDataOnRemove={keepDataOnRemove}
         onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove}
+        favoritesRespectFolders={favoritesRespectFolders}
+        onToggleFavoritesRespectFolders={handleToggleFavoritesRespectFolders}
         onRefreshMetadata={handleRefreshMetadata}
       />
     </>

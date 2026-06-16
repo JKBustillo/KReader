@@ -66,6 +66,8 @@ function SettingsModal({
   onToggleAutoBackup,
   keepDataOnRemove,
   onToggleKeepDataOnRemove,
+  favoritesRespectFolders,
+  onToggleFavoritesRespectFolders,
   onRefreshMetadata,
 }: {
   open: boolean;
@@ -84,6 +86,8 @@ function SettingsModal({
   onToggleAutoBackup: () => void;
   keepDataOnRemove: boolean;
   onToggleKeepDataOnRemove: () => void;
+  favoritesRespectFolders: boolean;
+  onToggleFavoritesRespectFolders: () => void;
   onRefreshMetadata: () => void;
 }) {
   const { t } = useTranslation();
@@ -237,6 +241,7 @@ function SettingsModal({
           >
             <ToggleRow label={t("settings.progressBar")} active={showProgressBar} onToggle={onToggleProgressBar} />
             <ToggleRow label={t("settings.pageCount")} active={showPageCount} onToggle={onTogglePageCount} />
+            <ToggleRow label={t("settings.favoritesRespectFolders")} active={favoritesRespectFolders} onToggle={onToggleFavoritesRespectFolders} />
           </div>
 
           {/* Data actions */}

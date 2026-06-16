@@ -149,6 +149,8 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
+  - `favorites-filter:<libraryId>` — boolean, persisted "show favorites only" filter per library (default false).
+  - `favorites-respect-folders` — boolean, whether the favorites filter is intersected with the folder filter; when false the favorites filter ignores folders (default false).
   - `show-progress-bar` — boolean, show reading progress bar in library cards and rows (default false).
   - `show-page-count` — boolean, show page count on library cards (default false).
   - `auto-backup` — boolean, enable automatic library backups on startup (default false).
@@ -214,7 +216,8 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - Tag filter in UI is session-only (module-level variable `sessionSelectedTags`; resets on app restart). Now that `LibraryView` stays mounted for the session (see Mounting model), the module-level vars are a redundant safety net rather than the primary persistence mechanism.
 
 **Favorites filter:**
-- "Show favorites only" toggle is session-only (module-level variable `sessionShowFavoritesOnly`; same lifecycle as the tag filter — resets on app restart).
+- "Show favorites only" toggle is persisted **per library** to `.settings.dat` under `favorites-filter:<libraryId>` (same load/save lifecycle as the folder filter: loaded on library switch via a ref guard `favoritesFilterLoadedForLibRef`, saved on change). Survives app restart and is independent per library.
+- `favorites-respect-folders` setting (global, default false) controls how the favorites filter interacts with the folder filter. When **off** (default), an active favorites filter ignores the folder filter (shows favorites from every folder); when **on**, favorites are intersected with the folder filter. Computed once per render as `applyFolderFilter = !(showFavoritesOnly && !favoritesRespectFolders)` and used to gate the folder-filter branch in the entry predicate. Toggled in `SettingsModal`; loaded/owned by `App.tsx` and passed to `LibraryView`.
 
 **Folder filter:**
 - Three states per folder: unselected → `"full"` (✓, includes subdirectories recursively) → `"partial"` (—, direct children only) → unselected.

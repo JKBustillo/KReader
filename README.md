@@ -36,7 +36,7 @@ A built-in collection manager for browsing large libraries:
 - **Filtering** — by tags and by folders (recursive or direct-children-only), with union semantics.
 - **Tags** — auto-parsed from filename brackets (e.g. `[Circle (Author)]`) plus your own custom tags, editable individually or in bulk. The tag input suggests your recently-assigned tags the moment you focus it, so common tags are one click away. From the tags filter you can also **manage tags library-wide**: rename, recolor or delete a custom tag across every comic at once (renaming into an existing tag merges them).
 - **Ratings** — 1–5 stars per entry.
-- **Favorites & reading state** — mark entries as favorite and as read / in-progress; filter to favorites only.
+- **Favorites & reading state** — mark entries as favorite and as read / in-progress; filter to favorites only. The favorites filter is remembered per library between sessions, and a setting controls whether it respects the active folder filter (off by default, so favorites from every folder are shown).
 - **Reading progress bar** — optional per-card/row progress indicator.
 - **Metadata that sticks to the file** — your custom tags, favorites, ratings and reading state are saved per file, so they're restored if you remove and re-add the same folder (toggleable in settings).
 - **Cover thumbnails** — extracted and cached on disk.

@@ -127,6 +127,7 @@
     "data": "Data",
     "progressBar": "Reading progress",
     "pageCount": "Page count on card",
+    "favoritesRespectFolders": "Favorites respect folder filter",
     "autoBackup": "Automatic backup",
     "keepDataOnRemove": "Keep data when removing a library",
     "refreshMetadata": "Refresh metadata",
