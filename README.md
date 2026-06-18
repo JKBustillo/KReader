@@ -18,6 +18,7 @@ It reads comic archives, PDFs, and standalone images, and includes a built-in li
 ### Reader
 
 - **Multiple view modes** — single page, double page, cascade (all pages scrollable vertically, height-capped), and webtoon (continuous vertical scroll, no gaps).
+- **PDF cascade** — PDFs also support cascade mode (`C`): continuous vertical scroll that renders pages on demand to keep memory bounded, with selectable text on each page.
 - **Bookmarks** — toggle bookmarks per page and jump between them; persisted per file.
 - **Reading progress** — remembers the last page and view mode for each file.
 - **Sibling navigation** — jump to the previous/next comic in the same folder without leaving the reader.

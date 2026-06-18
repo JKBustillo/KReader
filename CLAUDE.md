@@ -31,7 +31,19 @@ src/
                                   last-view persistence, hotkey guard for input elements
   components/
     Reader.tsx                  Stateful viewer for image-based formats (CBZ/CBR/folder)
-    PDFReader.tsx               Stateful viewer for PDFs (uses pdfjs canvas + text layer)
+    PDFReader.tsx               Stateful viewer for PDFs. Single-page path uses one pdfjs canvas +
+                                  text layer; cascade mode (toggle C) delegates to PDFCascade.
+    PDFCascade.tsx              Virtualized continuous-scroll view for PDFs (cascade mode). Vertical
+                                  list of per-page placeholders sized from prefetched viewports; an
+                                  IntersectionObserver renders each page on demand to a throwaway
+                                  offscreen canvas, then swaps it into the visible canvas via drawImage
+                                  (pdfjs forbids two render() calls on one canvas, and the swap avoids a
+                                  blank/black flash mid-render); pages outside a ~1-viewport render window
+                                  are blanked (width/height=0) to cap memory; a second center-band observer
+                                  reflects the active page into pageNum. Each visible page also renders a
+                                  pdfjs text layer (`.textLayer`) over its canvas for text selection, on the
+                                  same render-window lifecycle (cleared off-window; a per-page generation
+                                  guard drops stale spans when a page re-enters mid-render).
     ReaderOverlay.tsx           Floating shortcuts panel + page info indicator
     NavBar.tsx                  Top nav: home/library toggle + botón engranaje (abre SettingsModal)
     LibraryView.tsx             Main library UI: scan, filter (tags + folders), sort, view mode,
@@ -138,7 +150,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 1. `App.tsx` opens files via `@tauri-apps/plugin-dialog`, calls `detectKind(path)` then either `loadPages(path)` (for image-based formats) or reads the bytes directly for PDF.
 2. Image-based formats return `{ pages: string[], pageNames?, startPage? }`. Those URLs are tracked in `blobUrlsRef` and revoked the next time `handleOpen` runs or `resetPages` fires.
 3. `Reader.tsx` receives the page array and delegates persistence to `useReadingProgress` and keyboard handling to `useReaderShortcuts`. Overlay visuals live in `<ReaderOverlay>`.
-4. PDF takes a separate path: bytes are passed to `<PDFReader>`, which renders pages on a canvas via `pdfjs-dist`.
+4. PDF takes a separate path: bytes are passed to `<PDFReader>`, which renders the current page on a canvas via `pdfjs-dist` (single-page path) or delegates to `<PDFCascade>` for continuous vertical scroll (cascade mode, toggle `C`). PDFReader reads/persists the page index and cascade flag from `.reading-progress.dat` directly (it does **not** use `useReadingProgress`); the `cascade` key is shared with the image reader.
 
 ### State persistence (Tauri Store)
 

@@ -205,3 +205,10 @@ button {
   background: rgba(0, 0, 255, 0.3);
   color: transparent;
 }
+
+/* pdfjs inserts a <br> per line, stacked down the container's left edge. Without
+   this they'd pick up the ::selection highlight above, drawing a stray blue line
+   that grows downward as you select more lines. They still copy as newlines. */
+.textLayer br::selection {
+  background: transparent;
+}

@@ -8,10 +8,11 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
-import { getSavedPage, savePage } from "../utils/readingProgressStore";
+import { getReadingProgress, savePage, saveCascade } from "../utils/readingProgressStore";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
 import { isAtBottom, isAtTop, PAGE_SCROLL_FRACTION, WHEEL_THROTTLE_MS } from "../utils/scroll";
+import PDFCascade, { type PageDim } from "./PDFCascade";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
 
@@ -41,6 +42,10 @@ function PDFReader({
   const [scale, setScale] = useState(1.5);
   const [showInfo, setShowInfo] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [cascadeMode, setCascadeMode] = useState(false);
+  // Per-page dimensions (at scale 1) used to size cascade placeholders. Loaded
+  // lazily the first time cascade is enabled. null = not yet computed.
+  const [pageDims, setPageDims] = useState<PageDim[] | null>(null);
   const { showOverlay, setShowOverlay, scheduleHide, overlayTimerRef } = useOverlayAutoHide(showInfo);
   const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
   // Tracks whether the rendered canvas is taller than the viewport so the
@@ -69,9 +74,10 @@ function PDFReader({
         setNumPages(doc.numPages);
         onPagesLoaded?.(doc.numPages);
 
-        const saved = await getSavedPage(filePath);
+        const { page: savedPage, cascade: savedCascade } = await getReadingProgress(filePath);
         if (cancelled) return;
-        if (saved != null) setPageNum(Math.max(1, Math.min(saved + 1, doc.numPages)));
+        if (savedPage != null) setPageNum(Math.max(1, Math.min(savedPage + 1, doc.numPages)));
+        if (savedCascade != null) setCascadeMode(savedCascade);
       } catch (err) {
         if (cancelled) return;
         console.error("[PDFReader] load failed:", err);
@@ -114,9 +120,37 @@ function PDFReader({
     }
   }, [pageNum, filePath, pdf]);
 
-  // Render page + text layer
   useEffect(() => {
-    if (!pdf || !canvasRef.current || !textLayerRef.current) return;
+    // Persist the cascade flag (shared key with the image reader).
+    if (pdf) {
+      saveCascade(filePath, cascadeMode).catch(console.error);
+    }
+  }, [cascadeMode, filePath, pdf]);
+
+  // Lazily measure every page (metadata-only viewport) the first time cascade is
+  // enabled, so its placeholders have stable heights.
+  useEffect(() => {
+    if (!pdf || !cascadeMode || pageDims) return;
+    let cancelled = false;
+    (async () => {
+      // ponytail: O(n) getPage upfront. getPage only parses the page dict (cheap),
+      // but if very large PDFs stall here, make this lazy per render-window.
+      const dims = await Promise.all(
+        Array.from({ length: pdf.numPages }, (_, i) =>
+          pdf.getPage(i + 1).then((p) => {
+            const vp = p.getViewport({ scale: 1 });
+            return { width: vp.width, height: vp.height };
+          })
+        )
+      );
+      if (!cancelled) setPageDims(dims);
+    })();
+    return () => { cancelled = true; };
+  }, [pdf, cascadeMode, pageDims]);
+
+  // Render page + text layer (single-page path only; cascade renders its own canvases)
+  useEffect(() => {
+    if (cascadeMode || !pdf || !canvasRef.current || !textLayerRef.current) return;
 
     const canvas = canvasRef.current;
     const textLayerDiv = textLayerRef.current;
@@ -186,6 +220,10 @@ function PDFReader({
       // override with explicit px so percentage-based span positions work correctly.
       textLayerDiv.style.width = `${viewport.width}px`;
       textLayerDiv.style.height = `${viewport.height}px`;
+      // pdfjs derives every span's font-size from calc(var(--total-scale-factor) * …);
+      // our custom .textLayer CSS doesn't define it, so set it here or the spans fall
+      // back to the default font size and the selection highlight is misaligned.
+      textLayerDiv.style.setProperty("--total-scale-factor", `${viewport.scale}`);
     })();
 
     return () => {
@@ -195,7 +233,7 @@ function PDFReader({
         renderTaskRef.current = null;
       }
     };
-  }, [pdf, pageNum, scale]);
+  }, [pdf, pageNum, scale, cascadeMode]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -266,6 +304,10 @@ function PDFReader({
         case "P":
           setPinPageIndicator((p) => !p);
           break;
+        case "c":
+        case "C":
+          setCascadeMode((c) => !c);
+          break;
         case "Escape":
           setWindowTitle();
           onClose();
@@ -288,7 +330,8 @@ function PDFReader({
     let throttled = false;
 
     const handleWheel = (e: WheelEvent) => {
-      if (throttled) return;
+      // Cascade scrolls natively; no boundary page-turn.
+      if (throttled || cascadeMode) return;
 
       if (e.deltaY > 0 && isAtBottom(container)) {
         setPageNum((p) => Math.min(p + 1, numPages));
@@ -303,12 +346,13 @@ function PDFReader({
 
     container.addEventListener("wheel", handleWheel, { passive: true });
     return () => container.removeEventListener("wheel", handleWheel);
-  }, [numPages]);
+  }, [numPages, cascadeMode]);
 
-  // Scroll to top on page change
+  // Scroll to top on page change (single-page only; cascade owns its scroll)
   useEffect(() => {
+    if (cascadeMode) return;
     containerRef.current?.scrollTo({ top: 0 });
-  }, [pageNum]);
+  }, [pageNum, cascadeMode]);
 
   // Keep contentTaller accurate when the user resizes the window without zooming.
   useEffect(() => {
@@ -345,14 +389,33 @@ function PDFReader({
   }
 
   return (
-    <div
-      ref={containerRef}
-      className={`flex flex-col items-center h-screen bg-[var(--bg-primary)] py-6 overflow-auto ${contentTaller ? 'justify-start' : 'justify-center'}`}
-    >
-      <div className="relative" style={{ userSelect: "text" }}>
-        <canvas ref={canvasRef} className="shadow-xl block" />
-        <div ref={textLayerRef} className="textLayer" />
-      </div>
+    <>
+      {cascadeMode ? (
+        pageDims ? (
+          <PDFCascade
+            pdf={pdf}
+            scale={scale}
+            pageNum={pageNum}
+            setPageNum={setPageNum}
+            pageDims={pageDims}
+            containerRef={containerRef}
+          />
+        ) : (
+          <div className="flex items-center justify-center h-screen bg-[var(--bg-primary)]">
+            <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )
+      ) : (
+        <div
+          ref={containerRef}
+          className={`flex flex-col items-center h-screen bg-[var(--bg-primary)] py-6 overflow-auto ${contentTaller ? 'justify-start' : 'justify-center'}`}
+        >
+          <div className="relative" style={{ userSelect: "text" }}>
+            <canvas ref={canvasRef} className="shadow-xl block" />
+            <div ref={textLayerRef} className="textLayer" />
+          </div>
+        </div>
+      )}
 
       {/* Top-right shortcuts hint */}
       <div
@@ -374,6 +437,7 @@ function PDFReader({
                   ["← / →",          t('shortcuts.prevNext')],
                   ["PageUp / PageDown", t('shortcuts.scrollOrTurn')],
                   ["Home / End",      t('shortcuts.firstLast')],
+                  ["C",              t('shortcuts.cascade')],
                   ["+ / −",          t('shortcuts.zoom')],
                   ["I",              t('shortcuts.showHide')],
                   ["F",              t('shortcuts.fullscreen')],
@@ -412,7 +476,7 @@ function PDFReader({
           {pageNum} {t('reader.of')} {numPages}
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
