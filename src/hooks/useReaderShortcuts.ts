@@ -39,7 +39,6 @@ type Params = {
   setShowOverlay: Dispatch<SetStateAction<boolean>>;
   setPinPageIndicator: Dispatch<SetStateAction<boolean>>;
   setBookmarks: Dispatch<SetStateAction<number[]>>;
-  checkHeight: (zoom: number) => void;
   scheduleHide: () => void;
 };
 
@@ -70,7 +69,6 @@ export function useReaderShortcuts(params: Params) {
     setShowOverlay,
     setPinPageIndicator,
     setBookmarks,
-    checkHeight,
     scheduleHide,
   } = params;
 
@@ -134,18 +132,10 @@ export function useReaderShortcuts(params: Params) {
           break;
         case "+":
         case "=":
-          setZoom((z) => {
-            const newZoom = Math.min(z + ZOOM_STEP, ZOOM_MAX);
-            checkHeight(newZoom);
-            return newZoom;
-          });
+          setZoom((z) => Math.min(z + ZOOM_STEP, ZOOM_MAX));
           break;
         case "-":
-          setZoom((z) => {
-            const newZoom = Math.max(z - ZOOM_STEP, ZOOM_MIN);
-            checkHeight(newZoom);
-            return newZoom;
-          });
+          setZoom((z) => Math.max(z - ZOOM_STEP, ZOOM_MIN));
           break;
         case "ArrowRight":
           if (!cascadeMode) { if (rtl) prevPage(); else nextPage(); }
@@ -255,7 +245,7 @@ export function useReaderShortcuts(params: Params) {
       nextPage, prevPage, onClose,
       setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator, setBookmarks,
-      checkHeight, scheduleHide,
+      scheduleHide,
     ]
   );
 

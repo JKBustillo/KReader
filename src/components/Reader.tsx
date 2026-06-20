@@ -197,6 +197,23 @@ function Reader({
     }
   }, []);
 
+  // Recompute whether the (zoomed) page exceeds the viewport on every page or zoom
+  // change, waiting for the image to load (offsetHeight is unreliable before then).
+  // Without this the flag stays set for the previous, taller page, so navigating to
+  // a shorter page keeps it glued to the top (items-start) instead of centering.
+  useEffect(() => {
+    if (cascadeMode || webtoonMode) return;
+    const img = contentRef.current?.querySelector("img");
+    if (!img) return;
+    if (img.complete) {
+      checkHeight(zoom);
+      return;
+    }
+    const onLoad = () => checkHeight(zoom);
+    img.addEventListener("load", onLoad, { once: true });
+    return () => img.removeEventListener("load", onLoad);
+  }, [pageIndex, zoom, pages, doublePage, cascadeMode, webtoonMode, checkHeight]);
+
   useReaderShortcuts({
     containerRef,
     overlayTimerRef,
@@ -224,7 +241,6 @@ function Reader({
     setShowOverlay,
     setPinPageIndicator,
     setBookmarks,
-    checkHeight,
     scheduleHide,
   });
 
