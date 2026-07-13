@@ -328,7 +328,7 @@ export default function EPUBReader({
       <div key={`${it.href}-${depth}-${i}`}>
         <button
           onClick={() => goTo(it.href)}
-          className="w-full text-left px-3 py-1.5 rounded hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors truncate"
+          className="w-full text-left px-3 py-1.5 rounded hover:bg-[var(--bg-tab-active)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors truncate"
           style={{ paddingLeft: `${12 + depth * 14}px` }}
         >
           {it.label.trim()}
@@ -365,8 +365,8 @@ export default function EPUBReader({
 
       {/* Table of contents panel */}
       {showToc && (
-        <div className="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-[var(--bg-secondary)] border-r border-[var(--border-primary)] shadow-2xl flex flex-col z-10">
-          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-primary)]">
+        <div className="fixed inset-y-0 left-0 w-72 max-w-[80vw] bg-[var(--bg-nav)] border-r border-[var(--border-nav)] shadow-2xl flex flex-col z-10">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border-nav)]">
             <span className="font-display font-semibold text-[var(--text-primary)]">{t("reader.toc")}</span>
             <button onClick={() => setShowToc(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-2">✕</button>
           </div>
