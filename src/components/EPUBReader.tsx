@@ -117,7 +117,6 @@ export default function EPUBReader({
   const navBaseRef = useRef("");
   const fontLoadedRef = useRef(false);
   const modeLoadedRef = useRef(false);
-  const locationsRef = useRef<EpubLocations | null>(null);
 
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
@@ -214,7 +213,6 @@ export default function EPUBReader({
       }
       if (cancelled) return;
       locReadyRef.current = true;
-      locationsRef.current = locations;
       onPagesLoaded?.(locations.total + 1);
       setBookTotal(locations.total + 1);
       if (lastCfiRef.current) {
