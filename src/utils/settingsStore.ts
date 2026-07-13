@@ -72,6 +72,24 @@ export async function saveEpubFontSize(value: number): Promise<void> {
   await store.save();
 }
 
+// Which value the EPUB reader's progress indicator shows: overall percent,
+// pages within the current chapter (reflows with font size), or a stable
+// book-wide page count from the location table. Global preference.
+export type EpubProgressMode = "percent" | "chapter" | "total";
+const KEY_EPUB_PROGRESS_MODE = "epub-progress-mode";
+const EPUB_PROGRESS_MODE_DEFAULT: EpubProgressMode = "percent";
+
+export async function getEpubProgressMode(): Promise<EpubProgressMode> {
+  const store = await getStore();
+  return (await store.get<EpubProgressMode>(KEY_EPUB_PROGRESS_MODE)) ?? EPUB_PROGRESS_MODE_DEFAULT;
+}
+
+export async function saveEpubProgressMode(value: EpubProgressMode): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_EPUB_PROGRESS_MODE, value);
+  await store.save();
+}
+
 const KEY_SHOW_PAGE_COUNT = "show-page-count";
 
 export async function getShowPageCount(): Promise<boolean> {

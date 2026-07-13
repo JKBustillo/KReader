@@ -112,6 +112,7 @@
     "fontSize": "Font size",
     "toc": "Contents",
     "pin": "Pin progress",
+    "progressMode": "Switch progress display",
     "smoothScroll": "Smooth scroll",
     "fullscreen": "Fullscreen",
     "showHide": "Show / hide shortcuts",
@@ -158,6 +159,7 @@
     "withoutGap": "Without gap",
     "bookmarks": "Bookmarks",
     "toc": "Contents",
-    "tocEmpty": "This book has no table of contents."
+    "tocEmpty": "This book has no table of contents.",
+    "progressModeHint": "Click to switch: percent / chapter pages / total pages"
   }
 }

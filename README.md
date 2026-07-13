@@ -20,7 +20,7 @@ It reads comic archives, PDFs, EPUB e-books, and standalone images, and includes
 
 - **Multiple view modes** — single page, double page, cascade (all pages scrollable vertically, height-capped), and webtoon (continuous vertical scroll, no gaps).
 - **PDF cascade** — PDFs also support cascade mode (`C`): continuous vertical scroll that renders pages on demand to keep memory bounded, with selectable text on each page.
-- **EPUB reading** — reflowable e-books with a chapter table of contents (`T`), adjustable font size (`+` / `−`, remembered between books), and the book styled to match the app's light/dark theme. Your reading position is remembered and the book-wide progress is cached so reopening is instant; pin the progress % with `P` to keep it on screen.
+- **EPUB reading** — reflowable e-books with a chapter table of contents (`T`), adjustable font size (`+` / `−`, remembered between books), and the book styled to match the app's light/dark theme. Your reading position is remembered and the book-wide progress is cached so reopening is instant; pin the progress indicator with `P`, and click it to cycle between overall percent, pages within the current chapter (which grow/shrink with the font size), and a stable book-wide page count.
 - **Bookmarks** — toggle bookmarks per page and jump between them; persisted per file.
 - **Reading progress** — remembers the last page and view mode for each file.
 - **Sibling navigation** — jump to the previous/next comic in the same folder without leaving the reader.
@@ -93,7 +93,8 @@ A built-in collection manager for browsing large libraries:
 | `Home` / `End` | First / last chapter |
 | `+` / `−` | Increase / decrease font size |
 | `T` | Toggle table of contents |
-| `P` | Pin the progress % so it stays visible |
+| `P` | Pin the progress indicator so it stays visible |
+| Click the progress | Cycle display: percent / chapter pages / total pages |
 | `I` | Toggle info overlay (chapter + progress) |
 | `F` | Toggle fullscreen |
 | `X` | Close window |

@@ -112,6 +112,7 @@
     "fontSize": "Tamaño de letra",
     "toc": "Índice",
     "pin": "Fijar progreso",
+    "progressMode": "Cambiar indicador de progreso",
     "smoothScroll": "Scroll suave",
     "fullscreen": "Pantalla completa",
     "showHide": "Mostrar / ocultar atajos",
@@ -158,6 +159,7 @@
     "withoutGap": "Sin separación",
     "bookmarks": "Marcadores",
     "toc": "Índice",
-    "tocEmpty": "Este libro no tiene índice."
+    "tocEmpty": "Este libro no tiene índice.",
+    "progressModeHint": "Click para cambiar: % / págs. capítulo / págs. totales"
   }
 }

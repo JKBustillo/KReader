@@ -12,7 +12,13 @@ import {
   saveEpubLocations,
   savePage,
 } from "../utils/readingProgressStore";
-import { getEpubFontSize, saveEpubFontSize } from "../utils/settingsStore";
+import {
+  getEpubFontSize,
+  saveEpubFontSize,
+  getEpubProgressMode,
+  saveEpubProgressMode,
+  type EpubProgressMode,
+} from "../utils/settingsStore";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
 import type { Theme } from "../utils/theme";
@@ -28,9 +34,15 @@ const FONT_DEFAULT = 100;
 // Book-wide % at which the book counts as finished (locations % never quite hits 1).
 const COMPLETE_THRESHOLD = 0.999;
 const EPUB_THEME_NAME = "kreader";
+// Delay before re-reading the chapter page count after a font change, above
+// epubjs's 350ms content-ResizeObserver debounce, so the count reflects the reflow.
+const DISPLAYED_REFRESH_MS = 400;
 
 // epubjs types we actually read (its own types are loose around these callbacks).
-type Loc = { start: { cfi: string; href: string; percentage: number }; atEnd?: boolean };
+type Loc = {
+  start: { cfi: string; href: string; percentage: number; displayed?: { page: number; total: number } };
+  atEnd?: boolean;
+};
 type TocItem = { href: string; label: string; subitems?: TocItem[] };
 // epubjs's shipped types are wrong here: locationFromCfi returns the numeric index
 // (not a Location), and `total` (the max index) isn't declared. Narrow to what we use.
@@ -104,10 +116,19 @@ export default function EPUBReader({
   const tocFlatRef = useRef<Map<string, string>>(new Map());
   const navBaseRef = useRef("");
   const fontLoadedRef = useRef(false);
+  const modeLoadedRef = useRef(false);
+  const locationsRef = useRef<EpubLocations | null>(null);
 
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
   const [chapter, setChapter] = useState("");
+  // Progress indicator sources: overall %, chapter pages (reflow with font),
+  // and stable book-wide pages (location table). progressMode picks which shows.
+  const [chapterPage, setChapterPage] = useState(0);
+  const [chapterTotal, setChapterTotal] = useState(0);
+  const [bookPage, setBookPage] = useState(0);
+  const [bookTotal, setBookTotal] = useState(0);
+  const [progressMode, setProgressMode] = useState<EpubProgressMode>("percent");
   const [toc, setToc] = useState<TocItem[]>([]);
   const [showToc, setShowToc] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
@@ -137,12 +158,17 @@ export default function EPUBReader({
         lastCfiRef.current = loc.start.cfi;
         setChapter(tocFlatRef.current.get(stripFragment(loc.start.href)) ?? "");
         saveEpubCfi(filePath, loc.start.cfi).catch(console.error);
+        if (loc.start.displayed) {
+          setChapterPage(loc.start.displayed.page);
+          setChapterTotal(loc.start.displayed.total);
+        }
         if (!locReadyRef.current) {
           setPercent(loc.start.percentage);
           return;
         }
         const pct = locations.percentageFromCfi(loc.start.cfi);
         setPercent(pct);
+        setBookPage(locations.locationFromCfi(loc.start.cfi) + 1);
         // Mirror the position into the shared page key so the library progress
         // bar works for EPUB without any special-casing downstream.
         savePage(filePath, locations.locationFromCfi(loc.start.cfi)).catch(console.error);
@@ -188,9 +214,12 @@ export default function EPUBReader({
       }
       if (cancelled) return;
       locReadyRef.current = true;
+      locationsRef.current = locations;
       onPagesLoaded?.(locations.total + 1);
+      setBookTotal(locations.total + 1);
       if (lastCfiRef.current) {
         setPercent(locations.percentageFromCfi(lastCfiRef.current));
+        setBookPage(locations.locationFromCfi(lastCfiRef.current) + 1);
         savePage(filePath, locations.locationFromCfi(lastCfiRef.current)).catch(console.error);
       }
     })().catch((e) => {
@@ -221,6 +250,37 @@ export default function EPUBReader({
     if (!fontLoadedRef.current) return;
     saveEpubFontSize(fontPct).catch(console.error);
   }, [fontPct]);
+
+  // Progress display mode is a global preference (persisted): load on mount,
+  // write through on change.
+  useEffect(() => {
+    (async () => {
+      setProgressMode(await getEpubProgressMode());
+      modeLoadedRef.current = true;
+    })();
+  }, []);
+  useEffect(() => {
+    if (!modeLoadedRef.current) return;
+    saveEpubProgressMode(progressMode).catch(console.error);
+  }, [progressMode]);
+
+  // A font change reflows the book but epubjs doesn't re-report the location, so
+  // the chapter page count would go stale. Re-read it once the reflow settles.
+  useEffect(() => {
+    if (!ready) return;
+    const id = setTimeout(() => {
+      Promise.resolve(renditionRef.current?.currentLocation())
+        .then((loc) => {
+          const displayed = (loc as Loc | undefined)?.start?.displayed;
+          if (displayed) {
+            setChapterPage(displayed.page);
+            setChapterTotal(displayed.total);
+          }
+        })
+        .catch(() => {});
+    }, DISPLAYED_REFRESH_MS);
+    return () => clearTimeout(id);
+  }, [fontPct, ready]);
 
   // Apply theme + font size together so switching one never drops the other.
   useEffect(() => {
@@ -323,6 +383,16 @@ export default function EPUBReader({
     setShowToc(false);
   };
 
+  const cycleProgressMode = () =>
+    setProgressMode((m) => (m === "percent" ? "chapter" : m === "chapter" ? "total" : "percent"));
+
+  const progressText =
+    progressMode === "chapter"
+      ? chapterTotal > 0 ? `${chapterPage} / ${chapterTotal}` : "…"
+      : progressMode === "total"
+        ? bookTotal > 0 ? `${bookPage} / ${bookTotal}` : "…"
+        : percent == null ? "…" : `${Math.round(percent * 100)}%`;
+
   const renderToc = (items: TocItem[], depth = 0): React.ReactNode =>
     items.map((it, i) => (
       <div key={`${it.href}-${depth}-${i}`}>
@@ -400,6 +470,7 @@ export default function EPUBReader({
                 ["F", t("shortcuts.fullscreen")],
                 ["Escape", t("shortcuts.closeReader")],
                 ["X", t("shortcuts.closeWindow")],
+                ["Click", t("shortcuts.progressMode")],
               ].map(([key, desc]) => (
                 <tr key={key}>
                   <td className="pr-3 text-right font-mono text-[var(--text-key)] whitespace-nowrap">{key}</td>
@@ -426,7 +497,13 @@ export default function EPUBReader({
       >
         {showInfo && <div>{t("shortcuts.fontSize")}: {fontPct}%</div>}
         {chapter && <div className="max-w-[40vw] truncate">{chapter}</div>}
-        <div>{percent == null ? "…" : `${Math.round(percent * 100)}%`}</div>
+        <button
+          onClick={cycleProgressMode}
+          title={t("reader.progressModeHint")}
+          className="block ml-auto font-mono cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+        >
+          {progressText}
+        </button>
       </div>
     </div>
   );
