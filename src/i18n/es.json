@@ -75,16 +75,17 @@
   },
   "errors": {
     "pdfLoad": "No se pudo abrir este PDF (corrupto o protegido con contraseña).",
+    "epubLoad": "No se pudo abrir este EPUB (corrupto o no compatible).",
     "goBack": "Volver"
   },
   "home": {
     "eyebrow": "Tu biblioteca de cómics",
     "titleLead": "Lee justo donde lo",
     "titleAccent": "dejaste.",
-    "subtitle": "Retoma tus lecturas al instante. CBZ, CBR, ZIP, RAR, PDF e imágenes — todo en un solo lugar.",
+    "subtitle": "Retoma tus lecturas al instante. CBZ, CBR, ZIP, RAR, PDF, EPUB e imágenes — todo en un solo lugar.",
     "titleLeadEmpty": "Abre tu primer",
     "titleAccentEmpty": "cómic.",
-    "subtitleEmpty": "Abre un CBZ, CBR, ZIP, RAR, PDF o imagen para empezar a leer.",
+    "subtitleEmpty": "Abre un CBZ, CBR, ZIP, RAR, PDF, EPUB o imagen para empezar a leer.",
     "openFile": "Abrir archivo",
     "recent": "Recientes",
     "clear": "Limpiar"
@@ -108,6 +109,9 @@
     "rtl": "Dirección RTL",
     "gap": "Separación entre páginas",
     "zoom": "Zoom",
+    "fontSize": "Tamaño de letra",
+    "toc": "Índice",
+    "pin": "Fijar progreso",
     "smoothScroll": "Scroll suave",
     "fullscreen": "Pantalla completa",
     "showHide": "Mostrar / ocultar atajos",
@@ -152,6 +156,8 @@
     "ltr": "Izquierda → Derecha",
     "withGap": "Con separación",
     "withoutGap": "Sin separación",
-    "bookmarks": "Marcadores"
+    "bookmarks": "Marcadores",
+    "toc": "Índice",
+    "tocEmpty": "Este libro no tiene índice."
   }
 }

@@ -133,6 +133,11 @@ async function getCbrCover(path: string): Promise<Blob | null> {
   return parseCoverResponse(buffer);
 }
 
+async function getEpubCover(path: string): Promise<Blob | null> {
+  const buffer = await invoke<ArrayBuffer>("extract_epub_cover", { path });
+  return parseCoverResponse(buffer);
+}
+
 async function getPdfCover(path: string): Promise<Blob | null> {
   const data = await readFile(path);
   const doc = await pdfjsLib.getDocument({ data }).promise;
@@ -172,6 +177,7 @@ async function generate(entry: LibraryEntry): Promise<string | null> {
     switch (kind) {
       case "cbz":   cover = await getCbzCover(entry.currentPath);   break;
       case "cbr":   cover = await getCbrCover(entry.currentPath);   break;
+      case "epub":  cover = await getEpubCover(entry.currentPath);  break;
       case "pdf":   cover = await getPdfCover(entry.currentPath);   break;
       case "image": cover = await getImageCover(entry.currentPath); break;
       default: return null;

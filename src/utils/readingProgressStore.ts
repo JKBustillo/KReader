@@ -4,6 +4,11 @@ const STORE_FILE = ".reading-progress.dat";
 const PAGE_SUFFIX = "-page";
 const CASCADE_SUFFIX = "-cascade";
 const BOOKMARKS_SUFFIX = "-bookmarks";
+// EPUB has no fixed page index: the exact reading position is a CFI string, and
+// the generated location table (used for book-wide %) is cached here so it is
+// computed once per file instead of on every open (generate() is slow on big books).
+const EPUB_CFI_SUFFIX = "-epub-cfi";
+const EPUB_LOCATIONS_SUFFIX = "-epub-locations";
 
 let storePromise: Promise<Store> | null = null;
 const getStore = () => (storePromise ??= Store.load(STORE_FILE));
@@ -11,6 +16,8 @@ const getStore = () => (storePromise ??= Store.load(STORE_FILE));
 const pageKey = (filePath: string) => `${filePath}${PAGE_SUFFIX}`;
 const cascadeKey = (filePath: string) => `${filePath}${CASCADE_SUFFIX}`;
 const bookmarksKey = (filePath: string) => `${filePath}${BOOKMARKS_SUFFIX}`;
+const epubCfiKey = (filePath: string) => `${filePath}${EPUB_CFI_SUFFIX}`;
+const epubLocationsKey = (filePath: string) => `${filePath}${EPUB_LOCATIONS_SUFFIX}`;
 
 export type ReadingProgress = {
   page?: number;
@@ -51,6 +58,31 @@ export async function saveBookmarks(filePath: string, bookmarks: number[]): Prom
   await store.save();
 }
 
+// EPUB reading position (an epubjs CFI). Undefined until the file has been opened.
+export async function getEpubCfi(filePath: string): Promise<string | undefined> {
+  const store = await getStore();
+  return store.get<string>(epubCfiKey(filePath));
+}
+
+export async function saveEpubCfi(filePath: string, cfi: string): Promise<void> {
+  const store = await getStore();
+  await store.set(epubCfiKey(filePath), cfi);
+  await store.save();
+}
+
+// Cached epubjs location table (JSON from Locations.save()), so book-wide % is
+// available instantly on reopen instead of regenerating it. Undefined until generated.
+export async function getEpubLocations(filePath: string): Promise<string | undefined> {
+  const store = await getStore();
+  return store.get<string>(epubLocationsKey(filePath));
+}
+
+export async function saveEpubLocations(filePath: string, locations: string): Promise<void> {
+  const store = await getStore();
+  await store.set(epubLocationsKey(filePath), locations);
+  await store.save();
+}
+
 // Convenience for non-hook callers that only need the page (defaults to 0).
 export async function getPageForPath(filePath: string): Promise<number> {
   return (await getSavedPage(filePath)) ?? 0;
@@ -66,6 +98,8 @@ export async function migrateReadingProgress(oldPath: string, newPath: string): 
     [pageKey(oldPath), pageKey(newPath)],
     [cascadeKey(oldPath), cascadeKey(newPath)],
     [bookmarksKey(oldPath), bookmarksKey(newPath)],
+    [epubCfiKey(oldPath), epubCfiKey(newPath)],
+    [epubLocationsKey(oldPath), epubLocationsKey(newPath)],
   ];
   let changed = false;
   for (const [from, to] of moves) {

@@ -236,6 +236,181 @@ fn extract_cbz_cover(path: String) -> Result<Response, String> {
     Ok(Response::new(buf))
 }
 
+// --- EPUB cover extraction helpers ---------------------------------------
+// An EPUB is a ZIP whose cover image is declared in the OPF package document.
+// The OPF is small, so we scan it as text (attribute order varies) instead of
+// pulling in a full XML parser.
+
+// Reads a single attribute value (name="value" or name='value') from a tag body.
+// The whitespace guard before the match avoids matching a suffix of another
+// attribute name (e.g. `type=` inside `media-type=`).
+fn get_attr(tag: &str, name: &str) -> Option<String> {
+    let key = format!("{}=", name);
+    let mut start = 0;
+    while let Some(pos) = tag[start..].find(&key) {
+        let idx = start + pos;
+        let preceded_by_space = tag[..idx].chars().last().map_or(true, |c| c.is_whitespace());
+        if preceded_by_space {
+            let after = &tag[idx + key.len()..];
+            if let Some(quote) = after.chars().next() {
+                if quote == '"' || quote == '\'' {
+                    let rest = &after[1..];
+                    if let Some(end) = rest.find(quote) {
+                        return Some(rest[..end].to_string());
+                    }
+                }
+            }
+        }
+        start = idx + key.len();
+    }
+    None
+}
+
+// Returns the body (attributes) of each `<tag ...>` element. The trailing-char
+// check keeps `<item` from matching `<itemref`.
+fn element_bodies<'a>(xml: &'a str, tag: &str) -> Vec<&'a str> {
+    let open = format!("<{}", tag);
+    let mut out = Vec::new();
+    let mut start = 0;
+    while let Some(pos) = xml[start..].find(&open) {
+        let after = start + pos + open.len();
+        let is_tag = xml[after..].chars().next().map_or(false, |c| c.is_whitespace() || c == '>' || c == '/');
+        if is_tag {
+            if let Some(end) = xml[after..].find('>') {
+                out.push(&xml[after..after + end]);
+                start = after + end + 1;
+                continue;
+            }
+        }
+        start = after;
+    }
+    out
+}
+
+// Cover image href (relative to the OPF), trying EPUB3 properties, then the
+// EPUB2 <meta name="cover"> id reference, then the first image in the manifest.
+fn find_cover_href(opf: &str) -> Option<String> {
+    let items = element_bodies(opf, "item");
+
+    for tag in &items {
+        if let Some(props) = get_attr(tag, "properties") {
+            if props.split_whitespace().any(|p| p == "cover-image") {
+                return get_attr(tag, "href");
+            }
+        }
+    }
+
+    let cover_id = element_bodies(opf, "meta").into_iter().find_map(|tag| {
+        if get_attr(tag, "name").as_deref() == Some("cover") {
+            get_attr(tag, "content")
+        } else {
+            None
+        }
+    });
+    if let Some(id) = cover_id {
+        for tag in &items {
+            if get_attr(tag, "id").as_deref() == Some(id.as_str()) {
+                return get_attr(tag, "href");
+            }
+        }
+    }
+
+    items.iter().find_map(|tag| {
+        get_attr(tag, "media-type")
+            .filter(|mt| mt.starts_with("image/"))
+            .and_then(|_| get_attr(tag, "href"))
+    })
+}
+
+fn hex_val(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+// EPUB hrefs are URL-encoded (e.g. spaces as %20) but zip entry names are literal.
+fn percent_decode(s: &str) -> String {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(hi), Some(lo)) = (hex_val(bytes[i + 1]), hex_val(bytes[i + 2])) {
+                out.push(hi * 16 + lo);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
+// Joins an href to the OPF's directory and collapses "." / ".." segments.
+fn resolve_zip_path(opf_path: &str, href: &str) -> String {
+    let dir = opf_path.rfind('/').map(|i| &opf_path[..i + 1]).unwrap_or("");
+    let joined = format!("{}{}", dir, percent_decode(href));
+    let mut parts: Vec<&str> = Vec::new();
+    for seg in joined.split('/') {
+        match seg {
+            "" | "." => {}
+            ".." => {
+                parts.pop();
+            }
+            s => parts.push(s),
+        }
+    }
+    parts.join("/")
+}
+
+// Extracts the cover image from an EPUB for thumbnail generation. Reads only the
+// container.xml, the OPF, and the single cover entry — never the whole book.
+// Returns the same binary layout (count=1) as extract_cbz_cover.
+#[tauri::command]
+fn extract_epub_cover(path: String) -> Result<Response, String> {
+    use std::io::Read;
+
+    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    let read_text = |archive: &mut zip::ZipArchive<std::fs::File>, name: &str| -> Option<String> {
+        let mut entry = archive.by_name(name).ok()?;
+        let mut s = String::new();
+        entry.read_to_string(&mut s).ok()?;
+        Some(s)
+    };
+
+    let container = read_text(&mut archive, "META-INF/container.xml")
+        .ok_or("EPUB missing META-INF/container.xml")?;
+    let opf_path = element_bodies(&container, "rootfile")
+        .into_iter()
+        .find_map(|tag| get_attr(tag, "full-path"))
+        .ok_or("EPUB container has no rootfile")?;
+
+    let opf = read_text(&mut archive, &opf_path).ok_or("EPUB OPF not found")?;
+    let href = find_cover_href(&opf).ok_or("EPUB has no cover image")?;
+    let cover_path = resolve_zip_path(&opf_path, &href);
+
+    let mime = image_mime(&cover_path.to_lowercase());
+    let mut entry = archive.by_name(&cover_path).map_err(|e| e.to_string())?;
+    let mut data = Vec::new();
+    entry.read_to_end(&mut data).map_err(|e| e.to_string())?;
+
+    let total = 4 + 1 + mime.len() + 4 + data.len();
+    let mut buf = Vec::with_capacity(total);
+    buf.extend_from_slice(&1u32.to_le_bytes());
+    buf.push(mime.len() as u8);
+    buf.extend_from_slice(mime.as_bytes());
+    buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
+    buf.extend_from_slice(&data);
+
+    Ok(Response::new(buf))
+}
+
 #[derive(serde::Serialize)]
 struct ScannedFile {
     path: String,
@@ -245,7 +420,7 @@ struct ScannedFile {
 }
 
 const SUPPORTED_EXTS: &[&str] = &[
-    "cbz", "cbr", "zip", "rar", "pdf",
+    "cbz", "cbr", "zip", "rar", "pdf", "epub",
     "jpg", "jpeg", "png", "gif", "webp", "bmp", "avif",
 ];
 
@@ -427,7 +602,7 @@ pub fn run() {
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, extract_cbr, extract_cbr_cover, extract_cbz_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
+        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, extract_cbr, extract_cbr_cover, extract_cbz_cover, extract_epub_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

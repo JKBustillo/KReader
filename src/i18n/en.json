@@ -75,16 +75,17 @@
   },
   "errors": {
     "pdfLoad": "Could not open this PDF (corrupt or password-protected).",
+    "epubLoad": "Could not open this EPUB (corrupt or unsupported).",
     "goBack": "Go back"
   },
   "home": {
     "eyebrow": "Your comic library",
     "titleLead": "Pick up right where you",
     "titleAccent": "left off.",
-    "subtitle": "Jump back into your reading in an instant. CBZ, CBR, ZIP, RAR, PDF and images — all in one place.",
+    "subtitle": "Jump back into your reading in an instant. CBZ, CBR, ZIP, RAR, PDF, EPUB and images — all in one place.",
     "titleLeadEmpty": "Open your first",
     "titleAccentEmpty": "comic.",
-    "subtitleEmpty": "Open a CBZ, CBR, ZIP, RAR, PDF or image to start reading.",
+    "subtitleEmpty": "Open a CBZ, CBR, ZIP, RAR, PDF, EPUB or image to start reading.",
     "openFile": "Open file",
     "recent": "Recent",
     "clear": "Clear"
@@ -108,6 +109,9 @@
     "rtl": "RTL direction",
     "gap": "Page gap",
     "zoom": "Zoom",
+    "fontSize": "Font size",
+    "toc": "Contents",
+    "pin": "Pin progress",
     "smoothScroll": "Smooth scroll",
     "fullscreen": "Fullscreen",
     "showHide": "Show / hide shortcuts",
@@ -152,6 +156,8 @@
     "ltr": "Left → Right",
     "withGap": "With gap",
     "withoutGap": "Without gap",
-    "bookmarks": "Bookmarks"
+    "bookmarks": "Bookmarks",
+    "toc": "Contents",
+    "tocEmpty": "This book has no table of contents."
   }
 }

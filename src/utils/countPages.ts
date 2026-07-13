@@ -23,6 +23,10 @@ export async function countPages(entry: LibraryEntry): Promise<number | null> {
     return count > 0 ? count : null;
   }
 
+  // EPUB has no fixed page count; totalPages is filled in from the reader's
+  // location table (onPagesLoaded) on first open, not counted up front.
+  if (ext === "epub") return null;
+
   if (IMAGE_EXTS_SET.has(ext)) {
     const dir = await dirname(entry.currentPath);
     const files = await readDir(dir);

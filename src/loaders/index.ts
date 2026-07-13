@@ -6,13 +6,14 @@ import { IMAGE_EXTS, IMAGE_EXTS_SET, extOf, mimeForExt, type LoaderResult } from
 export { IMAGE_EXTS, IMAGE_EXTS_SET, extOf, mimeForExt };
 export type { LoaderResult };
 
-export type FileKind = "cbz" | "cbr" | "pdf" | "image" | "unsupported";
+export type FileKind = "cbz" | "cbr" | "pdf" | "epub" | "image" | "unsupported";
 
 export function detectKind(path: string): FileKind {
   const ext = extOf(path);
   if (ext === "cbz" || ext === "zip") return "cbz";
   if (ext === "cbr" || ext === "rar") return "cbr";
   if (ext === "pdf") return "pdf";
+  if (ext === "epub") return "epub"; // handled separately by the caller (reflowable), like pdf
   if (IMAGE_EXTS_SET.has(ext)) return "image";
   return "unsupported";
 }

@@ -6,6 +6,7 @@ import { readFile } from "@tauri-apps/plugin-fs";
 
 import Reader from "./components/Reader";
 import PDFReader from "./components/PDFReader";
+import EPUBReader from "./components/EPUBReader";
 import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
@@ -38,6 +39,7 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [pages, setPages] = useState<string[]>([]);
   const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  const [epubData, setEpubData] = useState<Uint8Array | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [startPage, setStartPage] = useState(0);
   const [pageNames, setPageNames] = useState<string[] | undefined>(undefined);
@@ -108,6 +110,7 @@ function App() {
     revokeBlobUrls();
     setPages([]);
     setPdfData(null);
+    setEpubData(null);
   }, [revokeBlobUrls]);
 
   const handleLastPage = useCallback(() => {
@@ -190,6 +193,15 @@ function App() {
         return;
       }
 
+      if (kind === "epub") { // reflowable text: bytes go to <EPUBReader>, like the pdf branch
+        const data = await readFile(path);
+        setEpubData(data);
+        const updated = await addRecentFile(path);
+        setRecentFiles(updated);
+        setView("reader");
+        return;
+      }
+
       const result = await loadPages(path);
       onPagesLoaded?.(result.pages.length);
       blobUrlsRef.current = result.pages.filter((u) => u.startsWith("blob:"));
@@ -259,7 +271,7 @@ function App() {
 
   const openFileDialog = async () => {
     const filePath = await open({
-      filters: [{ name: "Comics & Images", extensions: ["cbz", "cbr", "zip", "rar", "pdf", ...IMAGE_EXTS] }],
+      filters: [{ name: "Comics & Images", extensions: ["cbz", "cbr", "zip", "rar", "pdf", "epub", ...IMAGE_EXTS] }],
     });
     if (!filePath) return;
     await handleOpen(filePath, view === "library" ? "library" : "home");
@@ -270,7 +282,7 @@ function App() {
     setRecentFiles([]);
   };
 
-  const handlePdfPagesLoaded = useCallback((total: number) => {
+  const handlePagesLoaded = useCallback((total: number) => {
     onPagesLoadedRef.current?.(total);
   }, []);
 
@@ -446,7 +458,10 @@ function App() {
       {/* Reader overlay — rendered above the hidden chrome so LibraryView is
           preserved underneath while reading. */}
       {view === "reader" && pdfData !== null && (
-        <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePdfPagesLoaded} />
+        <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
+      )}
+      {view === "reader" && epubData !== null && (
+        <EPUBReader data={epubData} filePath={currentPath} theme={theme} onClose={handleClose} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
       )}
       {view === "reader" && pdfData === null && pages.length > 0 && (
         <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />

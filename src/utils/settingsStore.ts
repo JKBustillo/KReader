@@ -56,6 +56,22 @@ export async function savePinPageIndicator(value: boolean): Promise<void> {
   await store.save();
 }
 
+const KEY_EPUB_FONT_SIZE = "epub-font-size";
+// Reading font size (percent) for the EPUB reader. Global preference, like most
+// e-readers — the last size applies to every book on reopen.
+const EPUB_FONT_SIZE_DEFAULT = 100;
+
+export async function getEpubFontSize(): Promise<number> {
+  const store = await getStore();
+  return (await store.get<number>(KEY_EPUB_FONT_SIZE)) ?? EPUB_FONT_SIZE_DEFAULT;
+}
+
+export async function saveEpubFontSize(value: number): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_EPUB_FONT_SIZE, value);
+  await store.save();
+}
+
 const KEY_SHOW_PAGE_COUNT = "show-page-count";
 
 export async function getShowPageCount(): Promise<boolean> {

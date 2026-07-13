@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-KReader is a lightweight desktop comic/document reader built with Tauri v2 + React + TypeScript. It supports CBZ, CBR, ZIP, RAR, PDF, and standalone image files. It also includes a library system for organizing and browsing collections.
+KReader is a lightweight desktop comic/document reader built with Tauri v2 + React + TypeScript. It supports CBZ, CBR, ZIP, RAR, PDF, EPUB, and standalone image files. It also includes a library system for organizing and browsing collections.
 
 ## Commands
 
@@ -44,6 +44,20 @@ src/
                                   pdfjs text layer (`.textLayer`) over its canvas for text selection, on the
                                   same render-window lifecycle (cleared off-window; a per-page generation
                                   guard drops stale spans when a page re-enters mid-render).
+    EPUBReader.tsx              Stateful viewer for EPUB e-books. Renders via epubjs (paginated flow)
+                                  into its own iframe; keyboard is registered on BOTH window and
+                                  rendition.on (the iframe swallows key events when focused). Persists the
+                                  reading position as a CFI and caches the epubjs location table (both in
+                                  .reading-progress.dat) so book-wide % is instant on reopen; also mirrors the
+                                  location index into the shared `{path}-page` key + reports the location count
+                                  via onPagesLoaded so the library progress bar works with no special-casing.
+                                  In-book theme is built from the app's live CSS tokens (the iframe can't see
+                                  :root vars). TOC comes from book.navigation.toc; its hrefs (which epubjs
+                                  stores raw, relative to the nav/ncx doc) are resolved against
+                                  book.packaging.navPath so navigation + chapter-label lookup match the spine
+                                  even when the nav lives in a subfolder. Font size persists globally
+                                  (epub-font-size); P pins the progress % (usePinPageIndicator, shared with
+                                  the comic reader).
     ReaderOverlay.tsx           Floating shortcuts panel + page info indicator
     NavBar.tsx                  Top nav: home/library toggle + botón engranaje (abre SettingsModal)
     LibraryView.tsx             Main library UI: scan, filter (tags + folders), sort, view mode,
@@ -89,7 +103,8 @@ src/
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/
-    index.ts                    detectKind(path) + loadPages(path) dispatcher
+    index.ts                    detectKind(path) + loadPages(path) dispatcher. epub, like pdf, is
+                                  detected here but handled separately by the caller (not via loadPages).
     loadCbz.ts                  CBZ/ZIP via JSZip → blob URLs
     loadCbr.ts                  CBR/RAR via invoke('extract_cbr')
     loadImageFolder.ts          Single image → loads whole folder, sorted numerically
@@ -120,16 +135,19 @@ src/
                                   + entryMeta) to app_config_dir()/backups/kreader-backup-<epochMs>.json. Throttled to once/day
                                   (last-backup-at), keeps the 5 most recent (rotates). Gated by the auto-backup
                                   setting; runs only in the `main` window. Restore is manual via SettingsModal import.
-    thumbnails.ts               Cover extraction (CBZ/CBR/PDF/image) + disk+memory cache
+    thumbnails.ts               Cover extraction (CBZ/CBR/PDF/EPUB/image) + disk+memory cache
+                                  (EPUB cover via extract_epub_cover Rust IPC)
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              Path helpers: getRelativeFolder(entryPath, rootPath), basename(path), normalizePath(path)
     scroll.ts                   Scroll-edge constants (SCROLL_EPSILON_PX, WHEEL_THROTTLE_MS, PAGE_SCROLL_FRACTION) + isAtTop/isAtBottom
     appWindow.ts                APP_NAME + setWindowTitle(name?) → "${name} - KReader" or "KReader"
-    readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks), read+write.
-                                  Consumed by useReadingProgress and PDFReader; exposes getReadingProgress,
-                                  getSavedPage, savePage/saveCascade/saveBookmarks, and getPageForPath(filePath).
-                                  migrateReadingProgress(oldPath, newPath) moves all three keys when a file is renamed.
-    countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats.
+    readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks/epub-cfi/
+                                  epub-locations), read+write. Consumed by useReadingProgress, PDFReader and
+                                  EPUBReader; exposes getReadingProgress, getSavedPage, savePage/saveCascade/
+                                  saveBookmarks, getEpubCfi/saveEpubCfi, getEpubLocations/saveEpubLocations, and
+                                  getPageForPath(filePath). migrateReadingProgress(oldPath, newPath) moves all
+                                  keys (incl. the epub ones) when a file is renamed.
+    countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats and for EPUB (EPUB totalPages is set from the reader's location count on first open, not counted up front).
     progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
@@ -151,13 +169,15 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 2. Image-based formats return `{ pages: string[], pageNames?, startPage? }`. Those URLs are tracked in `blobUrlsRef` and revoked the next time `handleOpen` runs or `resetPages` fires.
 3. `Reader.tsx` receives the page array and delegates persistence to `useReadingProgress` and keyboard handling to `useReaderShortcuts`. Overlay visuals live in `<ReaderOverlay>`.
 4. PDF takes a separate path: bytes are passed to `<PDFReader>`, which renders the current page on a canvas via `pdfjs-dist` (single-page path) or delegates to `<PDFCascade>` for continuous vertical scroll (cascade mode, toggle `C`). PDFReader reads/persists the page index and cascade flag from `.reading-progress.dat` directly (it does **not** use `useReadingProgress`); the `cascade` key is shared with the image reader.
+5. EPUB takes its own separate path (like PDF): bytes are passed to `<EPUBReader>`, which renders reflowable text via `epubjs` into an iframe. It persists position as a CFI and caches the epubjs location table in `.reading-progress.dat` directly (not via `useReadingProgress`). Because EPUB has no fixed pages, it mirrors the current location index into the shared `{path}-page` key and reports the location count via `onPagesLoaded`, so the library's page-based progress bar and reading-state machinery work unchanged.
 
 ### State persistence (Tauri Store)
 
 - `.recent-files.dat` — list of up to 10 recently opened file paths.
-- `.reading-progress.dat` — per-file page index (`{filePath}-page`), cascade mode flag (`{filePath}-cascade`), and bookmarks (`{filePath}-bookmarks`, `number[]`), keyed by absolute file path.
+- `.reading-progress.dat` — per-file page index (`{filePath}-page`), cascade mode flag (`{filePath}-cascade`), bookmarks (`{filePath}-bookmarks`, `number[]`), and for EPUB the reading position (`{filePath}-epub-cfi`, a CFI string) + cached location table (`{filePath}-epub-locations`, JSON from epubjs `Locations.save()`), keyed by absolute file path.
 - `.settings.dat` — global app settings. Current keys:
-  - `pin-page-indicator` — boolean, pin page number overlay.
+  - `pin-page-indicator` — boolean, pin page number overlay (also pins the EPUB reader's progress %).
+  - `epub-font-size` — number, EPUB reader font size as a percent (global preference, default 100).
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
@@ -252,6 +272,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
   - `extract_cbr(path)` — unpacks a full CBR/RAR archive; returns all images as raw binary response.
   - `extract_cbr_cover(path)` — returns only the first image from a CBR/RAR (for thumbnails). Stops after first image found.
   - `extract_cbz_cover(path)` — returns only the first image from a CBZ/ZIP (alphabetically sorted); reads only the central directory + one compressed entry.
+  - `extract_epub_cover(path)` — returns the cover image from an EPUB (for thumbnails). Reads container.xml → OPF (parsed by lightweight string scanning, no XML crate) → cover href (EPUB3 `properties="cover-image"`, then EPUB2 `<meta name="cover">`, then first image item), then the single cover entry. Same binary layout as extract_cbz_cover.
   - `scan_library(root)` — recursive directory walk returning `ScannedFile[]` (path, filename, size_bytes, modified_secs) for all supported extensions.
   - `list_subdirs(root)` — recursive walk returning all subdirectory paths relative to root (`"/"` for root itself, `"Leído"`, `"Leído/Archivado"`, etc.). Used by the "Move to folder" context menu action.
   - `trash_file(path)` — sends a file to the OS trash via the `trash` crate; falls back to permanent deletion if trash is unavailable.
@@ -325,6 +346,8 @@ KReader runs as a **single process** with potentially multiple windows, via `tau
 
 Global hotkeys (`F` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element. The `T` theme-toggle hotkey was removed when the theme control moved to the settings modal.
 
+The **EPUB reader** has its own reduced keyboard (it owns its handler, like PDFReader; most comic shortcuts don't apply to reflowable text): `←`/`→` and `PageUp`/`PageDown` turn the page, `Home`/`End` jump to the first/last chapter, `+`/`-` change font size, `T` toggles the table of contents, `P` pins the progress % so it stays visible, `I` the info overlay, `F` fullscreen, `X` closes the window, and `Escape` closes the TOC (if open) or the reader. These are registered on both `window` and `rendition.on("keydown")` because the book's iframe swallows key events when focused.
+
 ## Versioning
 
 When bumping the version, update it in all three places:
@@ -356,6 +379,7 @@ If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permissi
 
 - `pdfjs-dist` — PDF rendering; worker is loaded via Vite `?url` import.
 - `jszip` — CBZ extraction (CBZ is just a ZIP of images). Not used for page counting (handled by Rust).
+- `epubjs` — EPUB rendering (reflowable text in an iframe). Ships loose/partly-wrong TypeScript types (e.g. `Locations.locationFromCfi` is typed as returning a `Location` but returns a numeric index; `Locations.total` is undeclared) — `EPUBReader` narrows the pieces it uses via a local interface. Pulls in some stale transitive deps (`@xmldom/xmldom`).
 - `unrar` (Rust) — CBR extraction and page counting in the backend.
 - `lopdf` (Rust) — PDF page counting (`count_pdf_pages` command). `default-features = false` to avoid pulling in rayon/chrono/time.
 - `react-hotkeys-hook` — present in `package.json` but unused; keyboard handling is done via `addEventListener` in `useReaderShortcuts` and `App.tsx`.
