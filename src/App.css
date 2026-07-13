@@ -121,6 +121,7 @@ button {
   --bg-primary:    #000000;
   --bg-overlay:    rgba(12, 13, 16, 0.88);
   --reader-bg:     #050506;
+  --epub-bg:       #000000;
   --text-primary:  #f2f3f5;
   --text-secondary:#8b9099;
   --text-muted:    #565b64;
@@ -143,6 +144,7 @@ button {
   --bg-primary:    #f4f5f7;
   --bg-overlay:    rgba(255, 255, 255, 0.92);
   --reader-bg:     #d1d5db;
+  --epub-bg:       #ffffff;
   --text-primary:  #111827;
   --text-secondary:#4b5563;
   --text-muted:    #9ca3af;

@@ -77,9 +77,11 @@ function resolveHref(navBase: string, href: string): string {
 
 // Build the in-book theme from the app's live CSS tokens, so the book content
 // tracks the same palette as the chrome (the iframe has no access to :root vars).
+// Background uses --epub-bg (pure white in light theme, not the app's off-white
+// --bg-primary) so images with a baked-in white background don't show a seam.
 function buildThemeStyles() {
   const s = getComputedStyle(document.documentElement);
-  const bg = s.getPropertyValue("--bg-primary").trim();
+  const bg = s.getPropertyValue("--epub-bg").trim();
   const fg = s.getPropertyValue("--text-primary").trim();
   const link = s.getPropertyValue("--accent").trim();
   // ponytail: force text color on common elements so books that hard-code black
@@ -422,7 +424,7 @@ export default function EPUBReader({
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col bg-[var(--bg-primary)]">
+    <div className="fixed inset-0 flex flex-col bg-[var(--epub-bg)]">
       <div ref={containerRef} className="flex-1 min-h-0" />
 
       {!ready && (

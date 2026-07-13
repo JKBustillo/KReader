@@ -52,7 +52,9 @@ src/
                                   location index into the shared `{path}-page` key + reports the location count
                                   via onPagesLoaded so the library progress bar works with no special-casing.
                                   In-book theme is built from the app's live CSS tokens (the iframe can't see
-                                  :root vars). TOC comes from book.navigation.toc; its hrefs (which epubjs
+                                  :root vars); the reading surface uses a dedicated `--epub-bg` (pure white in
+                                  light, not the off-white `--bg-primary`) so images with a baked-in white
+                                  background don't seam against the page. TOC comes from book.navigation.toc; its hrefs (which epubjs
                                   stores raw, relative to the nav/ncx doc) are resolved against
                                   book.packaging.navPath so navigation + chapter-label lookup match the spine
                                   even when the nav lives in a subfolder. Font size persists globally
