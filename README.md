@@ -52,7 +52,7 @@ A built-in collection manager for browsing large libraries:
 - **Multiple windows** — open several reader windows at once; they run in a single process and share state, so bookmarks and settings never clobber each other.
 - **Themes** — dark and light.
 - **Languages** — English and Spanish.
-- **File association** — `.cbz`, `.cbr`, `.zip`, and `.rar` files can be opened directly with KReader from your OS.
+- **File association** — `.cbz`, `.cbr`, `.epub`, `.pdf`, `.zip`, and `.rar` files can be opened directly with KReader from your OS.
 
 ## Keyboard shortcuts
 

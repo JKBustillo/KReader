@@ -56,6 +56,20 @@
         "role": "Editor"
       },
       {
+        "ext": ["epub"],
+        "mimeType": "application/epub+zip",
+        "name": "EPUB Book",
+        "description": "KReader EPUB E-book",
+        "role": "Editor"
+      },
+      {
+        "ext": ["pdf"],
+        "mimeType": "application/pdf",
+        "name": "PDF Document",
+        "description": "KReader PDF Document",
+        "role": "Viewer"
+      },
+      {
         "ext": ["zip"],
         "mimeType": "application/zip",
         "name": "ZIP Archive",
