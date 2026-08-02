@@ -1,0 +1,4 @@
+# Line endings are normalized to LF in the repository and checked out as CRLF,
+# so a tool that rewrites a whole file can't turn a small edit into a
+# whole-file diff. Binary files are detected by content and left alone.
+* text=auto eol=crlf
