@@ -1,6 +1,11 @@
 use tauri_plugin_store::Builder as StoreBuilder;
 use tauri::Manager;
 use tauri::ipc::Response;
+use tauri::http::{HeaderValue, Request as HttpRequest, Response as HttpResponse, StatusCode};
+use tauri::http::header::{ACCESS_CONTROL_ALLOW_ORIGIN, CACHE_CONTROL, CONTENT_TYPE};
+use percent_encoding::percent_decode_str;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::collections::{BTreeMap, HashMap};
@@ -14,13 +19,37 @@ const READER_WINDOW_LABEL_PREFIX: &str = "reader-";
 const DEFAULT_WINDOW_WIDTH: f64 = 800.0;
 const DEFAULT_WINDOW_HEIGHT: f64 = 600.0;
 
-const IMAGE_EXTS: &[&str] = &[".jpg", ".jpeg", ".png", ".gif", ".webp"];
+// Custom URI scheme that serves one CBZ/ZIP entry per request (see cbz_page_response).
+const PAGE_PROTOCOL: &str = "kreader";
+const ENTRY_QUERY_PREFIX: &str = "entry=";
+
+// Lets the webview keep served pages in its own cache, so revisiting a page (or
+// the reader's preloading) doesn't re-open and re-inflate the archive. Bounded
+// rather than immutable: a page URL is path + entry name, so replacing the file
+// on disk while it is open would otherwise serve stale pages indefinitely.
+const PAGE_CACHE_CONTROL: &str = "max-age=3600";
+
+// Where CBR/RAR archives are unpacked (under app_cache_dir), and how many
+// digits the generated page filenames use.
+const CBR_CACHE_SUBDIR: &str = "kreader-cbr";
+const EXTRACTED_PAGE_DIGITS: usize = 5;
+
+// Must stay in sync with IMAGE_EXTS in src/loaders/types.ts.
+const IMAGE_EXTS: &[&str] = &[".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".avif"];
 
 fn image_mime(lower_name: &str) -> &'static str {
     if lower_name.ends_with(".png") { "image/png" }
     else if lower_name.ends_with(".gif") { "image/gif" }
     else if lower_name.ends_with(".webp") { "image/webp" }
+    else if lower_name.ends_with(".bmp") { "image/bmp" }
+    else if lower_name.ends_with(".avif") { "image/avif" }
     else { "image/jpeg" }
+}
+
+// An archive entry is a page when its (lowercased) name ends in a supported
+// image extension.
+fn is_image_name(lower_name: &str) -> bool {
+    IMAGE_EXTS.iter().any(|ext| lower_name.ends_with(ext))
 }
 
 // A file queued for a window to open on mount, plus the optional library it
@@ -102,54 +131,156 @@ async fn open_new_window(app: tauri::AppHandle, path: Option<String>, library_id
     create_reader_window(&app, path, library_id)
 }
 
-// Binary response layout:
-//   u32 LE  count
-//   for each page:
-//     u8       mime_len
-//     [bytes]  mime (ASCII)
-//     u32 LE   data_len
-//     [bytes]  image data
-//
-// We use Response (raw IPC bytes) instead of base64 data: URLs to avoid
-// the 33% size inflation and to keep the bytes outside of V8's heap.
-// JS rebuilds blob URLs from the slices.
+// Absolute paths of a CBR's unpacked pages, plus the directory holding them so
+// the frontend can delete it once the archive is closed.
+#[derive(serde::Serialize)]
+struct ExtractedArchive {
+    dir: String,
+    pages: Vec<String>,
+}
+
+fn cbr_cache_root(app: &tauri::AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_cache_dir()
+        .map(|dir| dir.join(CBR_CACHE_SUBDIR))
+        .map_err(|e| e.to_string())
+}
+
+// Stable, filesystem-safe directory name for an archive path.
+fn cache_key(path: &str) -> String {
+    let mut hasher = DefaultHasher::new();
+    path.hash(&mut hasher);
+    format!("{:016x}", hasher.finish())
+}
+
+// Unpacks a CBR/RAR to a directory under app_cache_dir and returns the page
+// file paths. RAR is a streaming format (no random access to entries), so the
+// archive has to be walked once up front — but unrar writes each page straight
+// to disk, so peak memory stays flat regardless of archive size. The frontend
+// then loads each page from disk through the asset protocol instead of holding
+// the whole comic in the WebView heap.
 #[tauri::command]
-fn extract_cbr(path: String) -> Result<Response, String> {
+fn extract_cbr_to_dir(app: tauri::AppHandle, path: String) -> Result<ExtractedArchive, String> {
+    let dir = cbr_cache_root(&app)?.join(cache_key(&path));
+    if dir.exists() {
+        std::fs::remove_dir_all(&dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+
     let mut archive = unrar::Archive::new(&path)
         .open_for_processing()
         .map_err(|e| e.to_string())?;
 
-    let mut images: BTreeMap<String, (Vec<u8>, &'static str)> = BTreeMap::new();
+    // Keyed by entry name so pages come back in alphabetical order, matching
+    // how the archive's own listing is sorted.
+    let mut pages: BTreeMap<String, String> = BTreeMap::new();
 
     while let Some(header) = archive.read_header().map_err(|e| e.to_string())? {
         let name = header.entry().filename.to_string_lossy().to_string();
         let lower = name.to_lowercase();
-        let is_image = IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext));
 
-        if header.entry().is_file() && is_image {
-            let mime = image_mime(&lower);
-            let (data, next) = header.read().map_err(|e| e.to_string())?;
-            images.insert(name, (data, mime));
-            archive = next;
+        if header.entry().is_file() && is_image_name(&lower) {
+            // Generated flat filenames, never the entry's own: archive names can
+            // contain subfolders or `..` segments that must not reach the disk.
+            let ext = lower.rsplit('.').next().unwrap_or("jpg");
+            let out = dir.join(format!(
+                "{:0width$}.{}",
+                pages.len(),
+                ext,
+                width = EXTRACTED_PAGE_DIGITS
+            ));
+            archive = header.extract_to(&out).map_err(|e| e.to_string())?;
+            pages.insert(name, out.to_string_lossy().to_string());
         } else {
             archive = header.skip().map_err(|e| e.to_string())?;
         }
     }
 
-    let total: usize = 4 + images.values()
-        .map(|(d, m)| 1 + m.len() + 4 + d.len())
-        .sum::<usize>();
-
-    let mut buf = Vec::with_capacity(total);
-    buf.extend_from_slice(&(images.len() as u32).to_le_bytes());
-    for (data, mime) in images.into_values() {
-        buf.push(mime.len() as u8);
-        buf.extend_from_slice(mime.as_bytes());
-        buf.extend_from_slice(&(data.len() as u32).to_le_bytes());
-        buf.extend_from_slice(&data);
+    if pages.is_empty() {
+        let _ = std::fs::remove_dir_all(&dir);
+        return Err("No images found in archive".into());
     }
 
-    Ok(Response::new(buf))
+    Ok(ExtractedArchive {
+        dir: dir.to_string_lossy().to_string(),
+        pages: pages.into_values().collect(),
+    })
+}
+
+// Image entry names of a CBZ/ZIP, read from the central directory only (no
+// decompression). The frontend sorts them and turns each into a PAGE_PROTOCOL
+// URL, so pages are decompressed one at a time, on demand.
+#[tauri::command]
+fn list_cbz_pages(path: String) -> Result<Vec<String>, String> {
+    let file = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+
+    let mut names = Vec::new();
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        if entry.is_file() && is_image_name(&entry.name().to_lowercase()) {
+            names.push(entry.name().to_string());
+        }
+    }
+
+    if names.is_empty() {
+        return Err("No images found in archive".into());
+    }
+    Ok(names)
+}
+
+// Reads one entry out of a CBZ/ZIP. Only the central directory plus that single
+// compressed entry are touched, so serving a page costs the same on a 20 MB
+// archive as on a 2 GB one.
+// URL shape: <PAGE_PROTOCOL>://<url-encoded archive path>?entry=<url-encoded entry name>
+fn read_cbz_entry(request: &HttpRequest<Vec<u8>>) -> Result<(&'static str, Vec<u8>), String> {
+    use std::io::Read;
+
+    let uri = request.uri();
+    let archive_path = decode_uri_component(uri.path().trim_start_matches('/'))?;
+    let entry_name = uri
+        .query()
+        .and_then(|query| {
+            query
+                .split('&')
+                .find_map(|param| param.strip_prefix(ENTRY_QUERY_PREFIX))
+        })
+        .ok_or("missing entry parameter")?;
+    let entry_name = decode_uri_component(entry_name)?;
+
+    let file = std::fs::File::open(&archive_path).map_err(|e| e.to_string())?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
+    let mut entry = archive.by_name(&entry_name).map_err(|e| e.to_string())?;
+
+    let mut data = Vec::with_capacity(entry.size() as usize);
+    entry.read_to_end(&mut data).map_err(|e| e.to_string())?;
+
+    Ok((image_mime(&entry_name.to_lowercase()), data))
+}
+
+fn decode_uri_component(value: &str) -> Result<String, String> {
+    percent_decode_str(value)
+        .decode_utf8()
+        .map(|decoded| decoded.into_owned())
+        .map_err(|e| e.to_string())
+}
+
+fn cbz_page_response(request: &HttpRequest<Vec<u8>>) -> HttpResponse<Vec<u8>> {
+    match read_cbz_entry(request) {
+        Ok((mime, data)) => {
+            let mut response = HttpResponse::new(data);
+            let headers = response.headers_mut();
+            headers.insert(CONTENT_TYPE, HeaderValue::from_static(mime));
+            headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_static("*"));
+            headers.insert(CACHE_CONTROL, HeaderValue::from_static(PAGE_CACHE_CONTROL));
+            response
+        }
+        Err(message) => {
+            let mut response = HttpResponse::new(message.into_bytes());
+            *response.status_mut() = StatusCode::NOT_FOUND;
+            response
+        }
+    }
 }
 
 // Extracts only the first image from a CBR/RAR archive using the same
@@ -164,7 +295,7 @@ fn extract_cbr_cover(path: String) -> Result<Response, String> {
     while let Some(header) = archive.read_header().map_err(|e| e.to_string())? {
         let name = header.entry().filename.to_string_lossy().to_string();
         let lower = name.to_lowercase();
-        let is_image = IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext));
+        let is_image = is_image_name(&lower);
 
         if header.entry().is_file() && is_image {
             let mime = image_mime(&lower);
@@ -206,7 +337,7 @@ fn extract_cbz_cover(path: String) -> Result<Response, String> {
             entry.name().to_string()
         };
         let lower = name.to_lowercase();
-        if IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext)) {
+        if is_image_name(&lower) {
             images.push((name, i));
         }
     }
@@ -523,7 +654,7 @@ fn count_cbz_pages(path: String) -> Result<u32, String> {
                 .name_for_index(i)
                 .map(|name| {
                     let lower = name.to_lowercase();
-                    IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext))
+                    is_image_name(&lower)
                 })
                 .unwrap_or(false)
         })
@@ -549,7 +680,7 @@ fn count_cbr_pages(path: String) -> Result<u32, String> {
                 return false;
             }
             let lower = header.filename.to_string_lossy().to_lowercase();
-            IMAGE_EXTS.iter().any(|ext| lower.ends_with(ext))
+            is_image_name(&lower)
         })
         .count();
     Ok(count as u32)
@@ -597,12 +728,86 @@ pub fn run() {
             }
             app.manage(PendingFiles(Mutex::new(pending)));
             app.manage(WindowCounter(AtomicU32::new(1)));
+
+            // Drop CBR extractions left behind by a previous run (a crash, or a
+            // window closed without unloading). Single-instance guarantees this
+            // is the only process, so nothing here is in use yet.
+            if let Ok(root) = cbr_cache_root(app.handle()) {
+                let _ = std::fs::remove_dir_all(root);
+            }
             Ok(())
+        })
+        // Serves CBZ/ZIP pages straight out of the archive, one entry per
+        // request. Registered on the builder so every window can use it.
+        .register_asynchronous_uri_scheme_protocol(PAGE_PROTOCOL, |_ctx, request, responder| {
+            // Reading + inflating an entry is blocking I/O; keep it off the
+            // thread driving the webview. A thread per request is enough for the
+            // handful of pages a view has in flight; pool them if that changes.
+            std::thread::spawn(move || responder.respond(cbz_page_response(&request)));
         })
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, extract_cbr, extract_cbr_cover, extract_cbz_cover, extract_epub_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
+        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, list_cbz_pages, extract_cbr_to_dir, extract_cbr_cover, extract_cbz_cover, extract_epub_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+
+    fn encode(value: &str) -> String {
+        utf8_percent_encode(value, NON_ALPHANUMERIC).to_string()
+    }
+
+    // Round-trips the CBZ page pipeline: list the entries, build the URL the
+    // frontend builds (convertFileSrc + ?entry=), and serve that one entry.
+    #[test]
+    fn serves_a_single_cbz_entry_by_url() {
+        let dir = std::env::temp_dir().join("kreader-cbz-page-test");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let archive_path = dir.join("test.cbz");
+
+        {
+            let file = std::fs::File::create(&archive_path).unwrap();
+            let mut writer = zip::ZipWriter::new(file);
+            let options = zip::write::SimpleFileOptions::default();
+            // Name with a subfolder and a space: both survive URL encoding.
+            writer.start_file("pages/002 b.png", options).unwrap();
+            std::io::Write::write_all(&mut writer, b"PNGDATA").unwrap();
+            writer.start_file("notes.txt", options).unwrap();
+            std::io::Write::write_all(&mut writer, b"ignored").unwrap();
+            writer.finish().unwrap();
+        }
+
+        let archive = archive_path.to_string_lossy().to_string();
+        let names = list_cbz_pages(archive.clone()).unwrap();
+        assert_eq!(names, vec!["pages/002 b.png".to_string()]);
+
+        let request = |entry: &str| {
+            HttpRequest::builder()
+                .uri(format!(
+                    "http://{}.localhost/{}?{}{}",
+                    PAGE_PROTOCOL,
+                    encode(&archive),
+                    ENTRY_QUERY_PREFIX,
+                    encode(entry)
+                ))
+                .body(Vec::new())
+                .unwrap()
+        };
+
+        let response = cbz_page_response(&request(&names[0]));
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()[CONTENT_TYPE], "image/png");
+        assert_eq!(response.body().as_slice(), b"PNGDATA");
+
+        let missing = cbz_page_response(&request("nope.png"));
+        assert_eq!(missing.status(), StatusCode::NOT_FOUND);
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

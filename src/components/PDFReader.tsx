@@ -22,14 +22,14 @@ const ZOOM_MIN = 0.3;
 const ZOOM_MAX = 4;
 
 function PDFReader({
-  data,
+  src,
   filePath,
   onClose,
   onLoadError,
   onLastPage,
   onPagesLoaded,
 }: {
-  data: Uint8Array;
+  src: string;
   filePath: string;
   onClose: () => void;
   onLoadError?: (path: string) => void;
@@ -63,11 +63,9 @@ function PDFReader({
 
     (async () => {
       try {
-        // pdf.js transfers the ArrayBuffer to its worker (detaching it). Under
-        // React.StrictMode this effect runs twice with the same `data` prop, so
-        // pass a fresh copy each time — otherwise the second call hits an already
-        // detached buffer and throws DataCloneError.
-        const doc = await pdfjsLib.getDocument({ data: data.slice() }).promise;
+        // Loaded by URL (asset protocol), so pdf.js fetches the pages it needs
+        // via range requests instead of holding the whole file in memory.
+        const doc = await pdfjsLib.getDocument({ url: src }).promise;
         if (cancelled) return;
         setLoadError(null);
         setPdf(doc);
@@ -87,7 +85,7 @@ function PDFReader({
     })();
 
     return () => { cancelled = true; };
-  }, [data, filePath, onLoadError, onPagesLoaded]);
+  }, [src, filePath, onLoadError, onPagesLoaded]);
 
   useEffect(() => {
     setWindowTitle(basename(filePath));

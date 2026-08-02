@@ -18,7 +18,6 @@
     "@tauri-apps/plugin-store": "^2.4.1",
     "epubjs": "^0.3.93",
     "i18next": "^26.0.10",
-    "jszip": "^3.10.1",
     "pdfjs-dist": "^5.4.394",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",

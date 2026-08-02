@@ -28,4 +28,7 @@ export type LoaderResult = {
   pages: string[];
   pageNames?: string[];
   startPage?: number;
+  // Directory the loader unpacked the file into (CBR only). The caller must
+  // delete it once the pages are no longer displayed.
+  tempDir?: string;
 };

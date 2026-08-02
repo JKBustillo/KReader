@@ -1,24 +1,21 @@
-import { readFile } from "@tauri-apps/plugin-fs";
-import JSZip from "jszip";
-import { IMAGE_EXTS, type LoaderResult } from "./types";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
+import type { LoaderResult } from "./types";
 
-// Derived from IMAGE_EXTS so supported formats stay in one place.
-const CBZ_IMAGE_REGEX = new RegExp(`\\.(${IMAGE_EXTS.join("|")})$`, "i");
+// Custom URI scheme served by the Rust `cbz_page_response` handler: one request
+// per page, decompressing a single entry out of the archive. Must match
+// PAGE_PROTOCOL in src-tauri/src/lib.rs.
+const PAGE_PROTOCOL = "kreader";
+const ENTRY_QUERY_KEY = "entry";
 
+// Pages are URLs, not blobs: the archive is never loaded into the WebView heap,
+// so a multi-GB comic costs the same as a small one.
 export async function loadCbz(path: string): Promise<LoaderResult> {
-  const data = await readFile(path);
-  const zip = await JSZip.loadAsync(data);
+  const names = await invoke<string[]>("list_cbz_pages", { path });
+  const base = convertFileSrc(path, PAGE_PROTOCOL);
 
-  const imageEntries = Object.values(zip.files)
-    .filter((file) => !file.dir && CBZ_IMAGE_REGEX.test(file.name))
-    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-
-  const pages = await Promise.all(
-    imageEntries.map(async (file) => {
-      const blob = await file.async("blob");
-      return URL.createObjectURL(blob);
-    })
-  );
+  const pages = names
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }))
+    .map((name) => `${base}?${ENTRY_QUERY_KEY}=${encodeURIComponent(name)}`);
 
   return { pages };
 }

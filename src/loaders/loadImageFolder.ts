@@ -1,6 +1,7 @@
-import { readFile, readDir } from "@tauri-apps/plugin-fs";
+import { readDir } from "@tauri-apps/plugin-fs";
+import { convertFileSrc } from "@tauri-apps/api/core";
 import { dirname, join } from "@tauri-apps/api/path";
-import { IMAGE_EXTS_SET, extOf, mimeForExt, type LoaderResult } from "./types";
+import { IMAGE_EXTS_SET, extOf, type LoaderResult } from "./types";
 import { basename } from "../utils/folderUtils";
 
 export async function loadImageFolder(path: string): Promise<LoaderResult> {
@@ -14,13 +15,9 @@ export async function loadImageFolder(path: string): Promise<LoaderResult> {
 
   const imagePaths = await Promise.all(imageNames.map((name) => join(dir, name)));
 
-  const pages = await Promise.all(
-    imagePaths.map(async (imgPath) => {
-      const data = await readFile(imgPath);
-      const blob = new Blob([data], { type: mimeForExt(extOf(imgPath)) });
-      return URL.createObjectURL(blob);
-    })
-  );
+  // Served from disk by the asset protocol: the WebView only decodes the pages
+  // it actually shows, instead of buffering the whole folder up front.
+  const pages = imagePaths.map((imgPath) => convertFileSrc(imgPath));
 
   const fileName = basename(path);
   const imgIndex = imageNames.indexOf(fileName);

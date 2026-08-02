@@ -19,6 +19,7 @@ It reads comic archives, PDFs, EPUB e-books, and standalone images, and includes
 ### Reader
 
 - **Multiple view modes** — single page, double page, cascade (all pages scrollable vertically, height-capped), and webtoon (continuous vertical scroll, no gaps).
+- **Large files** — comics and PDFs are streamed page by page instead of being loaded whole, so multi-gigabyte files open (and stay open) without running the app out of memory.
 - **PDF cascade** — PDFs also support cascade mode (`C`): continuous vertical scroll that renders pages on demand to keep memory bounded, with selectable text on each page.
 - **EPUB reading** — reflowable e-books with a chapter table of contents (`T`), adjustable font size (`+` / `−`, remembered between books), and the book styled to match the app's light/dark theme. Your reading position is remembered and the book-wide progress is cached so reopening is instant; pin the progress indicator with `P`, and click it to cycle between overall percent, pages within the current chapter (which grow/shrink with the font size), and a stable book-wide page count.
 - **Bookmarks** — toggle bookmarks per page and jump between them; persisted per file.
@@ -128,7 +129,6 @@ npm run lint
 - [Tailwind CSS v4](https://tailwindcss.com/)
 - [react-i18next](https://react.i18next.com/) — internationalization (en/es)
 - [pdfjs-dist](https://github.com/mozilla/pdf.js) — PDF rendering
-- [JSZip](https://stuk.github.io/jszip/) — CBZ extraction
 - [epubjs](https://github.com/futurepress/epub.js/) — EPUB rendering
-- Rust crates: [`unrar`](https://crates.io/crates/unrar) (CBR extraction & page counting), [`lopdf`](https://crates.io/crates/lopdf) (PDF page counting), [`zip`](https://crates.io/crates/zip), [`trash`](https://crates.io/crates/trash) (send to OS trash)
+- Rust crates: [`unrar`](https://crates.io/crates/unrar) (CBR extraction & page counting), [`lopdf`](https://crates.io/crates/lopdf) (PDF page counting), [`zip`](https://crates.io/crates/zip) (CBZ pages & covers), [`trash`](https://crates.io/crates/trash) (send to OS trash)
 - [`@tauri-apps/plugin-store`](https://github.com/tauri-apps/plugins-workspace/tree/v2/plugins/store) — key-value persistence

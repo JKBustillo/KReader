@@ -17,9 +17,13 @@ npm run build
 
 # Lint
 npm run lint
+
+# Rust tests (backend only)
+cargo test --manifest-path src-tauri/Cargo.toml --lib
 ```
 
-There are no tests. Vite's dev server **must** run on port 1420 — Tauri hardcodes this in `tauri.conf.json`.
+There are no frontend tests. The Rust side has one, covering the `kreader://` page protocol
+(see Page delivery). Vite's dev server **must** run on port 1420 — Tauri hardcodes this in `tauri.conf.json`.
 
 ## Architecture
 
@@ -111,9 +115,9 @@ src/
   loaders/
     index.ts                    detectKind(path) + loadPages(path) dispatcher. epub, like pdf, is
                                   detected here but handled separately by the caller (not via loadPages).
-    loadCbz.ts                  CBZ/ZIP via JSZip → blob URLs
-    loadCbr.ts                  CBR/RAR via invoke('extract_cbr')
-    loadImageFolder.ts          Single image → loads whole folder, sorted numerically
+    loadCbz.ts                  CBZ/ZIP: invoke('list_cbz_pages') → one `kreader://` URL per entry
+    loadCbr.ts                  CBR/RAR via invoke('extract_cbr_to_dir') → asset-protocol URLs + tempDir
+    loadImageFolder.ts          Single image → whole folder as asset-protocol URLs, sorted numerically
     types.ts                    IMAGE_EXTS (+ IMAGE_EXTS_SET), extOf, mimeForExt, LoaderResult.
                                   Single source of truth for image extensions/MIME used across loaders,
                                   thumbnails, countPages, and the reader shortcuts.
@@ -171,11 +175,30 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 
 ### Data flow
 
-1. `App.tsx` opens files via `@tauri-apps/plugin-dialog`, calls `detectKind(path)` then either `loadPages(path)` (for image-based formats) or reads the bytes directly for PDF.
-2. Image-based formats return `{ pages: string[], pageNames?, startPage? }`. Those URLs are tracked in `blobUrlsRef` and revoked the next time `handleOpen` runs or `resetPages` fires.
+1. `App.tsx` opens files via `@tauri-apps/plugin-dialog`, calls `detectKind(path)` then either `loadPages(path)` (for image-based formats) or, for PDF, hands `<PDFReader>` an asset-protocol URL (`convertFileSrc(path)`).
+2. Image-based formats return `{ pages: string[], pageNames?, startPage?, tempDir? }`. `pages` are URLs the WebView fetches lazily (see [Page delivery](#page-delivery-large-files)), so nothing is held in the JS heap; `blobUrlsRef` still revokes any `blob:` URL a loader might produce, and `tempDir` (CBR only) is deleted on the next `resetState`.
 3. `Reader.tsx` receives the page array and delegates persistence to `useReadingProgress` and keyboard handling to `useReaderShortcuts`. Overlay visuals live in `<ReaderOverlay>`.
-4. PDF takes a separate path: bytes are passed to `<PDFReader>`, which renders the current page on a canvas via `pdfjs-dist` (single-page path) or delegates to `<PDFCascade>` for continuous vertical scroll (cascade mode, toggle `C`). PDFReader reads/persists the page index and cascade flag from `.reading-progress.dat` directly (it does **not** use `useReadingProgress`); the `cascade` key is shared with the image reader.
+4. PDF takes a separate path: a URL (not bytes) is passed to `<PDFReader>`, which hands it to `pdfjs.getDocument({ url })` — pdf.js then range-requests only the pages it renders. It draws the current page on a canvas (single-page path) or delegates to `<PDFCascade>` for continuous vertical scroll (cascade mode, toggle `C`). PDFReader reads/persists the page index and cascade flag from `.reading-progress.dat` directly (it does **not** use `useReadingProgress`); the `cascade` key is shared with the image reader.
 5. EPUB takes its own separate path (like PDF): bytes are passed to `<EPUBReader>`, which renders reflowable text via `epubjs` into an iframe. It persists position as a CFI and caches the epubjs location table in `.reading-progress.dat` directly (not via `useReadingProgress`). Because EPUB has no fixed pages, it mirrors the current location index into the shared `{path}-page` key and reports the location count via `onPagesLoaded`, so the library's page-based progress bar and reading-state machinery work unchanged.
+
+### Page delivery (large files)
+
+Nothing loads a whole file into the WebView. A page is always a URL the webview
+fetches on demand, so peak memory is a handful of decoded pages regardless of
+archive size (a 1+ GB comic used to OOM the renderer and kill the window):
+
+| Format | Mechanism |
+|--------|-----------|
+| CBZ/ZIP | `kreader://` custom protocol (`register_asynchronous_uri_scheme_protocol` in `lib.rs`). `list_cbz_pages` returns the image entry names; the loader sorts them and builds `convertFileSrc(path, "kreader") + "?entry=<name>"` per page. Each request opens the zip, reads the central directory and inflates that single entry on a worker thread. Nothing is written to disk. Responses carry `PAGE_CACHE_CONTROL`, so the webview serves a revisited page from its own cache instead of re-inflating it — without that header nothing is reused and `Reader`'s preloading is wasted work. |
+| CBR/RAR | RAR is sequential-only, so `extract_cbr_to_dir` unpacks the archive once into `app_cache_dir()/kreader-cbr/<hash>/` (unrar writes each page straight to disk — flat, generated `00000.ext` filenames, never the entry's own name, which could contain `..`). Pages are then plain `convertFileSrc` URLs. The dir is deleted on the next `resetState`; leftovers from a crash are pruned at startup in `setup()`. |
+| Images / PDF | `convertFileSrc(path)` — the built-in asset protocol, which also serves HTTP ranges (that's what lets pdf.js load a huge PDF incrementally). |
+
+The asset protocol must stay enabled in `tauri.conf.json` (`app.security.assetProtocol`,
+scope `**` since comics live anywhere) and the `tauri` crate needs its `protocol-asset` feature.
+
+`Reader.tsx` only mounts the page(s) on screen, so it preloads `PRELOAD_SCREENS` screens in
+**both** directions (`new Image().src`) — going back is as common as going forward, and the
+fetches only pay off because the responses are cacheable.
 
 ### State persistence (Tauri Store)
 
@@ -268,7 +291,7 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - In-memory cache (deduplicates concurrent requests per session).
 - Disk cache in `appCacheDir()/kreader-thumbnails/`, keyed by entry ID, stored as JPEG.
 - Concurrent generation limited to `MAX_CONCURRENT = 4` via semaphore.
-- Cover extraction: `extract_cbz_cover` / `extract_cbr_cover` (Rust IPC, raw bytes), `pdfjs` for PDF, direct `readFile` for images.
+- Cover extraction: `extract_cbz_cover` / `extract_cbr_cover` (Rust IPC, raw bytes), `pdfjs` for PDF (by URL via `convertFileSrc`, so only the first page is fetched — never the whole file), direct `readFile` for images.
 
 ### Rust backend (`src-tauri/src/`)
 
@@ -276,7 +299,8 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 - `lib.rs` — exposes Tauri commands:
   - `take_window_file` — returns (and clears) the `PendingFile` (`{ path, library_id }`) the calling window should open on mount, looked up by its label in the `PendingFiles` map. `library_id` is `None` for CLI / file-association launches and `Some` when the window was spawned from the library "Open in new window" action (lets that window keep library reading state in sync — see Library system). The initial `main` window's entry is seeded from the CLI argument in `setup()`; windows spawned by `open_new_window` or the single-instance callback seed their own entry. Returns `None` once consumed.
   - `open_new_window(path?, libraryId?)` — spawns a new app window in the current process (label `reader-{n}`), optionally pre-loading `path` (with `libraryId` when the file is a library entry). Used by the NavBar "New window" button (no args) and the library "Open in new window" context-menu action (path + libraryId).
-  - `extract_cbr(path)` — unpacks a full CBR/RAR archive; returns all images as raw binary response.
+  - `list_cbz_pages(path)` — image entry names of a CBZ/ZIP, read from the central directory only. The frontend sorts them and turns each into a `kreader://` page URL (see Page delivery).
+  - `extract_cbr_to_dir(path)` — unpacks a CBR/RAR into `app_cache_dir()/kreader-cbr/<hash-of-path>/`, one entry at a time, and returns `{ dir, pages }` (absolute paths, ordered by entry name). Memory stays flat: unrar writes straight to disk.
   - `extract_cbr_cover(path)` — returns only the first image from a CBR/RAR (for thumbnails). Stops after first image found.
   - `extract_cbz_cover(path)` — returns only the first image from a CBZ/ZIP (alphabetically sorted); reads only the central directory + one compressed entry.
   - `extract_epub_cover(path)` — returns the cover image from an EPUB (for thumbnails). Reads container.xml → OPF (parsed by lightweight string scanning, no XML crate) → cover href (EPUB3 `properties="cover-image"`, then EPUB2 `<meta name="cover">`, then first image item), then the single cover entry. Same binary layout as extract_cbz_cover.
@@ -289,7 +313,9 @@ The app uses a **dark-cinema (OLED)** aesthetic, dark-first with a working light
 
 All commands return `Result<T, String>`. Large binary data (images) is returned as `tauri::ipc::Response` (raw bytes) to avoid base64 inflation and keep bytes outside V8's heap.
 
-**Binary response layout** (used by `extract_cbr`, `extract_cbr_cover`, `extract_cbz_cover`):
+`lib.rs` also registers the `kreader` URI scheme (see Page delivery) — that one is a protocol handler, not a command, so it isn't in `invoke_handler![]`. Its parsing + zip lookup is covered by the `cargo test` in the file's `mod tests`.
+
+**Binary response layout** (used by `extract_cbr_cover`, `extract_cbz_cover`, `extract_epub_cover`):
 ```
 u32 LE  count
 for each image:
@@ -382,12 +408,17 @@ New fs operations require explicit entries here. Currently granted beyond `fs:de
 
 If a new `@tauri-apps/plugin-fs` call fails with "not allowed", add its permission here.
 
+The **asset protocol** is not gated by capabilities: it is enabled in `tauri.conf.json`
+(`app.security.assetProtocol.enable` + `scope`) and needs the `protocol-asset` feature on the
+`tauri` crate in `Cargo.toml` — the build fails with an allowlist mismatch if the two disagree.
+
 ## Key dependencies
 
-- `pdfjs-dist` — PDF rendering; worker is loaded via Vite `?url` import.
-- `jszip` — CBZ extraction (CBZ is just a ZIP of images). Not used for page counting (handled by Rust).
+- `pdfjs-dist` — PDF rendering; worker is loaded via Vite `?url` import. Documents are opened by URL, never by bytes.
 - `epubjs` — EPUB rendering (reflowable text in an iframe). Ships loose/partly-wrong TypeScript types (e.g. `Locations.locationFromCfi` is typed as returning a `Location` but returns a numeric index; `Locations.total` is undeclared) — `EPUBReader` narrows the pieces it uses via a local interface. Pulls in some stale transitive deps (`@xmldom/xmldom`).
 - `unrar` (Rust) — CBR extraction and page counting in the backend.
+- `zip` (Rust) — CBZ page listing, per-page reads for the `kreader://` protocol, and covers.
+- `percent-encoding` (Rust) — decodes the file path / entry name out of a `kreader://` request URI (the counterpart of the frontend's `convertFileSrc` + `encodeURIComponent`).
 - `lopdf` (Rust) — PDF page counting (`count_pdf_pages` command). `default-features = false` to avoid pulling in rayon/chrono/time.
 - `react-hotkeys-hook` — present in `package.json` but unused; keyboard handling is done via `addEventListener` in `useReaderShortcuts` and `App.tsx`.
 - `@tauri-apps/plugin-store` — key-value persistence for recent files, reading progress, settings, and library data.

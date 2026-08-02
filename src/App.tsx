@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "./i18n";
 import { open } from "@tauri-apps/plugin-dialog";
-import { readFile } from "@tauri-apps/plugin-fs";
+import { readFile, remove } from "@tauri-apps/plugin-fs";
 
 import Reader from "./components/Reader";
 import PDFReader from "./components/PDFReader";
@@ -21,7 +21,7 @@ import { basename } from "./utils/folderUtils";
 import { getEntryByPath } from "./utils/libraryStore";
 import { startLibraryReadingSession } from "./utils/readingSession";
 import { setWindowTitle } from "./utils/appWindow";
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
 
 type AppView = "home" | "library" | "reader";
@@ -38,7 +38,9 @@ const MAIN_WINDOW_LABEL = "main";
 function App() {
   const [loading, setLoading] = useState(false);
   const [pages, setPages] = useState<string[]>([]);
-  const [pdfData, setPdfData] = useState<Uint8Array | null>(null);
+  // Asset-protocol URL, not bytes: pdf.js range-requests the file from disk so a
+  // large PDF never lands in the WebView heap.
+  const [pdfSrc, setPdfSrc] = useState<string | null>(null);
   const [epubData, setEpubData] = useState<Uint8Array | null>(null);
   const [currentPath, setCurrentPath] = useState<string>("");
   const [startPage, setStartPage] = useState(0);
@@ -74,6 +76,14 @@ function App() {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
     blobUrlsRef.current = [];
   }, []);
+  // Directory the current CBR was unpacked into (see loadCbr). Deleted when the
+  // file is closed; anything left behind by a crash is swept at startup by Rust.
+  const tempDirRef = useRef<string | null>(null);
+  const clearTempDir = useCallback(() => {
+    const dir = tempDirRef.current;
+    tempDirRef.current = null;
+    if (dir) remove(dir, { recursive: true }).catch(console.error);
+  }, []);
 
   const startupCheckedRef = useRef(false);
 
@@ -108,10 +118,11 @@ function App() {
   // away while the spinner shows, without navigating away from the reader.
   const resetState = useCallback(() => {
     revokeBlobUrls();
+    clearTempDir();
     setPages([]);
-    setPdfData(null);
+    setPdfSrc(null);
     setEpubData(null);
-  }, [revokeBlobUrls]);
+  }, [revokeBlobUrls, clearTempDir]);
 
   const handleLastPage = useCallback(() => {
     onCompleteRef.current?.();
@@ -185,8 +196,7 @@ function App() {
       }
 
       if (kind === "pdf") {
-        const data = await readFile(path);
-        setPdfData(data);
+        setPdfSrc(convertFileSrc(path));
         const updated = await addRecentFile(path);
         setRecentFiles(updated);
         setView("reader");
@@ -205,6 +215,7 @@ function App() {
       const result = await loadPages(path);
       onPagesLoaded?.(result.pages.length);
       blobUrlsRef.current = result.pages.filter((u) => u.startsWith("blob:"));
+      tempDirRef.current = result.tempDir ?? null;
       setPages(result.pages);
       if (result.pageNames) setPageNames(result.pageNames);
       if (result.startPage !== undefined) setStartPage(result.startPage);
@@ -457,13 +468,13 @@ function App() {
 
       {/* Reader overlay — rendered above the hidden chrome so LibraryView is
           preserved underneath while reading. */}
-      {view === "reader" && pdfData !== null && (
-        <PDFReader data={pdfData} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
+      {view === "reader" && pdfSrc !== null && (
+        <PDFReader src={pdfSrc} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
       )}
       {view === "reader" && epubData !== null && (
         <EPUBReader data={epubData} filePath={currentPath} theme={theme} onClose={handleClose} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
       )}
-      {view === "reader" && pdfData === null && pages.length > 0 && (
+      {view === "reader" && pdfSrc === null && pages.length > 0 && (
         <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />
       )}
 

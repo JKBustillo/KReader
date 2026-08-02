@@ -10,6 +10,11 @@ import { setWindowTitle } from "../utils/appWindow";
 import { isAtBottom, isAtTop, WHEEL_THROTTLE_MS } from "../utils/scroll";
 import ReaderOverlay from "./ReaderOverlay";
 
+// How many screens' worth of pages to fetch on each side of the current one.
+// Pages are URLs the webview caches (see PAGE_CACHE_CONTROL in lib.rs), so
+// preloading both directions makes a page turn either way hit the cache.
+const PRELOAD_SCREENS = 2;
+
 function Reader({
   pages,
   onClose,
@@ -175,19 +180,15 @@ function Reader({
   useEffect(() => {
     if (cascadeMode || webtoonMode) return;
 
-    const preloadNextPages = () => {
-      const nextPages = doublePage
-        ? pages.slice(pageIndex + 2, pageIndex + 4)
-        : [pages[pageIndex + 1]];
-      nextPages.forEach((src) => {
-        if (src) {
-          const img = new Image();
-          img.src = src;
-        }
-      });
-    };
-
-    preloadNextPages();
+    // Pages on screen are [pageIndex, pageIndex + screen - 1]; fetch outwards
+    // from both edges of that range.
+    const screen = doublePage ? 2 : 1;
+    for (let offset = 1; offset <= PRELOAD_SCREENS * screen; offset++) {
+      for (const index of [pageIndex + screen - 1 + offset, pageIndex - offset]) {
+        const src = pages[index];
+        if (src) new Image().src = src;
+      }
+    }
   }, [pageIndex, pages, doublePage, cascadeMode, webtoonMode]);
 
   const checkHeight = useCallback((zoom: number) => {

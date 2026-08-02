@@ -1,4 +1,4 @@
-import { invoke } from "@tauri-apps/api/core";
+import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { appCacheDir, join } from "@tauri-apps/api/path";
 import { readFile, writeFile, mkdir, exists, remove } from "@tauri-apps/plugin-fs";
 import * as pdfjsLib from "pdfjs-dist";
@@ -139,8 +139,9 @@ async function getEpubCover(path: string): Promise<Blob | null> {
 }
 
 async function getPdfCover(path: string): Promise<Blob | null> {
-  const data = await readFile(path);
-  const doc = await pdfjsLib.getDocument({ data }).promise;
+  // By URL, not bytes: only the first page's data is fetched, so scanning a
+  // library of large PDFs doesn't read every file into memory.
+  const doc = await pdfjsLib.getDocument({ url: convertFileSrc(path) }).promise;
   try {
     const page = await doc.getPage(1);
     const viewport = page.getViewport({ scale: THUMBNAIL_SCALE });

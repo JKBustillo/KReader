@@ -18,7 +18,9 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+# protocol-asset: serves comic pages / PDFs straight from disk (see assetProtocol
+# in tauri.conf.json) instead of loading whole files into the WebView heap.
+tauri = { version = "2", features = ["protocol-asset"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-fs = "2"
@@ -28,6 +30,7 @@ tauri-plugin-single-instance = "2"
 tauri-plugin-window-state = "2"
 unrar = "0.5"
 zip = "2"
+percent-encoding = "2"
 trash = "3"
 lopdf = { version = "0.40.0", default-features = false }
 
