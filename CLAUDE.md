@@ -109,7 +109,7 @@ src/
                                   uses it for the "Manage tags" action that opens TagManager).
   hooks/
     useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
-    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/F/X)
+    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/X; F/F11 fullscreen is global in App.tsx)
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/
@@ -374,12 +374,12 @@ KReader runs as a **single process** with potentially multiple windows, via `tau
 | `I` | Toggle info overlay |
 | `P` | Pin/unpin page number (persists globally) |
 | `Escape` | Close reader, return to home screen |
-| `F` | Toggle fullscreen |
+| `F` / `F11` | Toggle fullscreen |
 | `X` | Close window |
 
-Global hotkeys (`F` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element. The `T` theme-toggle hotkey was removed when the theme control moved to the settings modal.
+Global hotkeys (`F` / `F11` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element. The `T` theme-toggle hotkey was removed when the theme control moved to the settings modal.
 
-The **EPUB reader** has its own reduced keyboard (it owns its handler, like PDFReader; most comic shortcuts don't apply to reflowable text): `←`/`→` and `PageUp`/`PageDown` turn the page, `Home`/`End` jump to the first/last chapter, `+`/`-` change font size, `T` toggles the table of contents, `P` pins the progress indicator so it stays visible (click it to cycle percent / chapter pages / total pages), `I` the info overlay, `F` fullscreen, `X` closes the window, and `Escape` closes the TOC (if open) or the reader. These are registered on both `window` and `rendition.on("keydown")` because the book's iframe swallows key events when focused.
+The **EPUB reader** has its own reduced keyboard (it owns its handler, like PDFReader; most comic shortcuts don't apply to reflowable text): `←`/`→` and `PageUp`/`PageDown` turn the page, `Home`/`End` jump to the first/last chapter, `+`/`-` change font size, `T` toggles the table of contents, `P` pins the progress indicator so it stays visible (click it to cycle percent / chapter pages / total pages), `I` the info overlay, `F`/`F11` fullscreen, `X` closes the window, and `Escape` closes the TOC (if open) or the reader. These are registered on both `window` and `rendition.on("keydown")` because the book's iframe swallows key events when focused.
 
 ## Versioning
 

@@ -73,7 +73,7 @@ function ReaderOverlay({
                   ["G",                t("shortcuts.gap")],
                   ["+ / −",            t("shortcuts.zoom")],
                   ["J",                t("shortcuts.smoothScroll")],
-                  ["F",                t("shortcuts.fullscreen")],
+                  ["F / F11",          t("shortcuts.fullscreen")],
                   ["I",                t("shortcuts.showHide")],
                   ["Escape",           t("shortcuts.closeReader")],
                   ["X",                t("shortcuts.closeWindow")],

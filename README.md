@@ -61,7 +61,7 @@ A built-in collection manager for browsing large libraries:
 
 | Key | Action |
 |-----|--------|
-| `F` | Toggle fullscreen |
+| `F` / `F11` | Toggle fullscreen |
 | `X` | Close window |
 | Double-click | Toggle fullscreen |
 
@@ -97,7 +97,7 @@ A built-in collection manager for browsing large libraries:
 | `P` | Pin the progress indicator so it stays visible |
 | Click the progress | Cycle display: percent / chapter pages / total pages |
 | `I` | Toggle info overlay (chapter + progress) |
-| `F` | Toggle fullscreen |
+| `F` / `F11` | Toggle fullscreen |
 | `X` | Close window |
 | `Escape` | Close the table of contents, or close the reader |
 

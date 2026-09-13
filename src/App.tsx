@@ -312,6 +312,7 @@ function App() {
       switch (e.key) {
         case "f":
         case "F":
+        case "F11":
           (async () => {
             const win = getCurrentWindow();
             const isFull = await win.isFullscreen();

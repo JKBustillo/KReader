@@ -438,7 +438,7 @@ function PDFReader({
                   ["C",              t('shortcuts.cascade')],
                   ["+ / −",          t('shortcuts.zoom')],
                   ["I",              t('shortcuts.showHide')],
-                  ["F",              t('shortcuts.fullscreen')],
+                  ["F / F11",        t('shortcuts.fullscreen')],
                   ["Escape",         t('shortcuts.closeReader')],
                   ["X",              t('shortcuts.closeWindow')],
                 ].map(([key, desc]) => (

@@ -344,7 +344,8 @@ export default function EPUBReader({
           setPinPageIndicator((v) => !v);
           break;
         case "f":
-        case "F": {
+        case "F":
+        case "F11": {
           const win = getCurrentWindow();
           win.isFullscreen().then((fs) => win.setFullscreen(!fs)).catch(console.error);
           break;
@@ -467,7 +468,7 @@ export default function EPUBReader({
                 ["T", t("shortcuts.toc")],
                 ["P", t("shortcuts.pin")],
                 ["I", t("shortcuts.showHide")],
-                ["F", t("shortcuts.fullscreen")],
+                ["F / F11", t("shortcuts.fullscreen")],
                 ["Escape", t("shortcuts.closeReader")],
                 ["X", t("shortcuts.closeWindow")],
                 ["Click", t("shortcuts.progressMode")],
