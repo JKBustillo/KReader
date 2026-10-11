@@ -281,6 +281,9 @@ fetches only pay off because the responses are cacheable.
 - "Show favorites only" toggle is persisted **per library** to `.settings.dat` under `favorites-filter:<libraryId>` (same load/save lifecycle as the folder filter: loaded on library switch via a ref guard `favoritesFilterLoadedForLibRef`, saved on change). Survives app restart and is independent per library.
 - `favorites-respect-folders` setting (global, default false) controls how the favorites filter interacts with the folder filter. When **off** (default), an active favorites filter ignores the folder filter (shows favorites from every folder); when **on**, favorites are intersected with the folder filter. Computed once per render as `applyFolderFilter = !(showFavoritesOnly && !favoritesRespectFolders)` and used to gate the folder-filter branch in the entry predicate. Toggled in `SettingsModal`; loaded/owned by `App.tsx` and passed to `LibraryView`.
 
+**Search bypass ("Whole library"):**
+- While the search box has text and any filter (folders/tags/favorites) is active, a toggle next to it (`searchAllLibrary`, session-only) makes the search match against all entries, ignoring those filters. The filter state itself is never touched — only bypassed — and `handleSearchChange` resets the toggle when the text is cleared (also on library switch), so filters come back as they were. The button shows `+N` = matches hidden by the filters.
+
 **Folder filter:**
 - Three states per folder: unselected → `"full"` (✓, includes subdirectories recursively) → `"partial"` (—, direct children only) → unselected.
 - Union semantics: an entry matches if any selected folder covers it.

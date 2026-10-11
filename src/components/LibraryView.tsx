@@ -444,6 +444,7 @@ function LibraryView({
   const [librariesLoaded, setLibrariesLoaded] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchAllLibrary, setSearchAllLibrary] = useState(false);
   const [sortField, setSortField] = useState<SortField>("name");
   const [sortDir, setSortDir] = useState<SortDirection>("asc");
   const [viewMode, setViewMode] = useState<ViewMode>("details");
@@ -1216,9 +1217,15 @@ function LibraryView({
   // (toggle off), skip the folder filter so favorites from every folder show.
   const applyFolderFilter = !(showFavoritesOnly && !favoritesRespectFolders);
 
-  const filtered = entries.filter((e) => {
+  const searchQuery = search.trim().toLowerCase();
+  const hasActiveFilters = showFavoritesOnly || selectedTags.size > 0 || selectedFolders.size > 0;
+  const bypassFilters = searchAllLibrary && searchQuery !== "";
+  const searchMatches = searchQuery === ""
+    ? entries
+    : entries.filter((e) => e.filename.toLowerCase().includes(searchQuery));
+
+  const filtered = bypassFilters ? searchMatches : searchMatches.filter((e) => {
     if (showFavoritesOnly && !e.isFavorite) return false;
-    if (search.trim() !== "" && !e.filename.toLowerCase().includes(search.trim().toLowerCase())) return false;
     if (selectedTags.size > 0) {
       const vals = new Set([...e.autoTags, ...e.customTags].map((t) => t.value));
       for (const tag of selectedTags) {
@@ -1239,6 +1246,14 @@ function LibraryView({
     }
     return true;
   });
+
+  const hiddenMatchCount = searchMatches.length - filtered.length;
+
+  // Clearing the text ends the "whole library" bypass, so the filters come back as they were.
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    if (value.trim() === "") setSearchAllLibrary(false);
+  };
 
   const filteredGhosts = filtered.filter((e) => notFoundIds.has(e.id));
 
@@ -1284,7 +1299,7 @@ function LibraryView({
         {libraries.length > 1 && (
           <select
             value={activeLibId ?? ""}
-            onChange={(e) => { setActiveLibId(e.target.value); setEntries([]); setBgScanQueue([]); setSearch(""); }}
+            onChange={(e) => { setActiveLibId(e.target.value); setEntries([]); setBgScanQueue([]); handleSearchChange(""); }}
             className="text-sm rounded px-2 py-1"
             style={{ background: "var(--bg-tab-active)", color: "var(--text-primary)", border: "1px solid var(--border-nav)" }}
           >
@@ -1515,10 +1530,28 @@ function LibraryView({
             <input
               type="text"
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={t("library.search")}
               className="flex-1 text-sm rounded-lg px-3 py-1.5 outline-none transition-colors bg-[var(--bg-tab-active)] text-[var(--text-primary)] placeholder:text-[var(--text-muted)] border border-[var(--border-nav)] focus:border-[var(--accent)] focus:shadow-[0_0_0_3px_var(--glow-soft)]"
             />
+            {searchQuery !== "" && hasActiveFilters && (
+              <button
+                onClick={() => setSearchAllLibrary((v) => !v)}
+                title={t("library.searchAllLibraryHint")}
+                aria-pressed={searchAllLibrary}
+                className="shrink-0 flex items-center gap-1.5 text-xs px-2 py-1 rounded transition-colors"
+                style={{
+                  background: searchAllLibrary ? "var(--accent)" : "var(--bg-tab-active)",
+                  color: searchAllLibrary ? "var(--accent-ink)" : "var(--text-secondary)",
+                  border: "1px solid var(--border-nav)",
+                }}
+              >
+                {t("library.searchAllLibrary")}
+                {!searchAllLibrary && hiddenMatchCount > 0 && (
+                  <span className="tabular-nums" style={{ color: "var(--accent)" }}>+{hiddenMatchCount}</span>
+                )}
+              </button>
+            )}
             <span className="text-sm shrink-0 tabular-nums" style={{ color: "var(--text-secondary)" }}>
               {t("library.resultCount", { count: filtered.length })}
             </span>

@@ -68,6 +68,8 @@
     "colPages": "Pages",
     "pages": "pages",
     "resultCount": "{{count}}",
+    "searchAllLibrary": "Whole library",
+    "searchAllLibraryHint": "Ignore folder, tag and favorites filters while searching",
     "purgeGhosts": "Clean up ghosts",
     "purgeGhostsConfirm": "{{count}} ghost entry(s) will be removed from the library. The files do not exist on disk and will not be moved to the trash.",
     "purgeGhostsBtn": "Clean up",
