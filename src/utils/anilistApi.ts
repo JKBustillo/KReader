@@ -11,14 +11,22 @@ const HTTP_TOO_MANY_REQUESTS = 429;
 const INVALID_TOKEN_MESSAGE = "invalid token";
 const SEARCH_PAGE_SIZE = 10;
 
-export type MediaListStatus = "CURRENT" | "PLANNING" | "COMPLETED" | "DROPPED" | "PAUSED" | "REPEATING";
+export const MEDIA_LIST_STATUSES = ["CURRENT", "PLANNING", "COMPLETED", "PAUSED", "DROPPED", "REPEATING"] as const;
+export type MediaListStatus = (typeof MEDIA_LIST_STATUSES)[number];
+
+export type ScoreFormat = "POINT_100" | "POINT_10_DECIMAL" | "POINT_10" | "POINT_5" | "POINT_3";
 
 export type MediaListEntry = {
   id: number;
   status: MediaListStatus;
   progress: number;
   progressVolumes: number;
+  /** Always the raw 0-100 value (0 = unscored), whatever the account's score format. */
+  score: number;
 };
+
+/** Fields to change on a list entry; omitted fields are left as they are on AniList. */
+export type MediaListEdit = Partial<Omit<MediaListEntry, "id">>;
 
 export type MediaSearchResult = {
   id: number;
@@ -34,6 +42,20 @@ export type MediaProgress = {
   chapters: number | null;
   volumes: number | null;
   entry: MediaListEntry | null;
+};
+
+export type SeriesDetails = MediaProgress & {
+  title: string;
+  coverUrl?: string;
+  coverLargeUrl?: string;
+  coverExtraLargeUrl?: string;
+  format: string | null;
+  year: number | null;
+  siteUrl: string;
+  genres: string[];
+  /** Plain text (AniList's markup stripped); null when AniList has none. */
+  description: string | null;
+  scoreFormat: ScoreFormat;
 };
 
 /** Token missing, expired (they last 1 year) or revoked: the user must reconnect. */
@@ -154,11 +176,14 @@ export async function searchManga(search: string): Promise<MediaSearchResult[]> 
   }));
 }
 
+// score(format: POINT_100) reads the raw value, so KReader never converts between formats on read.
+const ENTRY_FIELDS = "id status progress progressVolumes score(format: POINT_100)";
+
 const MEDIA_PROGRESS_QUERY = `query ($id: Int) {
   Media(id: $id) {
     chapters
     volumes
-    mediaListEntry { id status progress progressVolumes }
+    mediaListEntry { ${ENTRY_FIELDS} }
   }
 }`;
 
@@ -170,19 +195,83 @@ export async function getMediaProgress(mediaId: number): Promise<MediaProgress> 
   return { chapters: data.Media.chapters, volumes: data.Media.volumes, entry: data.Media.mediaListEntry };
 }
 
-const SAVE_ENTRY_MUTATION = `mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int, $progressVolumes: Int) {
-  SaveMediaListEntry(mediaId: $mediaId, status: $status, progress: $progress, progressVolumes: $progressVolumes) {
-    id status progress progressVolumes
+const SERIES_DETAILS_QUERY = `query ($id: Int) {
+  Media(id: $id) {
+    title { userPreferred }
+    coverImage { medium large extraLarge }
+    format
+    startDate { year }
+    chapters
+    volumes
+    siteUrl
+    genres
+    description(asHtml: false)
+    mediaListEntry { ${ENTRY_FIELDS} }
+  }
+  Viewer { mediaListOptions { scoreFormat } }
+}`;
+
+type RawSeriesDetails = Omit<RawMedia, "coverImage"> & {
+  coverImage: { medium: string | null; large: string | null; extraLarge: string | null } | null;
+  siteUrl: string;
+  genres: string[] | null;
+  description: string | null;
+  mediaListEntry: MediaListEntry | null;
+};
+
+export const DEFAULT_SCORE_FORMAT: ScoreFormat = "POINT_10";
+const LINE_BREAK_TAG_RE = /<br\s*\/?>/gi;
+const EXTRA_BLANK_LINES_RE = /\n{3,}/g;
+
+/**
+ * AniList descriptions carry HTML even with asHtml:false (<br>, <i>, <b>). They
+ * become plain text (rendered as text, never as markup): DOMParser drops the tags
+ * and decodes entities without running scripts or loading resources.
+ */
+function descriptionToText(description: string): string {
+  const withBreaks = description.replace(LINE_BREAK_TAG_RE, "\n");
+  const text = new DOMParser().parseFromString(withBreaks, "text/html").body.textContent ?? "";
+  return text.replace(EXTRA_BLANK_LINES_RE, "\n\n").trim();
+}
+
+/** Everything the series panel shows, plus the viewer's entry and score format, in one request. */
+export async function getSeriesDetails(mediaId: number): Promise<SeriesDetails> {
+  const data = await authedRequest<{
+    Media: RawSeriesDetails;
+    Viewer: { mediaListOptions: { scoreFormat: ScoreFormat } | null };
+  }>(SERIES_DETAILS_QUERY, { id: mediaId });
+  const m = data.Media;
+  return {
+    title: m.title.userPreferred,
+    coverUrl: m.coverImage?.medium ?? undefined,
+    coverLargeUrl: m.coverImage?.large ?? undefined,
+    coverExtraLargeUrl: m.coverImage?.extraLarge ?? undefined,
+    format: m.format,
+    year: m.startDate?.year ?? null,
+    chapters: m.chapters,
+    volumes: m.volumes,
+    siteUrl: m.siteUrl,
+    genres: m.genres ?? [],
+    description: m.description ? descriptionToText(m.description) : null,
+    entry: m.mediaListEntry,
+    scoreFormat: data.Viewer.mediaListOptions?.scoreFormat ?? DEFAULT_SCORE_FORMAT,
+  };
+}
+
+const SAVE_ENTRY_MUTATION = `mutation ($mediaId: Int, $status: MediaListStatus, $progress: Int, $progressVolumes: Int, $scoreRaw: Int) {
+  SaveMediaListEntry(mediaId: $mediaId, status: $status, progress: $progress, progressVolumes: $progressVolumes, scoreRaw: $scoreRaw) {
+    ${ENTRY_FIELDS}
   }
 }`;
 
-export async function saveMediaListEntry(
-  mediaId: number,
-  values: Omit<MediaListEntry, "id">,
-): Promise<MediaListEntry> {
+/** Creates or updates the viewer's entry. Only the fields present in `edit` are changed. */
+export async function saveMediaListEntry(mediaId: number, edit: MediaListEdit): Promise<MediaListEntry> {
+  const { score, ...rest } = edit;
+  // Undefined variables are dropped by JSON.stringify, so AniList leaves those fields alone.
   const data = await authedRequest<{ SaveMediaListEntry: MediaListEntry }>(SAVE_ENTRY_MUTATION, {
     mediaId,
-    ...values,
+    ...rest,
+    scoreRaw: score,
   });
   return data.SaveMediaListEntry;
 }

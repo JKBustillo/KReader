@@ -195,6 +195,35 @@
     "connectError": "Invalid token.",
     "connectedAs": "Connected as {{name}}",
     "connectedOffline": "Connected (offline)",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "viewSeries": "View on AniList…",
+    "panelLoading": "Loading AniList data…",
+    "panelLoadError": "Couldn't load the series.",
+    "retry": "Retry",
+    "staleOffline": "Offline: showing the last saved data. Changes will be sent when you're back online.",
+    "staleAuth": "Your AniList session expired: showing the last saved data. Changes will be sent after you reconnect in Settings.",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "openOnAniList": "Open on AniList",
+    "statusLabel": "Status",
+    "notOnList": "Not on your list",
+    "status": {
+      "CURRENT": "Reading",
+      "PLANNING": "Planning",
+      "COMPLETED": "Completed",
+      "PAUSED": "Paused",
+      "DROPPED": "Dropped",
+      "REPEATING": "Rereading"
+    },
+    "chaptersLabel": "Chapters",
+    "volumesLabel": "Volumes",
+    "scoreLabel": "Score",
+    "clearScore": "Clear score",
+    "relink": "Change link",
+    "save": "Save",
+    "saving": "Saving…",
+    "saveError": "Couldn't save to AniList.",
+    "close": "Close",
+    "expandCover": "Expand cover"
   }
 }

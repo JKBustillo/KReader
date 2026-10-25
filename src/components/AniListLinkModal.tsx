@@ -4,6 +4,7 @@ import { searchManga, type MediaSearchResult } from "../utils/anilistApi";
 import type { SeriesLink } from "../utils/anilistStore";
 import Modal from "./Modal";
 import Button from "./Button";
+import Spinner from "./Spinner";
 
 const SEARCH_DEBOUNCE_MS = 400;
 
@@ -25,7 +26,10 @@ function AniListLinkModal({
   const { t } = useTranslation();
   const [query, setQuery] = useState(folderName);
   const [results, setResults] = useState<MediaSearchResult[]>([]);
-  const [searching, setSearching] = useState(false);
+  // The query the shown results (or error) belong to. Until it matches the input
+  // (debounce pending or request in flight) the list counts as loading, so
+  // "No results" never shows before a search has actually come back empty.
+  const [searchedQuery, setSearchedQuery] = useState<string | null>(null);
   const [error, setError] = useState(false);
 
   useEffect(() => {
@@ -33,21 +37,28 @@ function AniListLinkModal({
     if (!search) return;
     let cancelled = false;
     const timer = setTimeout(() => {
-      setSearching(true);
-      setError(false);
       searchManga(search)
-        .then((media) => { if (!cancelled) setResults(media); })
+        .then((media) => {
+          if (cancelled) return;
+          setResults(media);
+          setError(false);
+          setSearchedQuery(search);
+        })
         .catch((err) => {
           console.error("[anilist search]", err);
-          if (!cancelled) setError(true);
-        })
-        .finally(() => { if (!cancelled) setSearching(false); });
+          if (cancelled) return;
+          setError(true);
+          setSearchedQuery(search);
+        });
     }, SEARCH_DEBOUNCE_MS);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
   }, [query]);
+
+  const trimmedQuery = query.trim();
+  const searching = trimmedQuery !== "" && trimmedQuery !== searchedQuery;
 
   const handlePick = (media: MediaSearchResult) => {
     onSave({
@@ -94,12 +105,14 @@ function AniListLinkModal({
 
       <div className="flex flex-col gap-1 max-h-96 overflow-y-auto">
         {searching && (
-          <p className="text-xs" style={{ color: "var(--text-muted)" }}>{t("anilist.searching")}</p>
+          <div className="flex justify-center py-3">
+            <Spinner label={t("anilist.searching")} />
+          </div>
         )}
         {!searching && error && (
           <p className="text-xs" style={{ color: "var(--color-danger)" }}>{t("anilist.searchError")}</p>
         )}
-        {!searching && !error && results.length === 0 && query.trim() && (
+        {!searching && !error && results.length === 0 && searchedQuery && (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>{t("anilist.noResults")}</p>
         )}
         {results.map((media) => {

@@ -67,6 +67,7 @@ function LibraryCard({
   currentPage,
   showPageCount,
   aniListTitle,
+  onOpenAniList,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
@@ -82,6 +83,7 @@ function LibraryCard({
   showPageCount: boolean;
   /** Title of the AniList media the entry's folder is linked to, if any. */
   aniListTitle: string | undefined;
+  onOpenAniList: (entry: LibraryEntry) => void;
 }) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -167,7 +169,7 @@ function LibraryCard({
               ?
             </span>
           )}
-          {aniListTitle && <AniListBadge title={aniListTitle} />}
+          {aniListTitle && <AniListBadge title={aniListTitle} onClick={() => onOpenAniList(entry)} />}
           {entry.readingState !== "unread" && (
             <span
               className="w-2.5 h-2.5 rounded-full"

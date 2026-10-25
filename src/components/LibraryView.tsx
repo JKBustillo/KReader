@@ -26,7 +26,7 @@ import {
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getKeepDataOnRemove, getLastLibraryId, saveLastLibraryId, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getAniListPanelFolder, saveAniListPanelFolder, getKeepDataOnRemove, getLastLibraryId, saveLastLibraryId, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { seriesFolderName, syncCompletedEntries } from "../utils/anilistSync";
@@ -40,6 +40,7 @@ import Modal from "./Modal";
 import ResolveLocationModal from "./ResolveLocationModal";
 import ContextMenu from "./ContextMenu";
 import AniListLinkModal from "./AniListLinkModal";
+import AniListSeriesPanel from "./AniListSeriesPanel";
 import FilterDropdown from "./FilterDropdown";
 import Button from "./Button";
 
@@ -465,6 +466,7 @@ function LibraryView({
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
   const [renameTarget, setRenameTarget] = useState<LibraryEntry | null>(null);
   const [aniListLinkFolder, setAniListLinkFolder] = useState<string | null>(null);
+  const [aniListPanelFolder, setAniListPanelFolder] = useState<string | null>(null);
   const [seriesLinks, setSeriesLinks] = useState<Record<string, SeriesLink>>({});
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
@@ -490,6 +492,7 @@ function LibraryView({
   const sortedRef = useRef<LibraryEntry[]>([]);
   const folderFilterLoadedForLibRef = useRef<string | null>(null);
   const favoritesFilterLoadedForLibRef = useRef<string | null>(null);
+  const aniListPanelLoadedForLibRef = useRef<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const scrollRestoredRef = useRef(false);
 
@@ -744,6 +747,18 @@ function LibraryView({
       return next;
     });
     setAniListLinkFolder(null);
+  }, []);
+
+  // Linked folders open the series panel; unlinked ones the link search.
+  const handleOpenAniList = useCallback((entry: LibraryEntry) => {
+    const folderName = seriesFolderName(entry.currentPath);
+    if (seriesLinks[folderName]) setAniListPanelFolder(folderName);
+    else setAniListLinkFolder(folderName);
+    setContextMenu(null);
+  }, [seriesLinks]);
+
+  const handleSeriesLinkRefreshed = useCallback((folderName: string, link: SeriesLink) => {
+    setSeriesLinks((prev) => ({ ...prev, [folderName]: link }));
   }, []);
 
   const handleAddLibrary = async () => {
@@ -1137,6 +1152,24 @@ function LibraryView({
     if (!activeLibId || favoritesFilterLoadedForLibRef.current !== activeLibId) return;
     saveFavoritesFilter(activeLibId, showFavoritesOnly).catch(console.error);
   }, [showFavoritesOnly, activeLibId]);
+
+  // The AniList series sidebar is remembered per library (open + which series).
+  useEffect(() => {
+    aniListPanelLoadedForLibRef.current = null;
+    if (!activeLibId) {
+      setAniListPanelFolder(null);
+      return;
+    }
+    getAniListPanelFolder(activeLibId).then((saved) => {
+      setAniListPanelFolder(saved);
+      aniListPanelLoadedForLibRef.current = activeLibId;
+    }).catch(console.error);
+  }, [activeLibId]);
+
+  useEffect(() => {
+    if (!activeLibId || aniListPanelLoadedForLibRef.current !== activeLibId) return;
+    saveAniListPanelFolder(activeLibId, aniListPanelFolder).catch(console.error);
+  }, [aniListPanelFolder, activeLibId]);
 
   const openRemoveLibraryConfirm = useCallback(async () => {
     setKeepDataOnRemove(await getKeepDataOnRemove());
@@ -1567,7 +1600,10 @@ function LibraryView({
           <p className="max-w-sm">{t("library.noLibraries")}</p>
         </div>
       ) : (
-        <>
+        // Row: the list column and, when open, the AniList series sidebar, which
+        // takes width from the list (the cover grid reflows) instead of covering it.
+        <div className="flex-1 flex min-h-0">
+        <div className="flex-1 flex flex-col min-w-0 min-h-0">
           {/* Search */}
           <div className="flex items-center gap-2 px-4 py-2 shrink-0 border-b" style={{ borderColor: "var(--border-nav)" }}>
             <input
@@ -1666,6 +1702,7 @@ function LibraryView({
                     showProgressBar={showProgressBar}
                     currentPage={pageMap.get(entry.id) ?? 0}
                     aniListTitle={seriesLinks[seriesFolderName(entry.currentPath)]?.title}
+                    onOpenAniList={handleOpenAniList}
                   />
                 ))
               : (
@@ -1690,6 +1727,7 @@ function LibraryView({
                       currentPage={pageMap.get(entry.id) ?? 0}
                       showPageCount={showPageCount}
                       aniListTitle={seriesLinks[seriesFolderName(entry.currentPath)]?.title}
+                      onOpenAniList={handleOpenAniList}
                     />
                   ))}
                 </div>
@@ -1714,7 +1752,11 @@ function LibraryView({
                   setContextMenu(null);
                 }}
                 onRename={(entry) => { setRenameTarget(entry); setContextMenu(null); }}
-                onLinkAniList={(entry) => { setAniListLinkFolder(seriesFolderName(entry.currentPath)); setContextMenu(null); }}
+                onLinkAniList={handleOpenAniList}
+                aniListLinked={
+                  contextMenu.entries.length === 1 &&
+                  seriesLinks[seriesFolderName(contextMenu.entries[0].currentPath)] !== undefined
+                }
                 onCopyFilename={handleCopyFilename}
                 onDelete={(entries) => {
                   const allGhost = entries.every((e) => notFoundIds.has(e.id));
@@ -1726,7 +1768,24 @@ function LibraryView({
               />
             )}
           </div>
-        </>
+        </div>
+
+        {/* A restored folder that has since been unlinked stays hidden instead of erroring. */}
+        {aniListPanelFolder !== null && seriesLinks[aniListPanelFolder] && (
+          <AniListSeriesPanel
+            key={aniListPanelFolder}
+            folderName={aniListPanelFolder}
+            cachedLink={seriesLinks[aniListPanelFolder]}
+            onRelink={() => { setAniListLinkFolder(aniListPanelFolder); setAniListPanelFolder(null); }}
+            onUnlink={() => {
+              handleSaveSeriesLink(aniListPanelFolder, undefined).catch(console.error);
+              setAniListPanelFolder(null);
+            }}
+            onLinkChanged={(link) => handleSeriesLinkRefreshed(aniListPanelFolder, link)}
+            onClose={() => setAniListPanelFolder(null)}
+          />
+        )}
+        </div>
       )}
 
       {tagEditorEntries && (

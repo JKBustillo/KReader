@@ -5,29 +5,47 @@ import { absoluteChapter, parseReadingUnit } from "./anilistParse";
 import {
   AniListAuthError,
   AniListRetryableError,
+  DEFAULT_SCORE_FORMAT,
   deleteMediaListEntry,
   getMediaProgress,
+  getSeriesDetails,
   isAniListConnected,
   saveMediaListEntry,
+  type MediaListEdit,
   type MediaListEntry,
   type MediaListStatus,
+  type ScoreFormat,
 } from "./anilistApi";
 import {
+  enqueuePendingEdit,
   enqueuePendingSync,
+  getPendingEdit,
+  getScoreFormat,
   getSeriesLinks,
-  setSeriesLink,
+  setScoreFormat,
+  takePendingEdits,
   takePendingSyncs,
+  updateSeriesLink,
+  type PendingEdit,
   type PendingSync,
   type SeriesLink,
 } from "./anilistStore";
 
 export const ANILIST_SYNC_EVENT = "anilistSync";
 
-type SyncValues = Omit<MediaListEntry, "id">;
+type SyncValues = Pick<MediaListEntry, "status" | "progress" | "progressVolumes">;
 
 /** Detail of ANILIST_SYNC_EVENT, rendered by AniListToast in the window that read the file. */
 export type AniListSyncNotice =
-  | { kind: "synced"; mediaId: number; title: string; entryId: number; previous: SyncValues | null; next: SyncValues }
+  | {
+      kind: "synced";
+      folderName: string;
+      mediaId: number;
+      title: string;
+      entryId: number;
+      previous: SyncValues | null;
+      next: SyncValues;
+    }
   | { kind: "queued"; title: string }
   | { kind: "authRequired" }
   | { kind: "failed"; title: string };
@@ -81,19 +99,34 @@ function computeNext(
 const sameValues = (a: SyncValues, b: MediaListEntry | null) =>
   b !== null && a.status === b.status && a.progress === b.progress && a.progressVolumes === b.progressVolumes;
 
+const sameEntry = (a: MediaListEntry | null | undefined, b: MediaListEntry | null | undefined) =>
+  JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+
 async function pushProgress(read: PendingSync, link: SeriesLink): Promise<void> {
   try {
+    // Hand edits queued for this series go first; sent after this read, a flush
+    // could lower the progress it just raised.
+    await retryPendingEdits(await takePendingEdits(read.folderName), { [read.folderName]: link });
     const media = await getMediaProgress(link.mediaId);
-    if (media.chapters !== link.chapters || media.volumes !== link.volumes) {
-      await setSeriesLink(read.folderName, { ...link, chapters: media.chapters, volumes: media.volumes });
-    }
     const next = computeNext(read, media, media.entry);
-    if (sameValues(next, media.entry)) return;
-    const saved = await saveMediaListEntry(link.mediaId, next);
+    const unchanged = sameValues(next, media.entry);
+    const saved = unchanged ? media.entry : await saveMediaListEntry(link.mediaId, next);
+    if (media.chapters !== link.chapters || media.volumes !== link.volumes || !sameEntry(saved, link.entry)) {
+      await updateSeriesLink(read.folderName, { chapters: media.chapters, volumes: media.volumes, entry: saved });
+    }
+    if (unchanged || !saved) return;
     const previous = media.entry
       ? { status: media.entry.status, progress: media.entry.progress, progressVolumes: media.entry.progressVolumes }
       : null;
-    notify({ kind: "synced", mediaId: link.mediaId, title: link.title, entryId: saved.id, previous, next });
+    notify({
+      kind: "synced",
+      folderName: read.folderName,
+      mediaId: link.mediaId,
+      title: link.title,
+      entryId: saved.id,
+      previous,
+      next,
+    });
   } catch (err) {
     if (err instanceof AniListAuthError) {
       await enqueuePendingSync(read);
@@ -149,15 +182,141 @@ export async function syncCompletedEntries(entries: LibraryEntry[]): Promise<voi
   }
 }
 
-/** Retries progress that could not be sent earlier. Unlinked folders are dropped. */
+const isRetryLater = (err: unknown) => err instanceof AniListAuthError || err instanceof AniListRetryableError;
+
+async function sendEdit(folderName: string, mediaId: number, edit: MediaListEdit): Promise<void> {
+  const saved = await saveMediaListEntry(mediaId, edit);
+  await updateSeriesLink(folderName, { entry: saved });
+}
+
+/**
+ * Sends queued panel edits; the ones that still can't go out are queued again.
+ * Edits for an unlinked folder, or one relinked to another media, are dropped.
+ */
+async function retryPendingEdits(edits: PendingEdit[], links: Record<string, SeriesLink>): Promise<void> {
+  for (const pending of edits) {
+    const link = links[pending.folderName];
+    if (!link || link.mediaId !== pending.mediaId) continue;
+    try {
+      await sendEdit(pending.folderName, link.mediaId, pending.edit);
+    } catch (err) {
+      if (isRetryLater(err)) {
+        await enqueuePendingEdit(pending);
+      } else {
+        console.error("[anilist edit]", err);
+        notify({ kind: "failed", title: link.title });
+      }
+    }
+  }
+}
+
+/**
+ * Retries what could not be sent earlier: panel edits first, then read progress,
+ * so a later read can still raise progress over a value set by hand (never lower
+ * it). Unlinked folders are dropped.
+ */
 export async function flushPendingSyncs(): Promise<void> {
   if (!(await isAniListConnected())) return;
-  const queue = await takePendingSyncs();
-  if (queue.length === 0) return;
   const links = await getSeriesLinks();
-  for (const read of queue) {
+  await retryPendingEdits(await takePendingEdits(), links);
+  for (const read of await takePendingSyncs()) {
     const link = links[read.folderName];
     if (link) await pushProgress(read, link);
+  }
+}
+
+/** What the series panel shows. `stale` is set when AniList couldn't be reached and `link` is the cached copy. */
+export type SeriesPanelData = {
+  link: SeriesLink;
+  scoreFormat: ScoreFormat;
+  stale: "offline" | "authRequired" | null;
+};
+
+/**
+ * The panel data cached from an earlier fetch, so a series opened before shows
+ * at once while loadSeriesPanel refreshes it. Null if it was never fetched.
+ */
+export async function getCachedSeriesPanel(folderName: string): Promise<SeriesPanelData | null> {
+  const [link, scoreFormat] = await Promise.all([
+    getSeriesLinks().then((links) => links[folderName]),
+    getScoreFormat(),
+  ]);
+  if (!link?.info || !scoreFormat) return null;
+  return { link, scoreFormat, stale: null };
+}
+
+/**
+ * Fresh series details and list entry for the panel, cached into the link for
+ * offline use. Edits still queued for this folder are sent first, so the panel
+ * never shows (and then overwrites) values older than the user's own edits.
+ */
+export async function loadSeriesPanel(folderName: string): Promise<SeriesPanelData> {
+  const links = await getSeriesLinks();
+  const link = links[folderName];
+  if (!link) throw new Error(`[anilist] ${folderName} is not linked`);
+  if (await isAniListConnected()) await retryPendingEdits(await takePendingEdits(folderName), links);
+
+  try {
+    const details = await getSeriesDetails(link.mediaId);
+    await setScoreFormat(details.scoreFormat);
+    // An edit that failed to go out again (e.g. rate-limited) is still queued: show it, as the offline cache does.
+    const stillQueued = await getPendingEdit(folderName);
+    const entry = stillQueued?.mediaId === link.mediaId ? applyEdit(details.entry, stillQueued.edit) : details.entry;
+    const updated = await updateSeriesLink(folderName, {
+      title: details.title,
+      coverUrl: details.coverUrl ?? link.coverUrl,
+      chapters: details.chapters,
+      volumes: details.volumes,
+      info: {
+        coverLargeUrl: details.coverLargeUrl,
+        coverExtraLargeUrl: details.coverExtraLargeUrl,
+        format: details.format,
+        year: details.year,
+        siteUrl: details.siteUrl,
+        genres: details.genres,
+        description: details.description,
+      },
+      entry,
+    });
+    return { link: updated ?? link, scoreFormat: details.scoreFormat, stale: null };
+  } catch (err) {
+    if (!isRetryLater(err)) throw err;
+    // The cached link already has queued edits applied (see saveSeriesEdit).
+    const cached = (await getSeriesLinks())[folderName] ?? link;
+    return {
+      link: cached,
+      scoreFormat: (await getScoreFormat()) ?? DEFAULT_SCORE_FORMAT,
+      stale: err instanceof AniListAuthError ? "authRequired" : "offline",
+    };
+  }
+}
+
+// Status a series gets when an edit adds it to the list without picking one (same as reading does).
+const NEW_ENTRY_STATUS: MediaListStatus = "CURRENT";
+// Placeholder id for an entry that only exists in the offline queue so far.
+const UNSAVED_ENTRY_ID = 0;
+
+function applyEdit(entry: MediaListEntry | null, edit: MediaListEdit): MediaListEntry {
+  const base = entry ?? { id: UNSAVED_ENTRY_ID, status: NEW_ENTRY_STATUS, progress: 0, progressVolumes: 0, score: 0 };
+  return { ...base, ...edit };
+}
+
+/**
+ * Saves a panel edit (only the changed fields). When AniList can't be reached
+ * it is queued and applied to the cached entry so the panel reflects it offline.
+ * Other errors are thrown for the panel to show.
+ */
+export async function saveSeriesEdit(folderName: string, link: SeriesLink, edit: MediaListEdit): Promise<void> {
+  const cachedEntry = (await getSeriesLinks())[folderName]?.entry ?? null;
+  // A series that isn't on the list yet needs a status for AniList to create the entry.
+  const toSend = cachedEntry || edit.status ? edit : { status: NEW_ENTRY_STATUS, ...edit };
+  try {
+    await sendEdit(folderName, link.mediaId, toSend);
+  } catch (err) {
+    if (!isRetryLater(err)) throw err;
+    await enqueuePendingEdit({ folderName, mediaId: link.mediaId, edit: toSend });
+    await updateSeriesLink(folderName, { entry: applyEdit(cachedEntry, toSend) });
+    notify(err instanceof AniListAuthError ? { kind: "authRequired" } : { kind: "queued", title: link.title });
   }
 }
 
@@ -168,6 +327,8 @@ export class AniListUndoConflictError extends Error {}
 export async function undoSync(notice: Extract<AniListSyncNotice, { kind: "synced" }>): Promise<void> {
   const { entry } = await getMediaProgress(notice.mediaId);
   if (!sameValues(notice.next, entry)) throw new AniListUndoConflictError();
-  if (notice.previous) await saveMediaListEntry(notice.mediaId, notice.previous);
+  let restored: MediaListEntry | null = null;
+  if (notice.previous) restored = await saveMediaListEntry(notice.mediaId, notice.previous);
   else await deleteMediaListEntry(notice.entryId);
+  await updateSeriesLink(notice.folderName, { entry: restored });
 }

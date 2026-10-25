@@ -23,6 +23,7 @@ function ContextMenu({
   onMoveToFolder,
   onRename,
   onLinkAniList,
+  aniListLinked,
   onCopyFilename,
   onDelete,
   onClose,
@@ -38,7 +39,9 @@ function ContextMenu({
   onMarkAsRead: (entries: LibraryEntry[]) => void;
   onMoveToFolder: (entries: LibraryEntry[]) => void;
   onRename: (entry: LibraryEntry) => void;
+  /** Opens the series panel when the folder is linked, the link search otherwise. */
   onLinkAniList: (entry: LibraryEntry) => void;
+  aniListLinked: boolean;
   onCopyFilename: (entries: LibraryEntry[]) => void;
   onDelete: (entries: LibraryEntry[]) => void;
   onClose: () => void;
@@ -127,7 +130,7 @@ function ContextMenu({
       )}
       {single && (
         <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onLinkAniList(single)}>
-          {t("anilist.linkSeries")}
+          {t(aniListLinked ? "anilist.viewSeries" : "anilist.linkSeries")}
         </button>
       )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onCopyFilename(entries)}>

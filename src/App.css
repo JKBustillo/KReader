@@ -100,6 +100,18 @@ button {
   .kr-pop { animation: none; }
 }
 
+/* Entrada del sidebar derecho (panel de serie de AniList) */
+@keyframes kr-slide-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to   { opacity: 1; transform: none; }
+}
+.kr-slide-in {
+  animation: kr-slide-in 0.18s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kr-slide-in { animation: none; }
+}
+
 /* Cover de tarjeta de biblioteca: sombra base, glow de acento al hover del
    grupo, y anillo de selección/ambigüedad (gana al hover vía !important). */
 .kr-card-cover {

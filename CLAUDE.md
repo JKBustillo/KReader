@@ -90,6 +90,7 @@ src/
                                   danger red) + size (sm/lg). Forwards native button props. Used by App home,
                                   SettingsModal, and DeleteConfirmModal. Specialized controls (toggles, chips,
                                   icon-only, tag chips, folder rows) deliberately stay outside this component.
+    Spinner.tsx                 Small inline accent loading wheel (AniList link search + series panel).
     Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
                                   stopPropagation. Children = panel content; panelClassName sets width.
                                   Used by MoveFolderModal/DeleteConfirmModal/RemoveLibraryConfirmModal (in LibraryView)
@@ -98,12 +99,23 @@ src/
     ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
     AniListLinkModal.tsx        Links a series folder to an AniList media (debounced search pre-filled with the folder
                                   name; cover/format/year/totals per result) or unlinks it. Uses Modal. Opened from the
-                                  ContextMenu "Link series to AniList…" item (single selection). See AniList sync.
+                                  ContextMenu "Link series to AniList…" item (single selection, unlinked folder) or the
+                                  series panel's "Change link". See AniList sync.
+    AniListSeriesPanel.tsx      Per-series panel for a linked folder, a non-modal right sidebar in its own column of
+                                  LibraryView's content row (the list narrows and the cover grid reflows; own Escape;
+                                  another AL badge switches series via `key`). A series opened
+                                  before renders complete from the cache (getCachedSeriesPanel) and refreshes silently;
+                                  only a never-fetched one shows a spinner + skeletons. Cover (click: extraLarge lightbox portaled to body, since the slide-in animation's kept transform would otherwise contain it; Escape closes it before the sidebar), format/year/totals, genres, plain-text
+                                  synopsis, "Open on AniList", and a form for status/chapters/volumes/score (score control
+                                  follows the account's format, see anilistScore.ts). Save sends only the changed fields.
+                                  Shows the cached link with a notice when AniList can't be reached. Opened from the AL
+                                  badge or the ContextMenu "View on AniList…" item.
     AniListSettings.tsx         SettingsModal section: connect (opens the authorize URL, user pastes the token),
                                   shows the viewer name, disconnect. Self-contained (no SettingsModal props).
     AniListToast.tsx            Per-window notice for ANILIST_SYNC_EVENT (synced/queued/authRequired/failed) with
                                   Undo for synced updates. Mounted once in App.tsx, above the reader overlay.
-    AniListBadge.tsx            "AL" badge on LibraryCard/LibraryDetailsRow when the entry's folder is linked.
+    AniListBadge.tsx            "AL" badge on LibraryCard/LibraryDetailsRow when the entry's folder is linked. Clicking it
+                                  opens the series panel (stops propagation so the entry isn't selected/opened).
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
                                   First entry "Open in new window" (onOpenInNewWindow) and "Rename" (onRename) are
@@ -178,12 +190,16 @@ src/
     countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats and for EPUB (EPUB totalPages is set from the reader's location count on first open, not counted up front).
     anilistParse.ts             Pure filename -> ReadingUnit (volume / chapter (+season) / extra) + absoluteChapter
                                   (season offset from sibling files). Validated against a real ~16k-file collection.
-    anilistApi.ts               AniList GraphQL client (search, Media totals + viewer's list entry, SaveMediaListEntry,
-                                  DeleteMediaListEntry, Viewer). Token via the anilist_token_* IPC (cached in memory).
+    anilistApi.ts               AniList GraphQL client (search, Media totals + viewer's list entry, getSeriesDetails for the
+                                  panel incl. the viewer's score format, partial SaveMediaListEntry, DeleteMediaListEntry,
+                                  Viewer). Scores are always raw 0-100 (read as score(format: POINT_100), written as
+                                  scoreRaw). Token via the anilist_token_* IPC (cached in memory).
                                   Throws AniListAuthError (reconnect) / AniListRetryableError (offline, 429).
-    anilistStore.ts             Owns .anilist.dat: series links (folder name -> SeriesLink) + the offline queue.
-    anilistSync.ts              syncCompletedEntries(entries), flushPendingSyncs(), undoSync(notice),
-                                  seriesFolderName(path). See AniList sync.
+    anilistStore.ts             Owns .anilist.dat: series links (folder name -> SeriesLink, incl. cached panel info + last
+                                  known entry), the progress queue, the panel edit queue and the cached score format.
+    anilistScore.ts             Pure raw-score (0-100) <-> account score format mapping for the panel's score control.
+    anilistSync.ts              syncCompletedEntries(entries), flushPendingSyncs(), undoSync(notice), loadSeriesPanel /
+                                  saveSeriesEdit (series panel), seriesFolderName(path). See AniList sync.
     progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
@@ -239,6 +255,7 @@ fetches only pay off because the responses are cacheable.
   - `last-library-id` — string, id of the last active library; restored on launch (falls back to the first library if it no longer exists).
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
   - `favorites-filter:<libraryId>` — boolean, persisted "show favorites only" filter per library (default false).
+  - `anilist-panel:<libraryId>` — `string | null`, folder name of the AniList series sidebar left open in that library (restored on library load, hidden if no longer linked).
   - `favorites-respect-folders` — boolean, whether the favorites filter is intersected with the folder filter; when false the favorites filter ignores folders (default false).
   - `show-progress-bar` — boolean, show reading progress bar in library cards and rows (default false).
   - `show-page-count` — boolean, show page count on library cards (default false).
@@ -254,9 +271,15 @@ fetches only pay off because the responses are cacheable.
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
 - `.anilist.dat` — AniList sync, owned by `anilistStore.ts`. Keys: `links` (`Record<folderName, SeriesLink>`, where
-  `SeriesLink = { mediaId, title, coverUrl?, chapters, volumes }`, totals cached and refreshed on each sync) and `queue`
-  (`PendingSync[]` = `{ folderName, chapter?, volume? }`, merged by max per folder). Links are included in
-  export/import; the access token is **not** stored here (see AniList sync).
+  `SeriesLink = { mediaId, title, coverUrl?, chapters, volumes, info?, entry? }`, totals cached and refreshed on each
+  sync; `info` = panel data (large + extraLarge cover, format, year, siteUrl, genres, description) and `entry` = last known list
+  entry with queued edits applied, both optional for links made before the series panel), `queue` (`PendingSync[]` =
+  `{ folderName, chapter?, volume? }`, merged by max per folder), `edits` (`PendingEdit[]` = `{ folderName, mediaId,
+  edit }`, only the fields changed in the panel, merged per field, later wins; dropped when the folder is unlinked or
+  relinked to another media) and `score-format` (the account's `ScoreFormat`, cached for offline). Every
+  read-modify-write in `anilistStore.ts` runs under a module-level promise lock (`exclusive`), since sync, the panel
+  and the flush write concurrently. Links are included in export/import; the access token is **not** stored here
+  (see AniList sync).
 - `.window-state.json` — window geometry (size, position, maximized, fullscreen, visible) per window label, owned by `tauri-plugin-window-state` (in `app_config_dir()`). Written automatically on window close / app exit, restored on launch. Only the `main` window (stable label) round-trips across sessions; `reader-*` labels change each launch (see [Multi-window](#multi-window-single-instance)). The `main` window is declared `"visible": false` in `tauri.conf.json` so the plugin can apply the saved geometry while hidden and then show it (the plugin's `restore_state` calls `show()` itself when the `VISIBLE` flag is set) — this avoids the open-at-default-size-then-resize flash. First launch (no saved state) still shows because the plugin defaults `should_show` to true.
 
 **Rule:** All store access must go through the utility wrappers (`libraryStore.ts`, `settingsStore.ts`, `recentFiles.ts`, `readingProgressStore.ts`). Never instantiate `Store` directly in a component or hook, and never use key strings outside the owning util file. The `pin-page-indicator` setting is owned by `settingsStore.ts`; `usePinPageIndicator` consumes it through that wrapper.
@@ -370,7 +393,8 @@ Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into W
 
 ### AniList sync
 
-One-way push of reading progress to the user's AniList list (no pull, no ratings yet).
+Pushes reading progress to the user's AniList list automatically, and lets the user view and edit a series' entry by
+hand in the series panel. Nothing on AniList ever changes KReader's local reading state.
 
 - **Series = folder name.** A link is keyed by the name of the folder that holds the file (`seriesFolderName`), not its
   path or library, so it survives moving the folder (e.g. into `- Leído/`) and covers files added later. Two folders
@@ -393,6 +417,16 @@ One-way push of reading progress to the user's AniList list (no pull, no ratings
   still holds what KReader wrote (`AniListUndoConflictError` otherwise).
 - **Offline queue:** auth and retryable failures enqueue the read (`.anilist.dat` `queue`); the `main` window flushes it
   on startup, on the `online` event, and after reconnecting in settings.
+- **Series panel (`AniListSeriesPanel`):** `loadSeriesPanel` first sends edits still queued for that folder (so the
+  panel never shows values older than the user's own edits), then fetches `getSeriesDetails` and caches it into the
+  link. When AniList can't be reached it returns the cached link with `stale` set. `saveSeriesEdit` sends only the
+  changed fields; on auth/retryable failure it queues them (`edits`) and applies them to the cached `entry` so the
+  panel shows them offline. A series not on the list yet gets status CURRENT when an edit creates its entry.
+  Queued edits always go out **before** progress: `flushPendingSyncs` sends them before the progress queue, and
+  `pushProgress` sends the folder's own queued edits before each read, so a later read can still raise progress over a
+  hand-set value and a stale edit never lowers it. A still-queued edit is re-applied to freshly fetched data, and undo
+  writes the restored entry back to the cache. Scores stay raw 0-100 end to end; only the control maps them to the account's
+  format (`anilistScore.ts`), so a queued score doesn't depend on the format active when it was made.
 
 ### Reader style per library
 

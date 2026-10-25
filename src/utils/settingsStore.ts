@@ -224,6 +224,20 @@ export async function saveFavoritesFilter(libraryId: string, value: boolean): Pr
   await store.save();
 }
 
+const aniListPanelKey = (libraryId: string) => `anilist-panel:${libraryId}`;
+
+/** Folder whose AniList series sidebar was open in that library (null = closed). */
+export async function getAniListPanelFolder(libraryId: string): Promise<string | null> {
+  const store = await getStore();
+  return (await store.get<string | null>(aniListPanelKey(libraryId))) ?? null;
+}
+
+export async function saveAniListPanelFolder(libraryId: string, folderName: string | null): Promise<void> {
+  const store = await getStore();
+  await store.set(aniListPanelKey(libraryId), folderName);
+  await store.save();
+}
+
 const folderFilterKey = (libraryId: string) => `folder-filter:${libraryId}`;
 
 export async function getSavedFolderFilter(

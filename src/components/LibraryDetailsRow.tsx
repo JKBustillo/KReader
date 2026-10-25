@@ -81,6 +81,7 @@ function LibraryDetailsRow({
   showProgressBar,
   currentPage,
   aniListTitle,
+  onOpenAniList,
 }: {
   entry: LibraryEntry;
   rootPath: string;
@@ -96,6 +97,7 @@ function LibraryDetailsRow({
   currentPage: number;
   /** Title of the AniList media the entry's folder is linked to, if any. */
   aniListTitle: string | undefined;
+  onOpenAniList: (entry: LibraryEntry) => void;
 }) {
   const { t } = useTranslation();
   const name = entry.filename.replace(/\.[^.]+$/, "");
@@ -141,7 +143,7 @@ function LibraryDetailsRow({
             style={{ background: PROGRESS_DOT_COLORS[entry.readingState], color: PROGRESS_DOT_COLORS[entry.readingState], boxShadow: "0 0 6px currentColor" }}
           />
         )}
-        {aniListTitle && <AniListBadge title={aniListTitle} />}
+        {aniListTitle && <AniListBadge title={aniListTitle} onClick={() => onOpenAniList(entry)} />}
         <span className="truncate">{name}</span>
       </span>
       <span className={`${COL_WIDTHS.size} tabular-nums`} style={{ color: "var(--text-secondary)" }}>

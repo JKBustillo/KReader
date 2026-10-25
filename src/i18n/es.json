@@ -195,6 +195,35 @@
     "connectError": "Token no válido.",
     "connectedAs": "Conectado como {{name}}",
     "connectedOffline": "Conectado (sin conexión)",
-    "disconnect": "Desconectar"
+    "disconnect": "Desconectar",
+    "viewSeries": "Ver en AniList…",
+    "panelLoading": "Cargando datos de AniList…",
+    "panelLoadError": "No se pudo cargar la serie.",
+    "retry": "Reintentar",
+    "staleOffline": "Sin conexión: se muestran los últimos datos guardados. Los cambios se enviarán al reconectar.",
+    "staleAuth": "La sesión de AniList caducó: se muestran los últimos datos guardados. Los cambios se enviarán al reconectar en Ajustes.",
+    "showMore": "Ver más",
+    "showLess": "Ver menos",
+    "openOnAniList": "Abrir en AniList",
+    "statusLabel": "Estado",
+    "notOnList": "No está en tu lista",
+    "status": {
+      "CURRENT": "Leyendo",
+      "PLANNING": "Planeada",
+      "COMPLETED": "Completada",
+      "PAUSED": "En pausa",
+      "DROPPED": "Abandonada",
+      "REPEATING": "Releyendo"
+    },
+    "chaptersLabel": "Capítulos",
+    "volumesLabel": "Tomos",
+    "scoreLabel": "Nota",
+    "clearScore": "Quitar nota",
+    "relink": "Cambiar vínculo",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saveError": "No se pudo guardar en AniList.",
+    "close": "Cerrar",
+    "expandCover": "Ampliar portada"
   }
 }
