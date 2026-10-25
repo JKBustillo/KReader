@@ -30,6 +30,19 @@ export async function saveLastAppView(view: "home" | "library"): Promise<void> {
   await store.save();
 }
 
+const KEY_LAST_LIBRARY_ID = "last-library-id";
+
+export async function getLastLibraryId(): Promise<string | null> {
+  const store = await getStore();
+  return (await store.get<string>(KEY_LAST_LIBRARY_ID)) ?? null;
+}
+
+export async function saveLastLibraryId(id: string): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_LAST_LIBRARY_ID, id);
+  await store.save();
+}
+
 const KEY_SHOW_PROGRESS_BAR = "show-progress-bar";
 
 export async function getShowProgressBar(): Promise<boolean> {

@@ -34,7 +34,7 @@ It reads comic archives, PDFs, EPUB e-books, and standalone images, and includes
 
 A built-in collection manager for browsing large libraries:
 
-- **Folder scanning** — point KReader at a folder and it indexes all supported files recursively.
+- **Folder scanning** — point KReader at a folder and it indexes all supported files recursively. With several libraries, the last one you had open is selected again on the next launch.
 - **Two view modes** — grid (cover thumbnails) and details (sortable table).
 - **Sorting** — by name, size, date, last opened, or page count.
 - **Filtering** — by tags and by folders (recursive or direct-children-only), with union semantics.

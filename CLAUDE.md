@@ -210,6 +210,7 @@ fetches only pay off because the responses are cacheable.
   - `epub-progress-mode` — `"percent" | "chapter" | "total"`, which value the EPUB reader's progress indicator shows (global, default `percent`; click the indicator to cycle).
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
+  - `last-library-id` — string, id of the last active library; restored on launch (falls back to the first library if it no longer exists).
   - `folder-filter:<libraryId>` — `Record<string, "full" | "partial">`, persisted folder filter per library.
   - `favorites-filter:<libraryId>` — boolean, persisted "show favorites only" filter per library (default false).
   - `favorites-respect-folders` — boolean, whether the favorites filter is intersected with the folder filter; when false the favorites filter ignores folders (default false).

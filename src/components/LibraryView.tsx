@@ -25,7 +25,7 @@ import {
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
 import { clearThumbnailDiskCache } from "../utils/thumbnails";
-import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getKeepDataOnRemove, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
+import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getKeepDataOnRemove, getLastLibraryId, saveLastLibraryId, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
@@ -490,9 +490,11 @@ function LibraryView({
   const activeLib = libraries.find((l) => l.id === activeLibId) ?? null;
 
   useEffect(() => {
-    getLibraries().then((libs) => {
+    Promise.all([getLibraries(), getLastLibraryId()]).then(([libs, lastId]) => {
       setLibraries(libs);
-      if (libs.length > 0) setActiveLibId(libs[0].id);
+      // The saved library may have been removed since; fall back to the first one.
+      const restored = libs.find((l) => l.id === lastId) ?? libs[0];
+      if (restored) setActiveLibId(restored.id);
       setLibrariesLoaded(true);
     });
     getLibraryViewMode().then(setViewMode);
@@ -1060,6 +1062,10 @@ function LibraryView({
   useEffect(() => {
     sessionSelectedTags = selectedTags;
   }, [selectedTags]);
+
+  useEffect(() => {
+    if (activeLibId) saveLastLibraryId(activeLibId).catch(console.error);
+  }, [activeLibId]);
 
   useEffect(() => {
     if (!activeLibId) {
