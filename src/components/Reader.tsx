@@ -3,6 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { useReadingProgress } from "../hooks/useReadingProgress";
 import { useReaderShortcuts } from "../hooks/useReaderShortcuts";
+import { useLibraryReaderStyle } from "../hooks/useLibraryReaderStyle";
+import type { ImageReaderStyle } from "../utils/settingsStore";
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
 import { basename } from "../utils/folderUtils";
@@ -22,6 +24,7 @@ function Reader({
   startPage = 0,
   pageNames,
   onLastPage,
+  libraryId,
 }: {
   pages: string[];
   onClose: () => void;
@@ -29,8 +32,11 @@ function Reader({
   startPage?: number;
   pageNames?: string[];
   onLastPage?: () => void;
+  /** Library the file was opened from; its reader style is restored and kept up to date. */
+  libraryId: string | null;
 }) {
-  const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, bookmarks, setBookmarks, loaded } = useReadingProgress(filePath, startPage);
+  const { pageIndex, setPageIndex, cascadeMode, setCascadeMode, bookmarks, setBookmarks, loaded: progressLoaded } =
+    useReadingProgress(filePath, startPage, libraryId === null);
   const lastPageFiredRef = useRef(false);
   const [zoom, setZoom] = useState(1);
   const [webtoonMode, setWebtoonMode] = useState(false);
@@ -40,6 +46,25 @@ function Reader({
   const [showMoreInfo, setShowMoreInfo] = useState(false);
   const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [isTallerThanViewport, setIsTallerThanViewport] = useState(false);
+
+  const applyStyle = useCallback((saved: ImageReaderStyle) => {
+    setWebtoonMode(saved.webtoon);
+    setCascadeMode(saved.cascade);
+    setDoublePage(saved.doublePage);
+    setRtl(saved.rtl);
+    setShowGap(saved.gap);
+    setZoom(saved.zoom);
+  }, [setCascadeMode]);
+  const styleLoaded = useLibraryReaderStyle(
+    "image",
+    libraryId,
+    { webtoon: webtoonMode, cascade: cascadeMode, doublePage, rtl, gap: showGap, zoom },
+    applyStyle,
+  );
+  const loaded = progressLoaded && styleLoaded;
+  // Content stays invisible until it has been scrolled to the restored page, so
+  // reopening a file doesn't show its first page and then jump.
+  const [positioned, setPositioned] = useState(false);
 
   const { showOverlay, setShowOverlay, scheduleHide, overlayTimerRef } = useOverlayAutoHide(showMoreInfo);
   const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
@@ -97,13 +122,21 @@ function Reader({
     }
 
     const container = containerRef.current;
-    if (!container) return;
+    if (!container || !loaded) return;
 
     (async () => {
       const images = Array.from(container.querySelectorAll("img"));
-      const unloaded = images.filter(img => !img.complete);
+      // In cascade/webtoon only the pages up to the target decide what shows first;
+      // waiting for the whole strip would delay the first paint of a long chapter.
+      // The target itself must be included: pages load in parallel and an unloaded
+      // one has zero height, so the next page would show in its place until it loads.
+      const blocking = cascadeMode || webtoonMode ? images.slice(0, pageIndex + 1) : images;
+      const unloaded = blocking.filter(img => !img.complete);
       if (unloaded.length > 0) {
-        await Promise.all(unloaded.map(img => new Promise<void>(resolve => { img.onload = img.onerror = () => resolve(); })));
+        await Promise.all(unloaded.map(img => new Promise<void>(resolve => {
+          img.addEventListener('load', () => resolve(), { once: true });
+          img.addEventListener('error', () => resolve(), { once: true });
+        })));
       }
       if (cascadeMode || webtoonMode) {
         const target = images[pageIndex];
@@ -120,12 +153,13 @@ function Reader({
       } else {
         container.scrollTo({ top: 0, behavior: smoothScroll });
       }
+      setPositioned(true);
     })();
-  }, [pageIndex, cascadeMode, webtoonMode, smoothScroll]);
+  }, [pageIndex, cascadeMode, webtoonMode, smoothScroll, loaded]);
 
   // Cascade mode: track which image is most visible and reflect it in pageIndex.
   useEffect(() => {
-    if (!cascadeMode && !webtoonMode) return;
+    if (!loaded || (!cascadeMode && !webtoonMode)) return;
     const container = containerRef.current;
     if (!container) return;
 
@@ -175,7 +209,7 @@ function Reader({
       active = false;
       observer?.disconnect();
     };
-  }, [cascadeMode, webtoonMode, pages, setPageIndex]);
+  }, [cascadeMode, webtoonMode, pages, setPageIndex, loaded]);
 
   useEffect(() => {
     if (cascadeMode || webtoonMode) return;
@@ -305,6 +339,7 @@ function Reader({
             transform: `scale(${zoom})`,
             transformOrigin: isTallerThanViewport || cascadeMode || webtoonMode ? "center top" : "center",
             transition: cascadeMode || webtoonMode ? "none" : "transform 0.2s ease-in-out",
+            visibility: positioned ? undefined : "hidden",
           }}
         >
           {currentPages.map((src, i) => (

@@ -73,6 +73,9 @@ function App() {
   // library), so sibling navigation (Ctrl+Arrow) can resolve the next file's
   // entry and keep its reading state in sync.
   const activeLibraryIdRef = useRef<string | null>(null);
+  // Library of the file in the reader (null when opened from home/recents/the OS);
+  // the readers restore that library's view style.
+  const [readerLibraryId, setReaderLibraryId] = useState<string | null>(null);
   const viewInitializedRef = useRef(false);
   const revokeBlobUrls = useCallback(() => {
     blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
@@ -190,8 +193,10 @@ function App() {
     from: "home" | "library" = "home",
     onComplete?: () => void,
     onPagesLoaded?: (total: number) => void,
+    libraryId: string | null = null,
   ) => {
     onCompleteRef.current = onComplete ?? null;
+    setReaderLibraryId(libraryId);
     onPagesLoadedRef.current = onPagesLoaded ?? null;
     setLoading(true);
     setStartPage(0);
@@ -270,7 +275,7 @@ function App() {
           : null;
         if (entry) {
           const { onComplete, onPagesLoaded } = startLibraryReadingSession(entry);
-          handleOpen(startup.path, "home", onComplete, onPagesLoaded);
+          handleOpen(startup.path, "home", onComplete, onPagesLoaded, entry.libraryId);
         } else {
           handleOpen(startup.path, "home");
         }
@@ -361,11 +366,12 @@ function App() {
         const entry = await getEntryByPath(libraryId, e.detail);
         if (entry) {
           const { onComplete, onPagesLoaded } = startLibraryReadingSession(entry);
-          await handleOpen(e.detail, returnTo, onComplete, onPagesLoaded);
+          await handleOpen(e.detail, returnTo, onComplete, onPagesLoaded, libraryId);
           return;
         }
       }
-      await handleOpen(e.detail, returnTo);
+      // An unscanned sibling still lives in the library's folder, so it keeps the library's view style.
+      await handleOpen(e.detail, returnTo, undefined, undefined, libraryId);
     };
 
     window.addEventListener("openNewCbz", handleOpenNewCbz as EventListener);
@@ -399,7 +405,7 @@ function App() {
                 refreshTrigger={refreshTrigger}
                 onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
                   activeLibraryIdRef.current = libraryId ?? null;
-                  handleOpen(path, "library", onComplete, onPagesLoaded);
+                  handleOpen(path, "library", onComplete, onPagesLoaded, libraryId ?? null);
                 }}
               />
             </div>
@@ -482,13 +488,13 @@ function App() {
       {/* Reader overlay — rendered above the hidden chrome so LibraryView is
           preserved underneath while reading. */}
       {view === "reader" && pdfSrc !== null && (
-        <PDFReader src={pdfSrc} filePath={currentPath} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
+        <PDFReader src={pdfSrc} filePath={currentPath} libraryId={readerLibraryId} onClose={handleClose} onLoadError={handlePdfLoadError} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
       )}
       {view === "reader" && epubData !== null && (
         <EPUBReader data={epubData} filePath={currentPath} theme={theme} onClose={handleClose} onLastPage={handleLastPage} onPagesLoaded={handlePagesLoaded} />
       )}
       {view === "reader" && pdfSrc === null && pages.length > 0 && (
-        <Reader pages={pages} onClose={handleClose} filePath={currentPath} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />
+        <Reader pages={pages} onClose={handleClose} filePath={currentPath} libraryId={readerLibraryId} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />
       )}
 
       {/* Loading overlay — above everything, dims whatever is underneath. */}

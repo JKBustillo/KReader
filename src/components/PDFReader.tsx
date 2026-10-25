@@ -8,6 +8,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
+import { useLibraryReaderStyle } from "../hooks/useLibraryReaderStyle";
+import type { PdfReaderStyle } from "../utils/settingsStore";
 import { getReadingProgress, savePage, saveCascade } from "../utils/readingProgressStore";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
@@ -28,6 +30,7 @@ function PDFReader({
   onLoadError,
   onLastPage,
   onPagesLoaded,
+  libraryId,
 }: {
   src: string;
   filePath: string;
@@ -35,6 +38,8 @@ function PDFReader({
   onLoadError?: (path: string) => void;
   onLastPage?: () => void;
   onPagesLoaded?: (total: number) => void;
+  /** Library the file was opened from; its PDF reader style is restored and kept up to date. */
+  libraryId: string | null;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNum, setPageNum] = useState(1);
@@ -58,6 +63,15 @@ function PDFReader({
   const lastPageFiredRef = useRef(false);
   const { t } = useTranslation();
 
+  // Not gating the render on this: the style read is a local store hit, far
+  // quicker than pdf.js opening the document, so it lands before the first page.
+  const applyStyle = useCallback((saved: PdfReaderStyle) => {
+    setCascadeMode(saved.cascade);
+    setScale(saved.scale);
+  }, []);
+  useLibraryReaderStyle("pdf", libraryId, { cascade: cascadeMode, scale }, applyStyle);
+  const cascadeIsPerFile = libraryId === null;
+
   useEffect(() => {
     let cancelled = false;
 
@@ -75,7 +89,7 @@ function PDFReader({
         const { page: savedPage, cascade: savedCascade } = await getReadingProgress(filePath);
         if (cancelled) return;
         if (savedPage != null) setPageNum(Math.max(1, Math.min(savedPage + 1, doc.numPages)));
-        if (savedCascade != null) setCascadeMode(savedCascade);
+        if (cascadeIsPerFile && savedCascade != null) setCascadeMode(savedCascade);
       } catch (err) {
         if (cancelled) return;
         console.error("[PDFReader] load failed:", err);
@@ -85,7 +99,7 @@ function PDFReader({
     })();
 
     return () => { cancelled = true; };
-  }, [src, filePath, onLoadError, onPagesLoaded]);
+  }, [src, filePath, onLoadError, onPagesLoaded, cascadeIsPerFile]);
 
   useEffect(() => {
     setWindowTitle(basename(filePath));
@@ -119,11 +133,12 @@ function PDFReader({
   }, [pageNum, filePath, pdf]);
 
   useEffect(() => {
-    // Persist the cascade flag (shared key with the image reader).
-    if (pdf) {
+    // Persist the cascade flag (shared key with the image reader). Inside a
+    // library the library's reader style owns it instead.
+    if (pdf && cascadeIsPerFile) {
       saveCascade(filePath, cascadeMode).catch(console.error);
     }
-  }, [cascadeMode, filePath, pdf]);
+  }, [cascadeMode, filePath, pdf, cascadeIsPerFile]);
 
   // Lazily measure every page (metadata-only viewport) the first time cascade is
   // enabled, so its placeholders have stable heights.

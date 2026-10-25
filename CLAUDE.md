@@ -116,7 +116,12 @@ src/
                                   Optional `footer` prop pins extra content below the clear footer (tags dropdown
                                   uses it for the "Manage tags" action that opens TagManager).
   hooks/
-    useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat
+    useReadingProgress.ts       Per-file pageIndex + cascadeMode state, persisted to .reading-progress.dat. Its 3rd
+                                  arg `cascadeIsPerFile` is false for library files (the library style owns cascade).
+    useLibraryReaderStyle.ts    Per-library reader view style ("image": webtoon/cascade/doublePage/rtl/gap/zoom;
+                                  "pdf": cascade/scale), last-used and auto-saved to .settings.dat. Applies the saved
+                                  style on mount and returns `loaded` (Reader gates its content on it). No-op when the
+                                  file has no library. Used by Reader and PDFReader.
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/X; F/F11 fullscreen is global in App.tsx)
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
@@ -219,7 +224,7 @@ fetches only pay off because the responses are cacheable.
 ### State persistence (Tauri Store)
 
 - `.recent-files.dat` — list of up to 10 recently opened file paths.
-- `.reading-progress.dat` — per-file page index (`{filePath}-page`), cascade mode flag (`{filePath}-cascade`), bookmarks (`{filePath}-bookmarks`, `number[]`), and for EPUB the reading position (`{filePath}-epub-cfi`, a CFI string) + cached location table (`{filePath}-epub-locations`, JSON from epubjs `Locations.save()`), keyed by absolute file path.
+- `.reading-progress.dat` — per-file page index (`{filePath}-page`), cascade mode flag (`{filePath}-cascade`, only for files opened outside a library; library files use the library's `reader-style:*` instead), bookmarks (`{filePath}-bookmarks`, `number[]`), and for EPUB the reading position (`{filePath}-epub-cfi`, a CFI string) + cached location table (`{filePath}-epub-locations`, JSON from epubjs `Locations.save()`), keyed by absolute file path.
 - `.settings.dat` — global app settings. Current keys:
   - `pin-page-indicator` — boolean, pin page number overlay (also pins the EPUB reader's progress %).
   - `epub-font-size` — number, EPUB reader font size as a percent (global preference, default 100).
@@ -235,6 +240,8 @@ fetches only pay off because the responses are cacheable.
   - `auto-backup` — boolean, enable automatic library backups on startup (default false).
   - `last-backup-at` — number, epoch-ms of the last auto-backup (throttle, default 0).
   - `keep-data-on-remove` — boolean, keep sticky entry metadata when a library is removed (default true).
+  - `reader-style:image:<libraryId>` — `ImageReaderStyle` (`{ webtoon, cascade, doublePage, rtl, gap, zoom }`), the image reader's last-used view style in that library. Owned by `useLibraryReaderStyle`.
+  - `reader-style:pdf:<libraryId>` — `PdfReaderStyle` (`{ cascade, scale }`), PDFReader's counterpart (its scale isn't comparable to the image zoom, so it's stored apart).
   - `recent-custom-tags` — `string[]`, recently-assigned custom tag values (MRU, deduped case-insensitively, capped). Feeds the TagEditor quick-pick list shown on empty-input focus.
 - `.entry-meta.dat` — sticky user metadata keyed by entry id. Single key `entry-meta` → `Record<id, EntryMeta>` where
   `EntryMeta = { customTags?, isFavorite?, rating?, readingState? }`. Owned by `entryMetaStore.ts`. See Library system.
@@ -313,7 +320,10 @@ fetches only pay off because the responses are cacheable.
 
 **Thumbnails (`utils/thumbnails.ts`):**
 - In-memory cache (deduplicates concurrent requests per session).
-- Disk cache in `appCacheDir()/kreader-thumbnails/`, keyed by entry ID, stored as JPEG.
+- Disk cache in `appCacheDir()/kreader-thumbnails-v2/`, keyed by entry ID, stored as JPEG. The dir name is versioned:
+  bump it (and add the old name to `LEGACY_THUMBNAIL_CACHE_SUBDIRS`, deleted on first use) whenever generation changes.
+- `resizeBlob` crops images taller than the 2:3 cover to their top before scaling, so webtoon strips stay sharp
+  instead of shrinking to a few pixels wide.
 - Concurrent generation limited to `MAX_CONCURRENT = 4` via semaphore.
 - Cover extraction: `extract_cbz_cover` / `extract_cbr_cover` (Rust IPC, raw bytes), `pdfjs` for PDF (by URL via `convertFileSrc`, so only the first page is fetched — never the whole file), direct `readFile` for images.
 
@@ -378,6 +388,14 @@ One-way push of reading progress to the user's AniList list (no pull, no ratings
   still holds what KReader wrote (`AniListUndoConflictError` otherwise).
 - **Offline queue:** auth and retryable failures enqueue the read (`.anilist.dat` `queue`); the `main` window flushes it
   on startup, on the `online` event, and after reconnecting in settings.
+
+### Reader style per library
+
+`App.tsx` tracks `readerLibraryId` (set by `handleOpen`'s 5th arg: the library's `onOpen`, sibling nav inside a library
+— even for unscanned siblings — and "Open in new window" startup with a `library_id`) and passes it to `Reader` /
+`PDFReader` as `libraryId`. With a library, `useLibraryReaderStyle` restores and auto-saves the view style per library
+(last used wins), replacing the per-file cascade flag; without one (home, recents, OS file association) nothing changes:
+only the per-file cascade is remembered.
 
 ### Sibling-file navigation (Ctrl+Arrow)
 

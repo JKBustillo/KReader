@@ -6,7 +6,12 @@ import {
   saveBookmarks,
 } from "../utils/readingProgressStore";
 
-export function useReadingProgress(filePath: string, initialPage = 0) {
+/**
+ * `cascadeIsPerFile` is false when the file was opened from a library: the
+ * library's reader style (useLibraryReaderStyle) owns cascade mode then, so the
+ * per-file flag is neither applied nor written.
+ */
+export function useReadingProgress(filePath: string, initialPage = 0, cascadeIsPerFile = true) {
   const [pageIndex, setPageIndex] = useState(initialPage);
   const [cascadeMode, setCascadeMode] = useState(false);
   const [bookmarks, setBookmarks] = useState<number[]>([]);
@@ -22,13 +27,13 @@ export function useReadingProgress(filePath: string, initialPage = 0) {
       if (cancelled) return;
 
       if (page !== undefined) setPageIndex(page);
-      if (cascade !== undefined) setCascadeMode(cascade);
+      if (cascadeIsPerFile && cascade !== undefined) setCascadeMode(cascade);
       if (savedBookmarks !== undefined) setBookmarks(savedBookmarks);
       setLoaded(true);
     })();
 
     return () => { cancelled = true; };
-  }, [filePath]);
+  }, [filePath, cascadeIsPerFile]);
 
   useEffect(() => {
     if (!loaded) return;
@@ -36,9 +41,9 @@ export function useReadingProgress(filePath: string, initialPage = 0) {
   }, [pageIndex, filePath, loaded]);
 
   useEffect(() => {
-    if (!loaded) return;
+    if (!loaded || !cascadeIsPerFile) return;
     saveCascade(filePath, cascadeMode).catch(console.error);
-  }, [cascadeMode, filePath, loaded]);
+  }, [cascadeMode, filePath, loaded, cascadeIsPerFile]);
 
   useEffect(() => {
     if (!loaded) return;

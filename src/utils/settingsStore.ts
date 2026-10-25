@@ -243,3 +243,42 @@ export async function saveFolderFilter(
   await store.set(folderFilterKey(libraryId), Object.fromEntries(folders));
   await store.save();
 }
+
+/** How the image reader was last used in a library (restored when opening any of its files). */
+export type ImageReaderStyle = {
+  webtoon: boolean;
+  cascade: boolean;
+  doublePage: boolean;
+  rtl: boolean;
+  gap: boolean;
+  zoom: number;
+};
+
+/** PDFReader's counterpart: its zoom is a render scale, not comparable to the image reader's. */
+export type PdfReaderStyle = {
+  cascade: boolean;
+  scale: number;
+};
+
+export type ReaderStyleKind = "image" | "pdf";
+type ReaderStyleOf<K extends ReaderStyleKind> = K extends "image" ? ImageReaderStyle : PdfReaderStyle;
+
+const readerStyleKey = (kind: ReaderStyleKind, libraryId: string) => `reader-style:${kind}:${libraryId}`;
+
+export async function getReaderStyle<K extends ReaderStyleKind>(
+  kind: K,
+  libraryId: string,
+): Promise<ReaderStyleOf<K> | undefined> {
+  const store = await getStore();
+  return store.get<ReaderStyleOf<K>>(readerStyleKey(kind, libraryId));
+}
+
+export async function saveReaderStyle<K extends ReaderStyleKind>(
+  kind: K,
+  libraryId: string,
+  style: ReaderStyleOf<K>,
+): Promise<void> {
+  const store = await getStore();
+  await store.set(readerStyleKey(kind, libraryId), style);
+  await store.save();
+}
