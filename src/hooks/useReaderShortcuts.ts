@@ -5,7 +5,8 @@ import { dirname, join } from "@tauri-apps/api/path";
 import { IMAGE_EXTS_SET, extOf } from "../loaders";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
-import { isAtBottom, isAtTop, PAGE_SCROLL_FRACTION } from "../utils/scroll";
+import { isAtBottom, isAtTop } from "../utils/scroll";
+import { usePageScroll } from "./usePageScroll";
 
 // Zoom clamps for the image reader (distinct from the PDF reader's range).
 const ZOOM_STEP = 0.1;
@@ -71,6 +72,8 @@ export function useReaderShortcuts(params: Params) {
     setBookmarks,
     scheduleHide,
   } = params;
+
+  const scrollByPage = usePageScroll();
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
@@ -143,28 +146,20 @@ export function useReaderShortcuts(params: Params) {
         case "ArrowLeft":
           if (!cascadeMode) { if (rtl) nextPage(); else prevPage(); }
           break;
+        // The native PageUp/PageDown scroll is always blocked: it would fight scrollByPage.
         case "PageDown": {
-          if (!cascadeMode) e.preventDefault();
+          e.preventDefault();
           if (container) {
-            const scrollDown = () =>
-              container.scrollBy({ top: container.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
-            if (isAtBottom(container)) {
-              if (cascadeMode) scrollDown(); else nextPage();
-            } else {
-              scrollDown();
-            }
+            if (isAtBottom(container) && !cascadeMode) nextPage();
+            else scrollByPage(container, 1, e.repeat);
           }
           break;
         }
         case "PageUp": {
+          e.preventDefault();
           if (container) {
-            const scrollUp = () =>
-              container.scrollBy({ top: -container.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
-            if (isAtTop(container)) {
-              if (cascadeMode) scrollUp(); else prevPage();
-            } else {
-              scrollUp();
-            }
+            if (isAtTop(container) && !cascadeMode) prevPage();
+            else scrollByPage(container, -1, e.repeat);
           }
           break;
         }
@@ -242,7 +237,7 @@ export function useReaderShortcuts(params: Params) {
       containerRef, overlayTimerRef, filePath, pagesLength,
       pageIndex, cascadeMode, rtl, showMoreInfo, smoothScroll,
       bookmarks,
-      nextPage, prevPage, onClose,
+      nextPage, prevPage, onClose, scrollByPage,
       setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator, setBookmarks,
       scheduleHide,

@@ -123,6 +123,11 @@ src/
                                   style on mount and returns `loaded` (Reader gates its content on it). No-op when the
                                   file has no library. Used by Reader and PDFReader.
     useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/X; F/F11 fullscreen is global in App.tsx)
+    usePageScroll.ts            PageUp/PageDown scrolling. Separate presses chain smooth scrolls from the running one's
+                                  target (capped at MAX_QUEUED_PAGE_SCROLLS steps ahead); a held key (e.repeat) switches to a
+                                  constant-speed rAF scroll (HELD_PAGE_SCROLL_SCREENS_PER_SEC) until keyup/blur. Retargeting a
+                                  native smooth scroll restarts its slow ease-in, which is why it isn't used for key repeat.
+                                  Used by Reader and PDFReader.
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/

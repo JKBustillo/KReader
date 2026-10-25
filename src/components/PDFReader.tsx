@@ -13,7 +13,8 @@ import type { PdfReaderStyle } from "../utils/settingsStore";
 import { getReadingProgress, savePage, saveCascade } from "../utils/readingProgressStore";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
-import { isAtBottom, isAtTop, PAGE_SCROLL_FRACTION, WHEEL_THROTTLE_MS } from "../utils/scroll";
+import { usePageScroll } from "../hooks/usePageScroll";
+import { isAtBottom, isAtTop, WHEEL_THROTTLE_MS } from "../utils/scroll";
 import PDFCascade, { type PageDim } from "./PDFCascade";
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = PDFWorkerUrl;
@@ -248,6 +249,8 @@ function PDFReader({
     };
   }, [pdf, pageNum, scale, cascadeMode]);
 
+  const scrollByPage = usePageScroll();
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       // Don't intercept text selection shortcuts
@@ -272,7 +275,7 @@ function PDFReader({
           const c = containerRef.current;
           if (c) {
             if (isAtBottom(c)) setPageNum((p) => Math.min(p + 1, numPages));
-            else c.scrollBy({ top: c.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
+            else scrollByPage(c, 1, e.repeat);
           }
           e.preventDefault();
           break;
@@ -281,7 +284,7 @@ function PDFReader({
           const c = containerRef.current;
           if (c) {
             if (isAtTop(c)) setPageNum((p) => Math.max(p - 1, 1));
-            else c.scrollBy({ top: -c.clientHeight * PAGE_SCROLL_FRACTION, behavior: "smooth" });
+            else scrollByPage(c, -1, e.repeat);
           }
           e.preventDefault();
           break;
@@ -327,7 +330,7 @@ function PDFReader({
           break;
       }
     },
-    [numPages, onClose, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator]
+    [numPages, onClose, showInfo, setShowOverlay, scheduleHide, overlayTimerRef, setPinPageIndicator, scrollByPage]
   );
 
   useEffect(() => {
