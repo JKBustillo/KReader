@@ -697,6 +697,37 @@ fn trash_file(path: String) -> Result<(), String> {
     }
 }
 
+// OS credential-store coordinates for the AniList token (it grants near-full
+// account access for a year, so it stays out of the plain-text .dat stores).
+const KEYRING_SERVICE: &str = "kreader";
+const ANILIST_TOKEN_ACCOUNT: &str = "anilist-token";
+
+fn anilist_token_entry() -> Result<keyring::Entry, String> {
+    keyring::Entry::new(KEYRING_SERVICE, ANILIST_TOKEN_ACCOUNT).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn anilist_token_get() -> Result<Option<String>, String> {
+    match anilist_token_entry()?.get_password() {
+        Ok(token) => Ok(Some(token)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn anilist_token_set(token: String) -> Result<(), String> {
+    anilist_token_entry()?.set_password(&token).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn anilist_token_delete() -> Result<(), String> {
+    match anilist_token_entry()?.delete_credential() {
+        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -748,7 +779,8 @@ pub fn run() {
         .plugin(StoreBuilder::new().build())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, list_cbz_pages, extract_cbr_to_dir, extract_cbr_cover, extract_cbz_cover, extract_epub_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages])
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![take_window_file, open_new_window, list_cbz_pages, extract_cbr_to_dir, extract_cbr_cover, extract_cbz_cover, extract_epub_cover, scan_library, list_subdirs, trash_file, count_cbz_pages, count_pdf_pages, count_cbr_pages, anilist_token_get, anilist_token_set, anilist_token_delete])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

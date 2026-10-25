@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
+import AniListBadge from "./AniListBadge";
 import type { LibraryEntry } from "../types/library";
 import { getThumbnail } from "../utils/thumbnails";
 import { computeProgress, PROGRESS_DOT_COLORS } from "../utils/progress";
@@ -65,6 +66,7 @@ function LibraryCard({
   showProgressBar,
   currentPage,
   showPageCount,
+  aniListTitle,
 }: {
   entry: LibraryEntry;
   notFound: boolean;
@@ -78,6 +80,8 @@ function LibraryCard({
   showProgressBar: boolean;
   currentPage: number;
   showPageCount: boolean;
+  /** Title of the AniList media the entry's folder is linked to, if any. */
+  aniListTitle: string | undefined;
 }) {
   const { t } = useTranslation();
   const [thumbnail, setThumbnail] = useState<string | null>(null);
@@ -163,6 +167,7 @@ function LibraryCard({
               ?
             </span>
           )}
+          {aniListTitle && <AniListBadge title={aniListTitle} />}
           {entry.readingState !== "unread" && (
             <span
               className="w-2.5 h-2.5 rounded-full"

@@ -1,5 +1,6 @@
 import type { MouseEvent } from "react";
 import { useTranslation } from "react-i18next";
+import AniListBadge from "./AniListBadge";
 import type { LibraryEntry, SortField } from "../types/library";
 import { getRelativeFolder } from "../utils/folderUtils";
 import { computeProgress, PROGRESS_DOT_COLORS } from "../utils/progress";
@@ -79,6 +80,7 @@ function LibraryDetailsRow({
   onContextMenu,
   showProgressBar,
   currentPage,
+  aniListTitle,
 }: {
   entry: LibraryEntry;
   rootPath: string;
@@ -92,6 +94,8 @@ function LibraryDetailsRow({
   onContextMenu: (entry: LibraryEntry, x: number, y: number) => void;
   showProgressBar: boolean;
   currentPage: number;
+  /** Title of the AniList media the entry's folder is linked to, if any. */
+  aniListTitle: string | undefined;
 }) {
   const { t } = useTranslation();
   const name = entry.filename.replace(/\.[^.]+$/, "");
@@ -137,6 +141,7 @@ function LibraryDetailsRow({
             style={{ background: PROGRESS_DOT_COLORS[entry.readingState], color: PROGRESS_DOT_COLORS[entry.readingState], boxShadow: "0 0 6px currentColor" }}
           />
         )}
+        {aniListTitle && <AniListBadge title={aniListTitle} />}
         <span className="truncate">{name}</span>
       </span>
       <span className={`${COL_WIDTHS.size} tabular-nums`} style={{ color: "var(--text-secondary)" }}>

@@ -22,6 +22,7 @@ function ContextMenu({
   onMarkAsRead,
   onMoveToFolder,
   onRename,
+  onLinkAniList,
   onCopyFilename,
   onDelete,
   onClose,
@@ -37,6 +38,7 @@ function ContextMenu({
   onMarkAsRead: (entries: LibraryEntry[]) => void;
   onMoveToFolder: (entries: LibraryEntry[]) => void;
   onRename: (entry: LibraryEntry) => void;
+  onLinkAniList: (entry: LibraryEntry) => void;
   onCopyFilename: (entries: LibraryEntry[]) => void;
   onDelete: (entries: LibraryEntry[]) => void;
   onClose: () => void;
@@ -121,6 +123,11 @@ function ContextMenu({
       {single && (
         <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onRename(single)}>
           {t("library.rename")}
+        </button>
+      )}
+      {single && (
+        <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onLinkAniList(single)}>
+          {t("anilist.linkSeries")}
         </button>
       )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onCopyFilename(entries)}>

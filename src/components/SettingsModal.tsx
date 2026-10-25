@@ -6,6 +6,7 @@ import { exportLibraryData, importLibraryData } from "../utils/libraryStore";
 import type { Theme } from "../utils/theme";
 import type { AccentId } from "../utils/accent";
 import Button from "./Button";
+import AniListSettings from "./AniListSettings";
 
 // Accent options shown as swatches. Each swatch carries its own `data-accent`
 // attribute so `var(--accent)` resolves to that option's color (defined in
@@ -143,7 +144,7 @@ function SettingsModal({
       onClick={onClose}
     >
       <div
-        className="max-w-sm w-full rounded-2xl p-5 flex flex-col gap-5"
+        className="max-w-sm w-full max-h-[90vh] overflow-y-auto rounded-2xl p-5 flex flex-col gap-5"
         style={{ background: "var(--bg-nav)", border: "1px solid var(--border-nav)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -287,6 +288,8 @@ function SettingsModal({
             </div>
           )}
         </div>
+
+        <AniListSettings />
       </div>
     </div>
   );

@@ -21,6 +21,7 @@
     "fs:allow-read-dir",
     "fs:allow-remove",
     "store:default",
+    "opener:default",
     {
       "identifier": "fs:default",
       "allow": [

@@ -46,7 +46,8 @@ A built-in collection manager for browsing large libraries:
 - **Metadata that sticks to the file** — your custom tags, favorites, ratings and reading state are saved per file, so they're restored if you remove and re-add the same folder (toggleable in settings).
 - **Cover thumbnails** — extracted and cached on disk.
 - **File management** — open an entry in a new window, rename a file, move entries to subfolders, send them to the OS trash, or copy file names to the clipboard (right-click; multi-selection copies one name per line; open-in-new-window and rename are single-selection). Renaming keeps your tags, favorites, ratings, reading state and reading position. Removing a library asks for confirmation first.
-- **Export / import** — back up or transfer your whole library, including your per-file metadata.
+- **AniList sync** — connect your AniList account in settings, then right-click any file and pick *Link series to AniList…* to link its folder to an AniList entry (the link follows the folder name, so moving the folder keeps it). When you finish a file, KReader reads the number in its name and updates AniList: `Tomo 08` / `Vol. 8` / `v08` set volumes read (plus an estimated chapter count when AniList knows both totals), while `Episode 37`, `Capítulo 12`, chapter ranges like `85-91` and `Season 2 Ep. 3` (counted on from earlier seasons) set chapters read. Progress never goes down, the series moves to *Current* and then *Completed* when you reach the total, and extras (epilogues, specials) are ignored. A short notice confirms each update with an **Undo** button; while offline, updates are queued and sent later. Linked series show an `AL` badge.
+- **Export / import** — back up or transfer your whole library, including your per-file metadata and AniList links (never your AniList login).
 - **Automatic backups** — optional: KReader snapshots your library on startup (at most once a day) and keeps the most recent few.
 
 ### App

@@ -96,6 +96,14 @@ src/
                                   + ResolveLocationModal. RemoveLibraryConfirmModal guards the ✕ "remove library"
                                   action, warning that custom tags/favorites/ratings/progress are lost (disk files untouched).
     ResolveLocationModal.tsx    Ambiguous-entry location picker (lists same-name/size candidates). Uses Modal.
+    AniListLinkModal.tsx        Links a series folder to an AniList media (debounced search pre-filled with the folder
+                                  name; cover/format/year/totals per result) or unlinks it. Uses Modal. Opened from the
+                                  ContextMenu "Link series to AniList…" item (single selection). See AniList sync.
+    AniListSettings.tsx         SettingsModal section: connect (opens the authorize URL, user pastes the token),
+                                  shows the viewer name, disconnect. Self-contained (no SettingsModal props).
+    AniListToast.tsx            Per-window notice for ANILIST_SYNC_EVENT (synced/queued/authRequired/failed) with
+                                  Undo for synced updates. Mounted once in App.tsx, above the reader overlay.
+    AniListBadge.tsx            "AL" badge on LibraryCard/LibraryDetailsRow when the entry's folder is linked.
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).
                                   Presentational; LibraryView passes semantic callbacks + ambiguousCandidates.
                                   First entry "Open in new window" (onOpenInNewWindow) and "Rename" (onRename) are
@@ -158,6 +166,14 @@ src/
                                   getPageForPath(filePath). migrateReadingProgress(oldPath, newPath) moves all
                                   keys (incl. the epub ones) when a file is renamed.
     countPages.ts               Page count via Rust IPC (CBZ/PDF/CBR) or readDir (image folders). Returns null for unsupported formats and for EPUB (EPUB totalPages is set from the reader's location count on first open, not counted up front).
+    anilistParse.ts             Pure filename -> ReadingUnit (volume / chapter (+season) / extra) + absoluteChapter
+                                  (season offset from sibling files). Validated against a real ~16k-file collection.
+    anilistApi.ts               AniList GraphQL client (search, Media totals + viewer's list entry, SaveMediaListEntry,
+                                  DeleteMediaListEntry, Viewer). Token via the anilist_token_* IPC (cached in memory).
+                                  Throws AniListAuthError (reconnect) / AniListRetryableError (offline, 429).
+    anilistStore.ts             Owns .anilist.dat: series links (folder name -> SeriesLink) + the offline queue.
+    anilistSync.ts              syncCompletedEntries(entries), flushPendingSyncs(), undoSync(notice),
+                                  seriesFolderName(path). See AniList sync.
     progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
@@ -225,6 +241,10 @@ fetches only pay off because the responses are cacheable.
 - `.library.dat` — library definitions and entries. Keys:
   - `libraries` — `Library[]` list of all libraries.
   - `entries:<libraryId>` — `LibraryEntry[]` for that library.
+- `.anilist.dat` — AniList sync, owned by `anilistStore.ts`. Keys: `links` (`Record<folderName, SeriesLink>`, where
+  `SeriesLink = { mediaId, title, coverUrl?, chapters, volumes }`, totals cached and refreshed on each sync) and `queue`
+  (`PendingSync[]` = `{ folderName, chapter?, volume? }`, merged by max per folder). Links are included in
+  export/import; the access token is **not** stored here (see AniList sync).
 - `.window-state.json` — window geometry (size, position, maximized, fullscreen, visible) per window label, owned by `tauri-plugin-window-state` (in `app_config_dir()`). Written automatically on window close / app exit, restored on launch. Only the `main` window (stable label) round-trips across sessions; `reader-*` labels change each launch (see [Multi-window](#multi-window-single-instance)). The `main` window is declared `"visible": false` in `tauri.conf.json` so the plugin can apply the saved geometry while hidden and then show it (the plugin's `restore_state` calls `show()` itself when the `VISIBLE` flag is set) — this avoids the open-at-default-size-then-resize flash. First launch (no saved state) still shows because the plugin defaults `should_show` to true.
 
 **Rule:** All store access must go through the utility wrappers (`libraryStore.ts`, `settingsStore.ts`, `recentFiles.ts`, `readingProgressStore.ts`). Never instantiate `Store` directly in a component or hook, and never use key strings outside the owning util file. The `pin-page-indicator` setting is owned by `settingsStore.ts`; `usePinPageIndicator` consumes it through that wrapper.
@@ -314,6 +334,8 @@ fetches only pay off because the responses are cacheable.
   - `count_cbz_pages(path)` — counts image entries in a CBZ/ZIP central directory without decompression. Returns `u32`.
   - `count_pdf_pages(path)` — counts pages via `lopdf::Document::load` (reads xref + catalog only, no content streams). Returns `u32`.
   - `count_cbr_pages(path)` — counts image entries in a CBR/RAR via `open_for_listing` (no extraction). Returns `u32`.
+  - `anilist_token_get()` / `anilist_token_set(token)` / `anilist_token_delete()` — AniList token in the OS credential
+    store (`keyring`, Windows Credential Manager). `get` returns `None` when absent; `delete` is a no-op when absent.
 
 All commands return `Result<T, String>`. Large binary data (images) is returned as `tauri::ipc::Response` (raw bytes) to avoid base64 inflation and keep bytes outside V8's heap.
 
@@ -330,6 +352,32 @@ for each image:
 ```
 
 Page counting (CBZ/PDF/CBR) also runs in Rust to avoid loading full files into WebView2 heap — only a `u32` is returned to JS. Image folder counting uses `readDir` in TS (lightweight).
+
+### AniList sync
+
+One-way push of reading progress to the user's AniList list (no pull, no ratings yet).
+
+- **Series = folder name.** A link is keyed by the name of the folder that holds the file (`seriesFolderName`), not its
+  path or library, so it survives moving the folder (e.g. into `- Leído/`) and covers files added later. Two folders
+  with the same name share a link.
+- **Auth:** implicit grant with AniList's `/oauth/pin` redirect (client id in `anilistApi.ts`): the user pastes the token
+  shown in the browser. `connectAniList` validates it with a `Viewer` query before storing it. The token (1 year,
+  near-full account access, no refresh) lives in the OS credential store via the `keyring` crate
+  (`anilist_token_get/set/delete` in `lib.rs`), never in a `.dat` store or backup.
+- **Trigger:** `syncCompletedEntries` is called wherever an entry becomes `completed`: `LibraryView.handleOpen`'s
+  onComplete, `handleMarkAsRead` (bulk: only entries not already completed) and `readingSession.ts` onComplete
+  (sibling nav + open-in-new-window). Re-reading a completed file sends nothing. Entries are grouped per linked
+  folder, one request per series.
+- **Mapping (`computeNext`):** volume files set `progressVolumes` and, when AniList knows both totals, an estimated
+  `progress = floor(vol * chapters / volumes)`; chapter files set `progress` (range end, decimals floored, seasons
+  offset by earlier seasons' highest chapter in the folder); extras send nothing. Values are max'd with AniList's
+  current ones and capped at the totals. Status: missing/PLANNING/CURRENT -> CURRENT, -> COMPLETED when a total is
+  reached (progress filled to the totals); PAUSED/DROPPED/REPEATING/COMPLETED are never changed. No-op updates are skipped.
+- **Notices & undo:** results go out as a `CustomEvent` (`ANILIST_SYNC_EVENT`) on the window that read the file;
+  `AniListToast` renders them. Undo restores the previous values (or deletes an entry KReader created) only if AniList
+  still holds what KReader wrote (`AniListUndoConflictError` otherwise).
+- **Offline queue:** auth and retryable failures enqueue the read (`.anilist.dat` `queue`); the `main` window flushes it
+  on startup, on the `online` event, and after reconnecting in settings.
 
 ### Sibling-file navigation (Ctrl+Arrow)
 
@@ -423,6 +471,9 @@ The **asset protocol** is not gated by capabilities: it is enabled in `tauri.con
 - `unrar` (Rust) — CBR extraction and page counting in the backend.
 - `zip` (Rust) — CBZ page listing, per-page reads for the `kreader://` protocol, and covers.
 - `percent-encoding` (Rust) — decodes the file path / entry name out of a `kreader://` request URI (the counterpart of the frontend's `convertFileSrc` + `encodeURIComponent`).
+- `keyring` (Rust, `windows-native`) — OS credential store for the AniList token.
+- `tauri-plugin-opener` / `@tauri-apps/plugin-opener` — opens the AniList authorize URL in the default browser
+  (`opener:default` in the capability).
 - `lopdf` (Rust) — PDF page counting (`count_pdf_pages` command). `default-features = false` to avoid pulling in rayon/chrono/time.
 - `react-hotkeys-hook` — present in `package.json` but unused; keyboard handling is done via `addEventListener` in `useReaderShortcuts` and `App.tsx`.
 - `@tauri-apps/plugin-store` — key-value persistence for recent files, reading progress, settings, and library data.

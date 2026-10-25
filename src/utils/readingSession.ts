@@ -1,5 +1,6 @@
 import type { LibraryEntry } from "../types/library";
 import { setLastOpenedAt, setReadingState, setTotalPages } from "./libraryStore";
+import { syncCompletedEntries } from "./anilistSync";
 
 const MILLIS_PER_SECOND = 1000;
 
@@ -29,6 +30,7 @@ export function startLibraryReadingSession(entry: LibraryEntry): {
     ? undefined
     : () => {
         setReadingState(entry.id, entry.libraryId, "completed").catch(console.error);
+        syncCompletedEntries([entry]).catch(console.error);
       };
 
   const onPagesLoaded = (total: number) => {

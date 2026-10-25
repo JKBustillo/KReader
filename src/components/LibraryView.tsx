@@ -28,6 +28,8 @@ import { clearThumbnailDiskCache } from "../utils/thumbnails";
 import { getLibraryViewMode, saveLibraryViewMode, getSavedFolderFilter, saveFolderFilter, getFavoritesFilter, saveFavoritesFilter, getKeepDataOnRemove, getLastLibraryId, saveLastLibraryId, getRecentTags, pushRecentTags, removeRecentTags } from "../utils/settingsStore";
 import { getAllPageProgress, migrateReadingProgress } from "../utils/readingProgressStore";
 import { parseAutoTags } from "../utils/parseTags";
+import { seriesFolderName, syncCompletedEntries } from "../utils/anilistSync";
+import { getSeriesLinks, setSeriesLink, type SeriesLink } from "../utils/anilistStore";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
@@ -36,6 +38,7 @@ import TagManager from "./TagManager";
 import Modal from "./Modal";
 import ResolveLocationModal from "./ResolveLocationModal";
 import ContextMenu from "./ContextMenu";
+import AniListLinkModal from "./AniListLinkModal";
 import FilterDropdown from "./FilterDropdown";
 import Button from "./Button";
 
@@ -460,6 +463,8 @@ function LibraryView({
   const [selectedFolders, setSelectedFolders] = useState<Map<string, "full" | "partial">>(new Map());
   const [moveFolderTarget, setMoveFolderTarget] = useState<LibraryEntry[] | null>(null);
   const [renameTarget, setRenameTarget] = useState<LibraryEntry | null>(null);
+  const [aniListLinkFolder, setAniListLinkFolder] = useState<string | null>(null);
+  const [seriesLinks, setSeriesLinks] = useState<Record<string, SeriesLink>>({});
   const [availableFolders, setAvailableFolders] = useState<string[]>([]);
   const [deleteConfirmEntries, setDeleteConfirmEntries] = useState<LibraryEntry[] | null>(null);
   const [removeLibraryConfirm, setRemoveLibraryConfirm] = useState(false);
@@ -707,6 +712,22 @@ function LibraryView({
     })();
   }, [active, activeLib, reconcileScan]);
 
+  // Re-read on every return to the library: a backup import (SettingsModal) can replace the links.
+  useEffect(() => {
+    if (active) getSeriesLinks().then(setSeriesLinks).catch(console.error);
+  }, [active]);
+
+  const handleSaveSeriesLink = useCallback(async (folderName: string, link: SeriesLink | undefined) => {
+    await setSeriesLink(folderName, link);
+    setSeriesLinks((prev) => {
+      const next = { ...prev };
+      if (link) next[folderName] = link;
+      else delete next[folderName];
+      return next;
+    });
+    setAniListLinkFolder(null);
+  }, []);
+
   const handleAddLibrary = async () => {
     const folder = await open({ directory: true, multiple: false });
     if (!folder || typeof folder !== "string") return;
@@ -729,6 +750,7 @@ function LibraryView({
     const onComplete = entry.readingState !== "completed"
       ? () => {
           setReadingState(entry.id, entry.libraryId, "completed").catch(console.error);
+          syncCompletedEntries([entry]).catch(console.error);
           setEntries((prev) =>
             prev.map((e) => e.id === entry.id ? { ...e, readingState: "completed" as const } : e)
           );
@@ -809,6 +831,7 @@ function LibraryView({
     for (const entry of targetEntries) {
       await setReadingState(entry.id, entry.libraryId, "completed");
     }
+    syncCompletedEntries(targetEntries.filter((e) => e.readingState !== "completed")).catch(console.error);
     const ids = new Set(targetEntries.map((e) => e.id));
     setEntries((prev) =>
       prev.map((e) => ids.has(e.id) ? { ...e, readingState: "completed" as const } : e)
@@ -1628,6 +1651,7 @@ function LibraryView({
                     onContextMenu={handleContextMenu}
                     showProgressBar={showProgressBar}
                     currentPage={pageMap.get(entry.id) ?? 0}
+                    aniListTitle={seriesLinks[seriesFolderName(entry.currentPath)]?.title}
                   />
                 ))
               : (
@@ -1651,6 +1675,7 @@ function LibraryView({
                       showProgressBar={showProgressBar}
                       currentPage={pageMap.get(entry.id) ?? 0}
                       showPageCount={showPageCount}
+                      aniListTitle={seriesLinks[seriesFolderName(entry.currentPath)]?.title}
                     />
                   ))}
                 </div>
@@ -1675,6 +1700,7 @@ function LibraryView({
                   setContextMenu(null);
                 }}
                 onRename={(entry) => { setRenameTarget(entry); setContextMenu(null); }}
+                onLinkAniList={(entry) => { setAniListLinkFolder(seriesFolderName(entry.currentPath)); setContextMenu(null); }}
                 onCopyFilename={handleCopyFilename}
                 onDelete={(entries) => {
                   const allGhost = entries.every((e) => notFoundIds.has(e.id));
@@ -1717,6 +1743,15 @@ function LibraryView({
           rootPath={activeLib?.rootPath ?? ""}
           onMove={handleMoveToFolder}
           onClose={() => setMoveFolderTarget(null)}
+        />
+      )}
+
+      {aniListLinkFolder !== null && (
+        <AniListLinkModal
+          folderName={aniListLinkFolder}
+          currentLink={seriesLinks[aniListLinkFolder]}
+          onSave={(link) => { handleSaveSeriesLink(aniListLinkFolder, link).catch(console.error); }}
+          onClose={() => setAniListLinkFolder(null)}
         />
       )}
 

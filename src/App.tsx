@@ -10,6 +10,7 @@ import EPUBReader from "./components/EPUBReader";
 import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
+import AniListToast from "./components/AniListToast";
 import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
@@ -20,6 +21,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
 import { getEntryByPath } from "./utils/libraryStore";
 import { startLibraryReadingSession } from "./utils/readingSession";
+import { flushPendingSyncs } from "./utils/anilistSync";
 import { setWindowTitle } from "./utils/appWindow";
 import { convertFileSrc, invoke } from "@tauri-apps/api/core";
 import { detectKind, loadPages, IMAGE_EXTS } from "./loaders";
@@ -110,7 +112,17 @@ function App() {
     getFavoritesRespectFolders().then(setFavoritesRespectFolders);
     if (getCurrentWindow().label === MAIN_WINDOW_LABEL) {
       runAutoBackupIfDue();
+      flushPendingSyncs().catch(console.error);
     }
+  }, []);
+
+  // Progress queued while offline goes out as soon as the network is back. Only
+  // `main` flushes, so several windows don't send the same queue twice.
+  useEffect(() => {
+    if (getCurrentWindow().label !== MAIN_WINDOW_LABEL) return;
+    const onOnline = () => { flushPendingSyncs().catch(console.error); };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
   }, []);
 
   // Clears reader state without changing the current view. Used internally
@@ -508,6 +520,8 @@ function App() {
         onToggleFavoritesRespectFolders={handleToggleFavoritesRespectFolders}
         onRefreshMetadata={handleRefreshMetadata}
       />
+
+      <AniListToast />
     </>
   );
 }

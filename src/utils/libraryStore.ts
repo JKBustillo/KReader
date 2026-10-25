@@ -2,6 +2,7 @@ import { Store } from "@tauri-apps/plugin-store";
 import type { Library, LibraryEntry, ReadingState, Tag } from "../types/library";
 import { normalizePath } from "./folderUtils";
 import { setEntryMetaFields, batchSetEntryMeta, getAllEntryMeta, replaceAllEntryMeta, type EntryMeta } from "./entryMetaStore";
+import { getSeriesLinks, replaceSeriesLinks, type SeriesLink } from "./anilistStore";
 
 const STORE_FILE = ".library.dat";
 const LIBRARIES_KEY = "libraries";
@@ -141,6 +142,7 @@ export async function exportLibraryData(): Promise<{
   libraries: Library[];
   entries: Record<string, LibraryEntry[]>;
   entryMeta: Record<string, EntryMeta>;
+  anilistLinks: Record<string, SeriesLink>;
 }> {
   const libraries = await getLibraries();
   const entries: Record<string, LibraryEntry[]> = {};
@@ -148,13 +150,15 @@ export async function exportLibraryData(): Promise<{
     entries[lib.id] = await getEntries(lib.id);
   }
   const entryMeta = await getAllEntryMeta();
-  return { libraries, entries, entryMeta };
+  const anilistLinks = await getSeriesLinks();
+  return { libraries, entries, entryMeta, anilistLinks };
 }
 
 export async function importLibraryData(data: {
   libraries: Library[];
   entries: Record<string, LibraryEntry[]>;
   entryMeta?: Record<string, EntryMeta>;
+  anilistLinks?: Record<string, SeriesLink>;
 }): Promise<void> {
   const store = await getStore();
   await store.set(LIBRARIES_KEY, data.libraries);
@@ -164,6 +168,7 @@ export async function importLibraryData(data: {
   await store.save();
   // entryMeta is optional so backups predating the sticky-metadata feature still import.
   if (data.entryMeta) await replaceAllEntryMeta(data.entryMeta);
+  if (data.anilistLinks) await replaceSeriesLinks(data.anilistLinks);
 }
 
 export async function batchSetCustomTags(
