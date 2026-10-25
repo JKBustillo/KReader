@@ -515,6 +515,11 @@ function LibraryView({
 
   const scanRef = useRef(false);
   const scanAbortRef = useRef(false);
+  // Bumped by every scan that starts. A scan only touches React state while it
+  // is still the latest one: switching libraries mid-scan used to let the old
+  // library's scan finish and render its entries in the new library (and the
+  // new library's scan was skipped because one was already running).
+  const scanGenRef = useRef(0);
   // Library id whose initial scan has already completed in this mount. Gates
   // the background re-scan effect so it never runs before the first scan.
   const scannedLibRef = useRef<string | null>(null);
@@ -529,14 +534,15 @@ function LibraryView({
     lib: Library,
     baseline: LibraryEntry[],
     allPageProgress: Map<string, number>,
+    isCurrent: () => boolean,
   ) => {
     setScanning(true);
     const scanned = await invoke<ScannedFile[]>("scan_library", { root: lib.rootPath });
 
     // If the user opened a file while scan_library was running in Rust, drop
     // the results to avoid competing store writes with file loading. The scan
-    // runs cleanly on the next library visit.
-    if (scanAbortRef.current) return;
+    // runs cleanly on the next library visit. Same if another scan superseded it.
+    if (scanAbortRef.current || !isCurrent()) return;
 
     const scannedByPath = new Map(scanned.map((f) => [f.path, f]));
     const storedById = new Map(baseline.map((e) => [e.id, e]));
@@ -558,7 +564,6 @@ function LibraryView({
         return entry;
       })
     );
-    setAmbiguousCandidates(newAmbiguous);
 
     const now = Math.floor(Date.now() / 1000);
     const newEntries: LibraryEntry[] = [];
@@ -631,6 +636,9 @@ function LibraryView({
       }
     }
 
+    // The disk writes above stay valid for `lib`; only the UI belongs to the latest scan.
+    if (!isCurrent()) return;
+    setAmbiguousCandidates(newAmbiguous);
     setEntries(allEntries);
     setNotFoundIds(missing);
 
@@ -655,7 +663,9 @@ function LibraryView({
   // reconciles against the filesystem in the background.
   useEffect(() => {
     if (!activeLib) return;
-    if (scanRef.current) return;
+    // Always runs on a library switch, superseding any scan still in flight.
+    const gen = ++scanGenRef.current;
+    const isCurrent = () => scanGenRef.current === gen;
     scanRef.current = true;
     const lib = activeLib;
 
@@ -668,6 +678,7 @@ function LibraryView({
           getEntries(lib.id),
           getAllPageProgress(),
         ]);
+        if (!isCurrent()) return;
         setEntries(stored);
         const initialToRead = stored.filter((e) => (e.totalPages ?? 0) > 0 && e.readingState !== "unread");
         if (initialToRead.length > 0) {
@@ -681,11 +692,13 @@ function LibraryView({
 
         // Skip the filesystem scan if the user already opened a file during Phase A.
         if (scanAbortRef.current) return;
-        await reconcileScan(lib, stored, allPageProgress);
-        scannedLibRef.current = lib.id;
+        await reconcileScan(lib, stored, allPageProgress, isCurrent);
+        if (isCurrent()) scannedLibRef.current = lib.id;
       } finally {
-        setScanning(false);
-        scanRef.current = false;
+        if (isCurrent()) {
+          setScanning(false);
+          scanRef.current = false;
+        }
       }
     })();
   }, [activeLib, reconcileScan]);
@@ -697,6 +710,8 @@ function LibraryView({
     if (!active || !activeLib) return;
     if (scannedLibRef.current !== activeLib.id) return;
     if (scanRef.current) return;
+    const gen = ++scanGenRef.current;
+    const isCurrent = () => scanGenRef.current === gen;
     scanRef.current = true;
     const lib = activeLib;
 
@@ -704,11 +719,13 @@ function LibraryView({
       scanAbortRef.current = false;
       try {
         const allPageProgress = await getAllPageProgress();
-        if (scanAbortRef.current) return;
-        await reconcileScan(lib, entriesRef.current, allPageProgress);
+        if (scanAbortRef.current || !isCurrent()) return;
+        await reconcileScan(lib, entriesRef.current, allPageProgress, isCurrent);
       } finally {
-        setScanning(false);
-        scanRef.current = false;
+        if (isCurrent()) {
+          setScanning(false);
+          scanRef.current = false;
+        }
       }
     })();
   }, [active, activeLib, reconcileScan]);
