@@ -31,7 +31,12 @@ const THUMBNAIL_SCALE = 0.25;
 const THUMBNAIL_JPEG_QUALITY = 0.85;
 const THUMBNAIL_MAX_WIDTH = 280;
 const THUMBNAIL_MAX_HEIGHT = 420;
-const THUMBNAIL_CACHE_SUBDIR = "kreader-thumbnails";
+// Covers are 2:3 portraits; anything taller (a webtoon strip) is cropped to its top.
+const THUMBNAIL_ASPECT = THUMBNAIL_MAX_HEIGHT / THUMBNAIL_MAX_WIDTH;
+// Bump the version whenever the generation changes so stale covers regenerate;
+// the previous dirs are deleted on first use.
+const THUMBNAIL_CACHE_SUBDIR = "kreader-thumbnails-v2";
+const LEGACY_THUMBNAIL_CACHE_SUBDIRS = ["kreader-thumbnails"];
 const MAX_CONCURRENT = 4;
 
 // --- In-memory cache (deduplicates concurrent requests per session) ---
@@ -68,6 +73,12 @@ function getCacheDir(): Promise<string> {
       const base = await appCacheDir();
       const dir = await join(base, THUMBNAIL_CACHE_SUBDIR);
       await mkdir(dir, { recursive: true }).catch(() => {});
+      for (const legacy of LEGACY_THUMBNAIL_CACHE_SUBDIRS) {
+        const legacyDir = await join(base, legacy);
+        if (await exists(legacyDir).catch(() => false)) {
+          remove(legacyDir, { recursive: true }).catch(console.error);
+        }
+      }
       return dir;
     })();
   }
@@ -99,21 +110,24 @@ async function saveToDiskCache(entryId: string, blob: Blob): Promise<void> {
 }
 
 // --- Image resize ---
-// Scales the image down to fit within THUMBNAIL_MAX_WIDTH × THUMBNAIL_MAX_HEIGHT
-// and re-encodes as JPEG. If already smaller, just re-encodes without upscaling.
+// Crops images taller than the 2:3 cover to their top (otherwise a webtoon strip
+// shrinks to a few pixels wide and the card stretches it into a blur), then
+// scales down to fit THUMBNAIL_MAX_WIDTH × THUMBNAIL_MAX_HEIGHT and re-encodes
+// as JPEG. If already smaller, just re-encodes without upscaling.
 function resizeBlob(blob: Blob): Promise<Blob | null> {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(blob);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      const scale = Math.min(THUMBNAIL_MAX_WIDTH / img.width, THUMBNAIL_MAX_HEIGHT / img.height, 1);
+      const srcHeight = Math.min(img.height, Math.round(img.width * THUMBNAIL_ASPECT));
+      const scale = Math.min(THUMBNAIL_MAX_WIDTH / img.width, THUMBNAIL_MAX_HEIGHT / srcHeight, 1);
       const canvas = document.createElement("canvas");
       canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
+      canvas.height = Math.round(srcHeight * scale);
       const ctx = canvas.getContext("2d");
       if (!ctx) { resolve(null); return; }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, img.width, srcHeight, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(resolve, "image/jpeg", THUMBNAIL_JPEG_QUALITY);
     };
     img.onerror = () => { URL.revokeObjectURL(url); resolve(null); };
