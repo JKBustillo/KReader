@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { rename, mkdir, exists } from "@tauri-apps/plugin-fs";
 
-import type { Library, LibraryEntry, SortDirection, SortField, Tag, ViewMode } from "../types/library";
+import type { Library, LibraryEntry, ReadingState, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
   getLibraries,
   addLibrary,
@@ -21,6 +21,7 @@ import {
   setTotalPages,
   clearAllTotalPages,
   batchSetCustomTags,
+  batchSetReadingState,
 } from "../utils/libraryStore";
 import { getEntryMetaMap, batchSetEntryMeta, deleteEntryMeta, renameEntryMeta, type EntryMeta } from "../utils/entryMetaStore";
 import { countPages } from "../utils/countPages";
@@ -816,28 +817,24 @@ function LibraryView({
     }
   }, []);
 
-  const handleResetProgress = useCallback(async (targetEntries: LibraryEntry[]) => {
-    for (const entry of targetEntries) {
-      await setReadingState(entry.id, entry.libraryId, "unread");
-    }
-    const ids = new Set(targetEntries.map((e) => e.id));
-    setEntries((prev) =>
-      prev.map((e) => ids.has(e.id) ? { ...e, readingState: "unread" as const } : e)
-    );
+  // Optimistic: the menu closes and the UI updates at once, and the store write
+  // (one batch, not one save per file) runs in the background.
+  const applyReadingState = useCallback((targetEntries: LibraryEntry[], state: ReadingState) => {
     setContextMenu(null);
+    const ids = new Set(targetEntries.map((e) => e.id));
+    setEntries((prev) => prev.map((e) => ids.has(e.id) ? { ...e, readingState: state } : e));
+    if (targetEntries.length === 0) return;
+    batchSetReadingState(targetEntries[0].libraryId, [...ids], state).catch(console.error);
   }, []);
 
-  const handleMarkAsRead = useCallback(async (targetEntries: LibraryEntry[]) => {
-    for (const entry of targetEntries) {
-      await setReadingState(entry.id, entry.libraryId, "completed");
-    }
+  const handleResetProgress = useCallback((targetEntries: LibraryEntry[]) => {
+    applyReadingState(targetEntries, "unread");
+  }, [applyReadingState]);
+
+  const handleMarkAsRead = useCallback((targetEntries: LibraryEntry[]) => {
+    applyReadingState(targetEntries, "completed");
     syncCompletedEntries(targetEntries.filter((e) => e.readingState !== "completed")).catch(console.error);
-    const ids = new Set(targetEntries.map((e) => e.id));
-    setEntries((prev) =>
-      prev.map((e) => ids.has(e.id) ? { ...e, readingState: "completed" as const } : e)
-    );
-    setContextMenu(null);
-  }, []);
+  }, [applyReadingState]);
 
   const handleCopyFilename = useCallback((targetEntries: LibraryEntry[]) => {
     const text = targetEntries.map((e) => e.filename).join("\n");

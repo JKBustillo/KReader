@@ -171,6 +171,19 @@ export async function importLibraryData(data: {
   if (data.anilistLinks) await replaceSeriesLinks(data.anilistLinks);
 }
 
+export async function batchSetReadingState(libraryId: string, ids: string[], state: ReadingState): Promise<void> {
+  if (ids.length === 0) return;
+  const store = await getStore();
+  const entries = await getEntries(libraryId);
+  const idSet = new Set(ids);
+  for (const entry of entries) {
+    if (idSet.has(entry.id)) entry.readingState = state;
+  }
+  await store.set(entriesKey(libraryId), entries);
+  await store.save();
+  await batchSetEntryMeta(ids.map((id) => ({ id, meta: { readingState: state } })));
+}
+
 export async function batchSetCustomTags(
   libraryId: string,
   updates: { id: string; tags: Tag[] }[],
