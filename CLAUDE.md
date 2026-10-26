@@ -102,10 +102,10 @@ src/
                                   ContextMenu "Link series to AniList…" item (single selection, unlinked folder) or the
                                   series panel's "Change link". See AniList sync.
     AniListSeriesPanel.tsx      Per-series panel for a linked folder, a non-modal right sidebar in its own column of
-                                  LibraryView's content row (the list narrows and the cover grid reflows; own Escape;
+                                  LibraryView's content row (the list narrows and the cover grid reflows; Escape is ordered by LibraryView: expanded cover, then the selection, then the sidebar;
                                   another AL badge switches series via `key`). A series opened
                                   before renders complete from the cache (getCachedSeriesPanel) and refreshes silently;
-                                  only a never-fetched one shows a spinner + skeletons. Cover (click: extraLarge lightbox portaled to body, since the slide-in animation's kept transform would otherwise contain it; Escape closes it before the sidebar), format/year/totals, genres, plain-text
+                                  only a never-fetched one shows a spinner + skeletons. Cover (click: extraLarge lightbox portaled to body, since the slide-in animation's kept transform would otherwise contain it; Escape closes only it, caught in the capture phase), format/year/totals, genres, plain-text
                                   synopsis, "Open on AniList", and a form for status/chapters/volumes/score (score control
                                   follows the account's format, see anilistScore.ts). Save sends only the changed fields.
                                   Shows the cached link with a notice when AniList can't be reached. Opened from the AL

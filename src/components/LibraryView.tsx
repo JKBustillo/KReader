@@ -1102,10 +1102,21 @@ function LibraryView({
     setResolveTarget(null);
   }, []);
 
-  // Escape clears selection (runs regardless of contextMenu so Escape covers both).
+  // Read by the Escape listener below without re-subscribing it.
+  const escapeStateRef = useRef({ active, hasSelection: false, panelOpen: false });
+  useEffect(() => {
+    escapeStateRef.current = { active, hasSelection: selectedIds.size > 0, panelOpen: aniListPanelFolder !== null };
+  }, [active, selectedIds, aniListPanelFolder]);
+
+  // Escape clears the selection first, then closes the AniList sidebar (runs regardless of contextMenu so
+  // Escape covers both). While a reader covers the library, its Escape only clears the selection: `active`
+  // still reads false while the Escape that closes the reader propagates here.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelectedIds(new Set());
+      if (e.key !== "Escape") return;
+      const { active: isActive, hasSelection, panelOpen } = escapeStateRef.current;
+      if (hasSelection || !isActive) setSelectedIds(new Set());
+      else if (panelOpen) setAniListPanelFolder(null);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1783,7 +1794,6 @@ function LibraryView({
             }}
             onLinkChanged={(link) => handleSeriesLinkRefreshed(aniListPanelFolder, link)}
             onClose={() => setAniListPanelFolder(null)}
-            active={active}
           />
         )}
         </div>

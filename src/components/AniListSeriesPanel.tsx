@@ -91,7 +91,6 @@ function AniListSeriesPanel({
   onUnlink,
   onLinkChanged,
   onClose,
-  active,
 }: {
   folderName: string;
   /** The stored link, shown while the fresh data loads. */
@@ -101,8 +100,6 @@ function AniListSeriesPanel({
   /** The stored link was refreshed or edited (title/cover may have changed). */
   onLinkChanged: (link: SeriesLink) => void;
   onClose: () => void;
-  /** False while a reader covers the (still mounted) library, so its Escape isn't taken as closing the sidebar. */
-  active: boolean;
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState<SeriesPanelData | null>(null);
@@ -119,24 +116,20 @@ function AniListSeriesPanel({
   // Held in refs so new parent callbacks don't refetch or re-subscribe.
   const onLinkChangedRef = useRef(onLinkChanged);
   useEffect(() => { onLinkChangedRef.current = onLinkChanged; }, [onLinkChanged]);
-  const onCloseRef = useRef(onClose);
-  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
   const [coverExpanded, setCoverExpanded] = useState(false);
   const coverExpandedRef = useRef(false);
   useEffect(() => { coverExpandedRef.current = coverExpanded; }, [coverExpanded]);
-  // Updated after render, so the Escape that closes the reader still reads false while it propagates here.
-  const activeRef = useRef(active);
-  useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
-    // Escape closes the expanded cover first, the sidebar only after.
+    // Escape on an expanded cover closes only the cover: caught in the capture phase and stopped before
+    // LibraryView's Escape (selection, then the sidebar itself) sees it.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape" || !activeRef.current) return;
-      if (coverExpandedRef.current) setCoverExpanded(false);
-      else onCloseRef.current();
+      if (e.key !== "Escape" || !coverExpandedRef.current) return;
+      e.stopPropagation();
+      setCoverExpanded(false);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, []);
 
   useEffect(() => {
