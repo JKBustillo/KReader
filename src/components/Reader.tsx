@@ -79,6 +79,26 @@ function Reader({
     lastPageFiredRef.current = false;
   }, [filePath]);
 
+  // Native arrow/space scrolling only moves the focused element's scroller. The
+  // control that opened the file is hidden with the chrome, so focus falls back
+  // to <body> and the keys would do nothing until the user clicks the page.
+  useEffect(() => {
+    containerRef.current?.focus({ preventScroll: true });
+  }, [filePath]);
+
+  // Focus can still drop to <body> later (e.g. the AniList toast's Undo button is
+  // removed while focused). Reclaiming it in the capture phase lets the same
+  // keypress scroll, since the browser picks the scroll target after dispatch.
+  useEffect(() => {
+    const reclaimFocus = () => {
+      if (document.activeElement === document.body) {
+        containerRef.current?.focus({ preventScroll: true });
+      }
+    };
+    window.addEventListener("keydown", reclaimFocus, { capture: true });
+    return () => window.removeEventListener("keydown", reclaimFocus, { capture: true });
+  }, []);
+
   useEffect(() => {
     if (pages.length > 0 && pageIndex === pages.length - 1 && !lastPageFiredRef.current) {
       lastPageFiredRef.current = true;
@@ -327,7 +347,8 @@ function Reader({
   return (
     <div
       ref={containerRef}
-      className={`flex justify-center ${isTallerThanViewport || cascadeMode || webtoonMode ? "items-start" : "items-center"} bg-[var(--reader-bg)] text-[var(--text-primary)] h-screen overflow-auto`}
+      tabIndex={-1}
+      className={`outline-none flex justify-center ${isTallerThanViewport || cascadeMode || webtoonMode ? "items-start" : "items-center"} bg-[var(--reader-bg)] text-[var(--text-primary)] h-screen overflow-auto`}
       style={{ scrollBehavior: "smooth" }}
     >
       {loaded && (
