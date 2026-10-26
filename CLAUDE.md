@@ -91,6 +91,9 @@ src/
                                   SettingsModal, and DeleteConfirmModal. Specialized controls (toggles, chips,
                                   icon-only, tag chips, folder rows) deliberately stay outside this component.
     Spinner.tsx                 Small inline accent loading wheel (AniList link search + series panel).
+    ContinueButton.tsx          "Continue <file> (page/total)" / "Start <file>" / disabled "Up to date" for a
+                                  pickContinueTarget result. In the library toolbar (whole library, also Enter with no
+                                  selection) and the AniList panel's continueAction slot (that series' entries).
     Modal.tsx                   Shared modal shell: dimmed backdrop + Escape-to-close + click-outside +
                                   stopPropagation. Children = panel content; panelClassName sets width.
                                   Used by MoveFolderModal/DeleteConfirmModal/RemoveLibraryConfirmModal (in LibraryView)
@@ -202,6 +205,8 @@ src/
     anilistScore.ts             Pure raw-score (0-100) <-> account score format mapping for the panel's score control.
     anilistSync.ts              syncCompletedEntries(entries), flushPendingSyncs(), undoSync(notice), loadSeriesPanel /
                                   saveSeriesEdit (series panel), seriesFolderName(path). See AniList sync.
+    continueReading.ts          pickContinueTarget(entries): the last opened file while unfinished, else the first
+                                  unfinished file after it in its folder (numeric path order, as Ctrl+Arrow).
     progress.ts                 Shared reading-progress helpers: computeProgress(entry, currentPage),
                                   PROGRESS_INCOMPLETE_CAP, PROGRESS_DOT_COLORS. Used by LibraryCard + LibraryDetailsRow.
   i18n/                         react-i18next setup (en, es)
@@ -338,6 +343,12 @@ fetches only pay off because the responses are cacheable.
 **Favorites filter:**
 - "Show favorites only" toggle is persisted **per library** to `.settings.dat` under `favorites-filter:<libraryId>` (same load/save lifecycle as the folder filter: loaded on library switch via a ref guard `favoritesFilterLoadedForLibRef`, saved on change). Survives app restart and is independent per library.
 - `favorites-respect-folders` setting (global, default false) controls how the favorites filter interacts with the folder filter. When **off** (default), an active favorites filter ignores the folder filter (shows favorites from every folder); when **on**, favorites are intersected with the folder filter. Computed once per render as `applyFolderFilter = !(showFavoritesOnly && !favoritesRespectFolders)` and used to gate the folder-filter branch in the entry predicate. Toggled in `SettingsModal`; loaded/owned by `App.tsx` and passed to `LibraryView`.
+
+**Continue reading:** `pickContinueTarget` over the entries present on disk drives the toolbar `ContinueButton`
+and Enter (ignored with a selection, on a focused control, or while an `aria-modal` dialog / `role="menu"` is open;
+modal shells carry those attributes for this). It relies on `lastOpenedAt` being fresh, so the background re-scan
+merges `lastOpenedAt`/`totalPages` from the store into its live baseline (sibling nav and other windows only write
+the store).
 
 **Search bypass ("Whole library"):**
 - While the search box has text and any filter (folders/tags/favorites) is active, a toggle next to it (`searchAllLibrary`, session-only) makes the search match against all entries, ignoring those filters. The filter state itself is never touched — only bypassed — and `handleSearchChange` resets the toggle when the text is cleared (also on library switch), so filters come back as they were. The button shows `+N` = matches hidden by the filters.

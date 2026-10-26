@@ -32,6 +32,7 @@ import { parseAutoTags } from "../utils/parseTags";
 import { seriesFolderName, syncCompletedEntries } from "../utils/anilistSync";
 import { getSeriesLinks, setSeriesLink, type SeriesLink } from "../utils/anilistStore";
 import { getRelativeFolder, basename, normalizePath } from "../utils/folderUtils";
+import { pickContinueTarget } from "../utils/continueReading";
 import { LibraryDetailsRow, COL_WIDTHS, COL_STAR, COL_RATING } from "./LibraryDetailsRow";
 import LibraryCard from "./LibraryCard";
 import TagEditor from "./TagEditor";
@@ -41,6 +42,7 @@ import ResolveLocationModal from "./ResolveLocationModal";
 import ContextMenu from "./ContextMenu";
 import AniListLinkModal from "./AniListLinkModal";
 import AniListSeriesPanel from "./AniListSeriesPanel";
+import ContinueButton from "./ContinueButton";
 import FilterDropdown from "./FilterDropdown";
 import Button from "./Button";
 
@@ -94,6 +96,10 @@ function GridIcon() {
 // Folder-tree layout (rem). Each nesting level shifts the row right so the
 // list reads as a hierarchy; base padding aligns the top level with the header.
 const ROOT_FOLDER_PATH = "/";
+// Enter on these keeps its own meaning instead of opening the Continue target.
+const KEY_TARGET_CONTROLS = "input, textarea, select, button, a, [contenteditable]";
+// Any of these on screen means Enter belongs to it, not to the library.
+const OPEN_OVERLAY_SELECTOR = '[aria-modal="true"], [role="menu"]';
 const FOLDER_BASE_PADDING_REM = 0.75;
 const FOLDER_INDENT_REM = 0.85;
 
@@ -721,9 +727,21 @@ function LibraryView({
     (async () => {
       scanAbortRef.current = false;
       try {
-        const allPageProgress = await getAllPageProgress();
+        const [allPageProgress, stored] = await Promise.all([getAllPageProgress(), getEntries(lib.id)]);
         if (scanAbortRef.current || !isCurrent()) return;
-        await reconcileScan(lib, entriesRef.current, allPageProgress, isCurrent);
+        // Files read by Ctrl+Arrow or in another window only updated the store; pick up their
+        // open time and page count (reading state comes back through the entry meta overlay).
+        const storedById = new Map(stored.map((e) => [e.id, e]));
+        const baseline = entriesRef.current.map((e) => {
+          const s = storedById.get(e.id);
+          if (!s) return e;
+          return {
+            ...e,
+            lastOpenedAt: Math.max(e.lastOpenedAt ?? 0, s.lastOpenedAt ?? 0) || undefined,
+            totalPages: s.totalPages ?? e.totalPages,
+          };
+        });
+        await reconcileScan(lib, baseline, allPageProgress, isCurrent);
       } finally {
         if (isCurrent()) {
           setScanning(false);
@@ -1102,21 +1120,49 @@ function LibraryView({
     setResolveTarget(null);
   }, []);
 
-  // Read by the Escape listener below without re-subscribing it.
-  const escapeStateRef = useRef({ active, hasSelection: false, panelOpen: false });
+  // Ambiguous entries still point at their old, missing path, so they can't be opened either.
+  const presentEntries = useMemo(
+    () => entries.filter((e) => !notFoundIds.has(e.id) && !ambiguousCandidates.has(e.id)),
+    [entries, notFoundIds, ambiguousCandidates],
+  );
+  const continueTarget = useMemo(() => pickContinueTarget(presentEntries), [presentEntries]);
+  const panelSeriesEntries = useMemo(
+    () => aniListPanelFolder === null
+      ? []
+      : presentEntries.filter((e) => seriesFolderName(e.currentPath) === aniListPanelFolder),
+    [presentEntries, aniListPanelFolder],
+  );
+  const panelContinueTarget = useMemo(() => pickContinueTarget(panelSeriesEntries), [panelSeriesEntries]);
+
+  // Read by the key listener below without re-subscribing it.
+  const keyStateRef = useRef({ active, hasSelection: false, panelOpen: false, continueTarget, open: handleOpen });
   useEffect(() => {
-    escapeStateRef.current = { active, hasSelection: selectedIds.size > 0, panelOpen: aniListPanelFolder !== null };
-  }, [active, selectedIds, aniListPanelFolder]);
+    keyStateRef.current = {
+      active,
+      hasSelection: selectedIds.size > 0,
+      panelOpen: aniListPanelFolder !== null,
+      continueTarget,
+      open: handleOpen,
+    };
+  }, [active, selectedIds, aniListPanelFolder, continueTarget, handleOpen]);
 
   // Escape clears the selection first, then closes the AniList sidebar (runs regardless of contextMenu so
   // Escape covers both). While a reader covers the library, its Escape only clears the selection: `active`
   // still reads false while the Escape that closes the reader propagates here.
+  // Enter with nothing selected opens the Continue target, unless focus is on a control or an overlay is open.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      const { active: isActive, hasSelection, panelOpen } = escapeStateRef.current;
-      if (hasSelection || !isActive) setSelectedIds(new Set());
-      else if (panelOpen) setAniListPanelFolder(null);
+      const { active: isActive, hasSelection, panelOpen, continueTarget: target, open } = keyStateRef.current;
+      if (e.key === "Escape") {
+        if (hasSelection || !isActive) setSelectedIds(new Set());
+        else if (panelOpen) setAniListPanelFolder(null);
+        return;
+      }
+      if (e.key !== "Enter" || e.repeat || !isActive || hasSelection || !target) return;
+      if (e.target instanceof Element && e.target.closest(KEY_TARGET_CONTROLS)) return;
+      if (document.querySelector(OPEN_OVERLAY_SELECTOR)) return;
+      e.preventDefault();
+      open(target.entry);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -1401,7 +1447,17 @@ function LibraryView({
           </span>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 min-w-0">
+          {entries.length > 0 && (
+            <ContinueButton
+              target={continueTarget}
+              currentPage={continueTarget ? pageMap.get(continueTarget.entry.id) : undefined}
+              onOpen={handleOpen}
+              shortcut="Enter"
+              className="max-w-[320px]"
+            />
+          )}
+
           {/* Folders filter dropdown */}
           <FilterDropdown
             label={t("library.folders")}
@@ -1794,6 +1850,14 @@ function LibraryView({
             }}
             onLinkChanged={(link) => handleSeriesLinkRefreshed(aniListPanelFolder, link)}
             onClose={() => setAniListPanelFolder(null)}
+            continueAction={panelSeriesEntries.length > 0 && (
+              <ContinueButton
+                target={panelContinueTarget}
+                currentPage={panelContinueTarget ? pageMap.get(panelContinueTarget.entry.id) : undefined}
+                onOpen={handleOpen}
+                className="self-start max-w-full"
+              />
+            )}
           />
         )}
         </div>

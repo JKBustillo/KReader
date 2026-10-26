@@ -139,6 +139,8 @@ function SettingsModal({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm"
       style={{ background: "rgba(0,0,0,0.62)" }}
       onClick={onClose}

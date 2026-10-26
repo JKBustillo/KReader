@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -91,6 +91,7 @@ function AniListSeriesPanel({
   onUnlink,
   onLinkChanged,
   onClose,
+  continueAction,
 }: {
   folderName: string;
   /** The stored link, shown while the fresh data loads. */
@@ -100,6 +101,8 @@ function AniListSeriesPanel({
   /** The stored link was refreshed or edited (title/cover may have changed). */
   onLinkChanged: (link: SeriesLink) => void;
   onClose: () => void;
+  /** Continue/start reading this series in the library, shown under the form. */
+  continueAction?: ReactNode;
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState<SeriesPanelData | null>(null);
@@ -393,6 +396,8 @@ function AniListSeriesPanel({
           </div>
         )}
 
+        {continueAction}
+
         {saveError && (
           <p className="text-xs" style={{ color: "var(--color-danger)" }}>{t("anilist.saveError")}</p>
         )}
@@ -420,6 +425,8 @@ function AniListSeriesPanel({
           make it the containing block of this fixed overlay (centered on the sidebar). */}
       {coverExpanded && expandedCoverSrc && createPortal(
         <div
+          role="dialog"
+          aria-modal="true"
           className="kr-pop fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm cursor-zoom-out"
           style={{ background: COVER_BACKDROP_COLOR }}
           onClick={() => setCoverExpanded(false)}

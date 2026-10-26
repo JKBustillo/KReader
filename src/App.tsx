@@ -499,7 +499,8 @@ function App() {
 
       {/* Loading overlay — above everything, dims whatever is underneath. */}
       {loading && (
-        <div className="fixed inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
+        // aria-modal: the library ignores Enter (Continue) while a file is still loading.
+        <div aria-modal="true" className="fixed inset-0 bg-black/40 flex flex-col items-center justify-center z-50">
           <div className="w-10 h-10 border-4 border-[var(--border-spinner)] border-t-transparent rounded-full animate-spin" />
           <span className="mt-4 text-white font-medium">{t("loading")}</span>
         </div>

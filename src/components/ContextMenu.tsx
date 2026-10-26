@@ -85,6 +85,7 @@ function ContextMenu({
   return (
     <div
       ref={menuRef}
+      role="menu"
       className="kr-pop fixed z-50 rounded-xl shadow-2xl overflow-hidden py-1 min-w-[184px]"
       style={{ top: pos.top, left: pos.left, background: "var(--bg-nav)", border: "1px solid var(--border-nav)", transformOrigin: "top left" }}
       onClick={(e) => e.stopPropagation()}
