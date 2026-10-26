@@ -11,6 +11,13 @@ export const HELD_PAGE_SCROLL_SCREENS_PER_SEC = 5;
 /** Longest frame step (ms) the held scroll accepts, so a stalled frame doesn't jump. */
 export const MAX_HELD_SCROLL_FRAME_MS = 50;
 
+/**
+ * rootMargin for a thin band across the scroller's vertical center: the page crossing
+ * it is the active one. Unlike an intersection-ratio heuristic, it still works for
+ * pages several viewports tall, which never reach a high ratio.
+ */
+export const ACTIVE_PAGE_ROOT_MARGIN = "-50% 0px -49% 0px";
+
 export function isAtBottom(el: HTMLElement): boolean {
   return el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_EPSILON_PX;
 }

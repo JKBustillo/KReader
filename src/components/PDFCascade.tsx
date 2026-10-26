@@ -1,16 +1,13 @@
 import { useEffect, useMemo, useRef, type RefObject } from "react";
 import { TextLayer } from "pdfjs-dist";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
+import { ACTIVE_PAGE_ROOT_MARGIN } from "../utils/scroll";
 
 // ponytail: render window = pages within one viewport above/below the visible
 // area are painted to canvas; the rest stay blank placeholders so memory stays
 // bounded (~3 viewports of live canvas). Upgrade path: shrink/grow this margin
 // if a very large/very small page size makes the window too heavy or too eager.
 const RENDER_ROOT_MARGIN = "100% 0px";
-// Thin band across the viewport's vertical center: the page crossing it is the
-// "active" page. Robust for pages taller than the viewport (an intersection-ratio
-// heuristic would never reach a high ratio for those).
-const ACTIVE_PAGE_ROOT_MARGIN = "-50% 0px -49% 0px";
 
 export type PageDim = { width: number; height: number };
 

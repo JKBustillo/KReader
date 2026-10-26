@@ -179,7 +179,7 @@ src/
                                   (EPUB cover via extract_epub_cover Rust IPC)
     parseTags.ts                Auto-tag parsing from filename brackets [Author (Circle)]
     folderUtils.ts              Path helpers: getRelativeFolder(entryPath, rootPath), basename(path), normalizePath(path)
-    scroll.ts                   Scroll-edge constants (SCROLL_EPSILON_PX, WHEEL_THROTTLE_MS, PAGE_SCROLL_FRACTION) + isAtTop/isAtBottom
+    scroll.ts                   Scroll-edge constants (SCROLL_EPSILON_PX, WHEEL_THROTTLE_MS, PAGE_SCROLL_FRACTION), ACTIVE_PAGE_ROOT_MARGIN (center-band active-page rootMargin, shared by Reader cascade + PDFCascade) + isAtTop/isAtBottom
     appWindow.ts                APP_NAME + setWindowTitle(name?) → "${name} - KReader" or "KReader"
     readingProgressStore.ts     Owns all .reading-progress.dat keys (page/cascade/bookmarks/epub-cfi/
                                   epub-locations), read+write. Consumed by useReadingProgress, PDFReader and

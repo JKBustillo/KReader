@@ -9,7 +9,7 @@ import { useOverlayAutoHide } from "../hooks/useOverlayAutoHide";
 import { usePinPageIndicator } from "../hooks/usePinPageIndicator";
 import { basename } from "../utils/folderUtils";
 import { setWindowTitle } from "../utils/appWindow";
-import { isAtBottom, isAtTop, WHEEL_THROTTLE_MS } from "../utils/scroll";
+import { ACTIVE_PAGE_ROOT_MARGIN, isAtBottom, isAtTop, WHEEL_THROTTLE_MS } from "../utils/scroll";
 import ReaderOverlay from "./ReaderOverlay";
 
 // How many screens' worth of pages to fetch on each side of the current one.
@@ -74,6 +74,13 @@ function Reader({
   // Lets the scroll-to effect know that a pageIndex update came from the cascade
   // IntersectionObserver (user scroll) and shouldn't trigger another scroll.
   const pageIndexSourceRef = useRef<'external' | 'observer'>('external');
+  // Read by the cascade observer so it only flags real changes as 'observer': a
+  // flag left set on a no-op report would swallow the next external navigation.
+  const pageIndexRef = useRef(pageIndex);
+
+  useEffect(() => {
+    pageIndexRef.current = pageIndex;
+  }, [pageIndex]);
 
   useEffect(() => {
     lastPageFiredRef.current = false;
@@ -177,7 +184,7 @@ function Reader({
     })();
   }, [pageIndex, cascadeMode, webtoonMode, smoothScroll, loaded]);
 
-  // Cascade mode: track which image is most visible and reflect it in pageIndex.
+  // Cascade mode: reflect the page crossing the viewport's center line in pageIndex.
   useEffect(() => {
     if (!loaded || (!cascadeMode && !webtoonMode)) return;
     const container = containerRef.current;
@@ -185,6 +192,8 @@ function Reader({
 
     let active = true;
     let observer: IntersectionObserver | null = null;
+    let removeScrollListener: (() => void) | null = null;
+    let centeredIdx = -1;
 
     (async () => {
       const imgs = Array.from(container.querySelectorAll('img')) as HTMLImageElement[];
@@ -205,29 +214,38 @@ function Reader({
       await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
       if (!active) return;
 
+      // A last page shorter than half the viewport never reaches the center line, so
+      // hitting the bottom counts as being on it (otherwise the file never completes).
+      // Content that fits without scrolling is "at the bottom" on open; skip that case
+      // so opening a short chapter doesn't mark it read.
+      const reportPage = () => {
+        const scrolledToEnd = container.scrollHeight > container.clientHeight && isAtBottom(container);
+        const idx = scrolledToEnd ? imgs.length - 1 : centeredIdx;
+        if (idx < 0 || idx === pageIndexRef.current) return;
+        pageIndexSourceRef.current = 'observer';
+        setPageIndex(idx);
+      };
+
       observer = new IntersectionObserver(
         (entries) => {
-          let bestIdx = -1;
-          let bestRatio = 0;
           entries.forEach((entry) => {
-            if (entry.isIntersecting && entry.intersectionRatio > bestRatio) {
-              bestRatio = entry.intersectionRatio;
-              bestIdx = imgs.indexOf(entry.target as HTMLImageElement);
-            }
+            if (entry.isIntersecting) centeredIdx = imgs.indexOf(entry.target as HTMLImageElement);
           });
-          if (bestIdx >= 0) {
-            pageIndexSourceRef.current = 'observer';
-            setPageIndex(bestIdx);
-          }
+          reportPage();
         },
-        { root: container, threshold: [0.25, 0.5, 0.75] }
+        { root: container, rootMargin: ACTIVE_PAGE_ROOT_MARGIN }
       );
       imgs.forEach((img) => observer!.observe(img));
+      // The observer is silent while the same page stays centered, so leaving the
+      // bottom (back to the page under the center line) needs the scroll event.
+      container.addEventListener("scroll", reportPage, { passive: true });
+      removeScrollListener = () => container.removeEventListener("scroll", reportPage);
     })();
 
     return () => {
       active = false;
       observer?.disconnect();
+      removeScrollListener?.();
     };
   }, [cascadeMode, webtoonMode, pages, setPageIndex, loaded]);
 
