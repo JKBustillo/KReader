@@ -91,6 +91,7 @@ function AniListSeriesPanel({
   onUnlink,
   onLinkChanged,
   onClose,
+  active,
 }: {
   folderName: string;
   /** The stored link, shown while the fresh data loads. */
@@ -100,6 +101,8 @@ function AniListSeriesPanel({
   /** The stored link was refreshed or edited (title/cover may have changed). */
   onLinkChanged: (link: SeriesLink) => void;
   onClose: () => void;
+  /** False while a reader covers the (still mounted) library, so its Escape isn't taken as closing the sidebar. */
+  active: boolean;
 }) {
   const { t } = useTranslation();
   const [data, setData] = useState<SeriesPanelData | null>(null);
@@ -121,11 +124,14 @@ function AniListSeriesPanel({
   const [coverExpanded, setCoverExpanded] = useState(false);
   const coverExpandedRef = useRef(false);
   useEffect(() => { coverExpandedRef.current = coverExpanded; }, [coverExpanded]);
+  // Updated after render, so the Escape that closes the reader still reads false while it propagates here.
+  const activeRef = useRef(active);
+  useEffect(() => { activeRef.current = active; }, [active]);
 
   useEffect(() => {
     // Escape closes the expanded cover first, the sidebar only after.
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+      if (e.key !== "Escape" || !activeRef.current) return;
       if (coverExpandedRef.current) setCoverExpanded(false);
       else onCloseRef.current();
     };

@@ -1783,6 +1783,7 @@ function LibraryView({
             }}
             onLinkChanged={(link) => handleSeriesLinkRefreshed(aniListPanelFolder, link)}
             onClose={() => setAniListPanelFolder(null)}
+            active={active}
           />
         )}
         </div>
