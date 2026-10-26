@@ -113,7 +113,9 @@ src/
     AniListSettings.tsx         SettingsModal section: connect (opens the authorize URL, user pastes the token),
                                   shows the viewer name, disconnect. Self-contained (no SettingsModal props).
     AniListToast.tsx            Per-window notice for ANILIST_SYNC_EVENT (synced/queued/authRequired/failed) with
-                                  Undo for synced updates. Mounted once in App.tsx, above the reader overlay.
+                                  Undo for synced updates. Once it hides, a marker colored by the result stays at the
+                                  bottom-center edge; hovering it recalls the last notice. Mounted once in App.tsx, above the reader overlay, keyed by the open
+                                  file so opening another one drops the previous notice.
     AniListBadge.tsx            "AL" badge on LibraryCard/LibraryDetailsRow when the entry's folder is linked. Clicking it
                                   opens the series panel (stops propagation so the entry isn't selected/opened).
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).

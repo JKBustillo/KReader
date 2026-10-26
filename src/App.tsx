@@ -527,7 +527,8 @@ function App() {
         onRefreshMetadata={handleRefreshMetadata}
       />
 
-      <AniListToast />
+      {/* Opening another file is a new context: the previous file's notice (and its Undo) is dropped. */}
+      <AniListToast key={currentPath} />
     </>
   );
 }
