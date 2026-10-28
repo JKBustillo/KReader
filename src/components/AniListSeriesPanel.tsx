@@ -5,7 +5,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { MEDIA_LIST_STATUSES, type MediaListEdit, type MediaListStatus } from "../utils/anilistApi";
 import { choiceRawFor, NO_SCORE, RAW_SCORE_MAX, rawFromInput, scoreControl } from "../utils/anilistScore";
 import { getCachedSeriesPanel, loadSeriesPanel, saveSeriesEdit, type SeriesPanelData } from "../utils/anilistSync";
-import type { SeriesLink } from "../utils/anilistStore";
+import { SERIES_LINK_UPDATED_EVENT, type SeriesLink, type SeriesLinkUpdate } from "../utils/anilistStore";
 import Button from "./Button";
 import Spinner from "./Spinner";
 
@@ -166,6 +166,20 @@ function AniListSeriesPanel({
       });
     return () => { cancelled = true; };
   }, [folderName, reloadKey]);
+
+  useEffect(() => {
+    const onUpdated = (e: Event) => {
+      const { folderName: updated, link } = (e as CustomEvent<SeriesLinkUpdate>).detail;
+      if (updated !== folderName) return;
+      const initial = formFrom(link);
+      setData((prev) => prev && { ...prev, link });
+      setOriginal(initial);
+      setForm((prev) => (touchedRef.current && prev ? prev : initial));
+      onLinkChangedRef.current(link);
+    };
+    window.addEventListener(SERIES_LINK_UPDATED_EVENT, onUpdated);
+    return () => window.removeEventListener(SERIES_LINK_UPDATED_EVENT, onUpdated);
+  }, [folderName]);
 
   const edit = form && original ? changedFields(form, original) : {};
   const dirty = Object.keys(edit).length > 0;

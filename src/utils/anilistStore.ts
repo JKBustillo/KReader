@@ -103,6 +103,14 @@ export function setSeriesLink(folderName: string, link: SeriesLink | undefined):
 }
 
 /** Merges `patch` into the stored link. No-op (undefined) if the folder was unlinked. */
+/**
+ * Fired on this window after updateSeriesLink writes (sync, undo, panel), so a
+ * series panel left open while reading shows the new values when the library comes back.
+ */
+export const SERIES_LINK_UPDATED_EVENT = "anilistSeriesLinkUpdated";
+
+export type SeriesLinkUpdate = { folderName: string; link: SeriesLink };
+
 export function updateSeriesLink(folderName: string, patch: Partial<SeriesLink>): Promise<SeriesLink | undefined> {
   return exclusive(async () => {
     const links = await getSeriesLinks();
@@ -111,6 +119,7 @@ export function updateSeriesLink(folderName: string, patch: Partial<SeriesLink>)
     const updated = { ...current, ...patch };
     links[folderName] = updated;
     await writeKey(LINKS_KEY, links);
+    window.dispatchEvent(new CustomEvent<SeriesLinkUpdate>(SERIES_LINK_UPDATED_EVENT, { detail: { folderName, link: updated } }));
     return updated;
   });
 }
