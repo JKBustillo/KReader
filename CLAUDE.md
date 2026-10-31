@@ -62,7 +62,8 @@ src/
                                   stores raw, relative to the nav/ncx doc) are resolved against
                                   book.packaging.navPath so navigation + chapter-label lookup match the spine
                                   even when the nav lives in a subfolder. Font size persists globally
-                                  (epub-font-size); P pins the progress % (usePinPageIndicator, shared with
+                                  (epub-font-size); D toggles double page (rendition.spread "auto"/"none", global
+                                  epub-double-page, read before renderTo so the book never lays out single first); P pins the progress % (usePinPageIndicator, shared with
                                   the comic reader). The progress indicator (clickable) cycles 3 modes
                                   (epub-progress-mode): overall % + book-wide page count from the location
                                   table (both font-independent), and pages within the current chapter from
@@ -257,6 +258,7 @@ fetches only pay off because the responses are cacheable.
 - `.settings.dat` — global app settings. Current keys:
   - `pin-page-indicator` — boolean, pin page number overlay (also pins the EPUB reader's progress %).
   - `epub-font-size` — number, EPUB reader font size as a percent (global preference, default 100).
+  - `epub-double-page` — boolean, EPUB reader double-page spread (global, default false). Uses epubjs `spread: "auto"`, so a window narrower than epubjs's `minSpreadWidth` still shows one page.
   - `epub-progress-mode` — `"percent" | "chapter" | "total"`, which value the EPUB reader's progress indicator shows (global, default `percent`; click the indicator to cycle).
   - `library-view-mode` — `"details" | "grid"`, last used view mode in library.
   - `last-app-view` — `"home" | "library"`, restores active view on next launch.
@@ -502,7 +504,7 @@ KReader runs as a **single process** with potentially multiple windows, via `tau
 
 Global hotkeys (`F` / `F11` = fullscreen) are guarded in `App.tsx`: they do not fire when focus is on an `INPUT`, `TEXTAREA`, or `contenteditable` element. The `T` theme-toggle hotkey was removed when the theme control moved to the settings modal.
 
-The **EPUB reader** has its own reduced keyboard (it owns its handler, like PDFReader; most comic shortcuts don't apply to reflowable text): `←`/`→` and `PageUp`/`PageDown` turn the page, `Home`/`End` jump to the first/last chapter, `+`/`-` change font size, `T` toggles the table of contents, `P` pins the progress indicator so it stays visible (click it to cycle percent / chapter pages / total pages), `I` the info overlay, `F`/`F11` fullscreen, `X` closes the window, and `Escape` closes the TOC (if open) or the reader. These are registered on both `window` and `rendition.on("keydown")` because the book's iframe swallows key events when focused.
+The **EPUB reader** has its own reduced keyboard (it owns its handler, like PDFReader; most comic shortcuts don't apply to reflowable text): `←`/`→` and `PageUp`/`PageDown` turn the page, `Home`/`End` jump to the first/last chapter, `+`/`-` change font size, `T` toggles the table of contents, `D` toggles double page, `P` pins the progress indicator so it stays visible (click it to cycle percent / chapter pages / total pages), `I` the info overlay, `F`/`F11` fullscreen, `X` closes the window, and `Escape` closes the TOC (if open) or the reader. These are registered on both `window` and `rendition.on("keydown")` because the book's iframe swallows key events when focused.
 
 ## Versioning
 

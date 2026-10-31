@@ -21,7 +21,7 @@ It reads comic archives, PDFs, EPUB e-books, and standalone images, and includes
 - **Multiple view modes** — single page, double page, cascade (all pages scrollable vertically, height-capped), and webtoon (continuous vertical scroll, no gaps).
 - **Large files** — comics and PDFs are streamed page by page instead of being loaded whole, so multi-gigabyte files open (and stay open) without running the app out of memory.
 - **PDF cascade** — PDFs also support cascade mode (`C`): continuous vertical scroll that renders pages on demand to keep memory bounded, with selectable text on each page.
-- **EPUB reading** — reflowable e-books with a chapter table of contents (`T`), adjustable font size (`+` / `−`, remembered between books), and the book styled to match the app's light/dark theme. Your reading position is remembered and the book-wide progress is cached so reopening is instant; pin the progress indicator with `P`, and click it to cycle between overall percent, pages within the current chapter (which grow/shrink with the font size), and a stable book-wide page count.
+- **EPUB reading** — reflowable e-books with a chapter table of contents (`T`), adjustable font size (`+` / `−`, remembered between books), an optional double-page spread on wide windows (`D`, also remembered), and the book styled to match the app's light/dark theme. Your reading position is remembered and the book-wide progress is cached so reopening is instant; pin the progress indicator with `P`, and click it to cycle between overall percent, pages within the current chapter (which grow/shrink with the font size), and a stable book-wide page count.
 - **Bookmarks** — toggle bookmarks per page and jump between them; persisted per file.
 - **Reading progress** — remembers the last page for each file. Files opened from a library also reopen with the view style you last used in that library (single/double page, cascade or webtoon, zoom, reading direction and page gap; PDFs keep their own cascade and zoom), so a manga library can stay paged while a webtoon library always opens in webtoon mode. Files opened from elsewhere remember their cascade mode per file.
 - **Sibling navigation** — jump to the previous/next comic in the same folder without leaving the reader.
@@ -104,6 +104,7 @@ A built-in collection manager for browsing large libraries:
 | `Home` / `End` | First / last chapter |
 | `+` / `−` | Increase / decrease font size |
 | `T` | Toggle table of contents |
+| `D` | Toggle double page (two columns when the window is wide enough) |
 | `P` | Pin the progress indicator so it stays visible |
 | Click the progress | Cycle display: percent / chapter pages / total pages |
 | `I` | Toggle info overlay (chapter + progress) |

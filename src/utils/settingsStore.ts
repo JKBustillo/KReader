@@ -85,6 +85,19 @@ export async function saveEpubFontSize(value: number): Promise<void> {
   await store.save();
 }
 
+const KEY_EPUB_DOUBLE_PAGE = "epub-double-page";
+
+export async function getEpubDoublePage(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_EPUB_DOUBLE_PAGE)) ?? false;
+}
+
+export async function saveEpubDoublePage(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_EPUB_DOUBLE_PAGE, value);
+  await store.save();
+}
+
 // Which value the EPUB reader's progress indicator shows: overall percent,
 // pages within the current chapter (reflows with font size), or a stable
 // book-wide page count from the location table. Global preference.

@@ -17,6 +17,8 @@ import {
   saveEpubFontSize,
   getEpubProgressMode,
   saveEpubProgressMode,
+  getEpubDoublePage,
+  saveEpubDoublePage,
   type EpubProgressMode,
 } from "../utils/settingsStore";
 import { basename } from "../utils/folderUtils";
@@ -56,6 +58,10 @@ type EpubLocations = {
 };
 
 const stripFragment = (href: string) => href.split("#")[0];
+
+// "auto" rather than forcing two columns: epubjs falls back to one page below its
+// minSpreadWidth, so a narrow window never gets two cramped columns.
+const spreadFor = (doublePage: boolean) => (doublePage ? "auto" : "none");
 
 // Resolves a TOC href (which epubjs stores raw, relative to the nav/ncx document)
 // to an OPF-relative href that matches epubjs's spine map. Without this, a book
@@ -119,6 +125,8 @@ export default function EPUBReader({
   const navBaseRef = useRef("");
   const fontLoadedRef = useRef(false);
   const modeLoadedRef = useRef(false);
+  // Spread the rendition currently uses; null until the book is rendered.
+  const appliedDoublePageRef = useRef<boolean | null>(null);
 
   const [ready, setReady] = useState(false);
   const [percent, setPercent] = useState<number | null>(null);
@@ -134,6 +142,7 @@ export default function EPUBReader({
   const [showToc, setShowToc] = useState(false);
   const [showInfo, setShowInfo] = useState(false);
   const [fontPct, setFontPct] = useState(FONT_DEFAULT);
+  const [doublePage, setDoublePage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showOverlay, setShowOverlay } = useOverlayAutoHide(showInfo);
   const [pinPageIndicator, setPinPageIndicator] = usePinPageIndicator();
@@ -148,10 +157,21 @@ export default function EPUBReader({
     lastPageFiredRef.current = false;
 
     (async () => {
+      // Read before rendering so a double-page book doesn't lay out single first.
+      const savedDoublePage = await getEpubDoublePage();
+      if (cancelled) return;
+      appliedDoublePageRef.current = savedDoublePage;
+      setDoublePage(savedDoublePage);
+
       // Fresh copy: the effect may run twice under StrictMode and epubjs/JSZip
       // can consume the buffer, so never hand it the prop's own ArrayBuffer.
       const book = (bookRef.current = ePub(data.slice().buffer));
-      const rendition = book.renderTo(el, { width: "100%", height: "100%", flow: "paginated", spread: "none" });
+      const rendition = book.renderTo(el, {
+        width: "100%",
+        height: "100%",
+        flow: "paginated",
+        spread: spreadFor(savedDoublePage),
+      });
       renditionRef.current = rendition;
       const locations = book.locations as unknown as EpubLocations;
 
@@ -231,6 +251,7 @@ export default function EPUBReader({
       bookRef.current?.destroy();
       bookRef.current = null;
       renditionRef.current = null;
+      appliedDoublePageRef.current = null;
     };
   }, [data, filePath, onLastPage, onPagesLoaded]);
 
@@ -264,8 +285,18 @@ export default function EPUBReader({
     saveEpubProgressMode(progressMode).catch(console.error);
   }, [progressMode]);
 
-  // A font change reflows the book but epubjs doesn't re-report the location, so
-  // the chapter page count would go stale. Re-read it once the reflow settles.
+  // The load path already applied the saved value; only user toggles get here
+  // with a different one, so this applies and persists just those.
+  useEffect(() => {
+    const rendition = renditionRef.current;
+    if (!rendition || appliedDoublePageRef.current === null || appliedDoublePageRef.current === doublePage) return;
+    appliedDoublePageRef.current = doublePage;
+    rendition.spread(spreadFor(doublePage));
+    saveEpubDoublePage(doublePage).catch(console.error);
+  }, [doublePage]);
+
+  // A font or spread change reflows the book but epubjs doesn't re-report the
+  // location, so the chapter page count would go stale. Re-read it once it settles.
   useEffect(() => {
     if (!ready) return;
     const id = setTimeout(() => {
@@ -280,7 +311,7 @@ export default function EPUBReader({
         .catch(() => {});
     }, DISPLAYED_REFRESH_MS);
     return () => clearTimeout(id);
-  }, [fontPct, ready]);
+  }, [fontPct, doublePage, ready]);
 
   // Apply theme + font size together so switching one never drops the other.
   useEffect(() => {
@@ -338,6 +369,10 @@ export default function EPUBReader({
         case "t":
         case "T":
           setShowToc((v) => !v);
+          break;
+        case "d":
+        case "D":
+          setDoublePage((v) => !v);
           break;
         case "p":
         case "P":
@@ -466,6 +501,7 @@ export default function EPUBReader({
                 ["Home / End", t("shortcuts.firstLast")],
                 ["+ / −", t("shortcuts.fontSize")],
                 ["T", t("shortcuts.toc")],
+                ["D", t("shortcuts.doublePage")],
                 ["P", t("shortcuts.pin")],
                 ["I", t("shortcuts.showHide")],
                 ["F / F11", t("shortcuts.fullscreen")],
