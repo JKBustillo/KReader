@@ -30,6 +30,7 @@
     "tags": "Tags",
     "searchTags": "Search tags...",
     "openInNewWindow": "Open in new window",
+    "openContainingFolder": "Open containing folder",
     "editTags": "Edit tags",
     "selectedCount": "{{count}} selected",
     "manageTags": "Manage tags",

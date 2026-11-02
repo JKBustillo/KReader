@@ -16,6 +16,7 @@ function ContextMenu({
   entries,
   ambiguousCandidates,
   onOpenInNewWindow,
+  onRevealInFolder,
   onEditTags,
   onResolveLocation,
   onResetProgress,
@@ -33,6 +34,7 @@ function ContextMenu({
   entries: LibraryEntry[];
   ambiguousCandidates: Map<string, string[]>;
   onOpenInNewWindow: (entry: LibraryEntry) => void;
+  onRevealInFolder: (entry: LibraryEntry) => void;
   onEditTags: (entries: LibraryEntry[]) => void;
   onResolveLocation: (entry: LibraryEntry, candidates: string[]) => void;
   onResetProgress: (entries: LibraryEntry[]) => void;
@@ -101,6 +103,11 @@ function ContextMenu({
       {single && (
         <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onOpenInNewWindow(single)}>
           {t("library.openInNewWindow")}
+        </button>
+      )}
+      {single && (
+        <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onRevealInFolder(single)}>
+          {t("library.openContainingFolder")}
         </button>
       )}
       <button className={ITEM_CLASS} style={{ color: "var(--text-primary)" }} onClick={() => onEditTags(entries)}>

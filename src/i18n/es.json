@@ -30,6 +30,7 @@
     "tags": "Tags",
     "searchTags": "Buscar tags...",
     "openInNewWindow": "Abrir en otra ventana",
+    "openContainingFolder": "Abrir carpeta contenedora",
     "editTags": "Editar tags",
     "selectedCount": "{{count}} seleccionados",
     "manageTags": "Gestionar tags",

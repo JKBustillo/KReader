@@ -129,6 +129,8 @@ src/
                                   single-selection only (each receives one entry). Open-in-new-window calls the
                                   open_new_window IPC with the entry's currentPath + libraryId, so the spawned window
                                   tracks reading state for that library entry (see Open-in-new-window tracking).
+                                  "Open containing folder" (onRevealInFolder, single-selection) reveals the file in the OS
+                                  file explorer via plugin-opener's revealItemInDir (granted by opener:default).
                                   Shows a non-clickable count header (library.selectedCount) when entries.length > 1.
     FilterDropdown.tsx          Shared folders/tags filter dropdown shell (trigger badge + search + scroll list +
                                   clear footer + dismiss). Owns open/search state; caller passes renderItems(search).

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import { rename, mkdir, exists } from "@tauri-apps/plugin-fs";
+import { revealItemInDir } from "@tauri-apps/plugin-opener";
 
 import type { Library, LibraryEntry, ReadingState, SortDirection, SortField, Tag, ViewMode } from "../types/library";
 import {
@@ -1808,6 +1809,7 @@ function LibraryView({
                 entries={contextMenu.entries}
                 ambiguousCandidates={ambiguousCandidates}
                 onOpenInNewWindow={(entry) => { invoke("open_new_window", { path: entry.currentPath, libraryId: entry.libraryId }).catch(console.error); setContextMenu(null); }}
+                onRevealInFolder={(entry) => { revealItemInDir(entry.currentPath).catch(console.error); setContextMenu(null); }}
                 onEditTags={(entries) => { setTagEditorEntries(entries); setContextMenu(null); }}
                 onResolveLocation={(entry, candidates) => { setResolveTarget({ entry, candidates }); setContextMenu(null); }}
                 onResetProgress={handleResetProgress}
