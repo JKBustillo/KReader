@@ -1130,7 +1130,14 @@ function LibraryView({
     () => entries.filter((e) => !notFoundIds.has(e.id) && !ambiguousCandidates.has(e.id)),
     [entries, notFoundIds, ambiguousCandidates],
   );
-  const continueTarget = useMemo(() => pickContinueTarget(presentEntries), [presentEntries]);
+  const hasStartedReading = useMemo(
+    () => presentEntries.some((e) => e.lastOpenedAt !== undefined || e.readingState !== "unread"),
+    [presentEntries],
+  );
+  const continueTarget = useMemo(
+    () => hasStartedReading ? pickContinueTarget(presentEntries) : null,
+    [presentEntries, hasStartedReading],
+  );
   const panelSeriesEntries = useMemo(
     () => aniListPanelFolder === null
       ? []
@@ -1458,7 +1465,7 @@ function LibraryView({
         )}
 
         <div className="ml-auto flex items-center gap-2 min-w-0">
-          {entries.length > 0 && (
+          {hasStartedReading && (
             <ContinueButton
               target={continueTarget}
               currentPage={continueTarget ? pageMap.get(continueTarget.entry.id) : undefined}
