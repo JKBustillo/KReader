@@ -22,7 +22,6 @@ type Params = {
   cascadeMode: boolean;
   rtl: boolean;
   showMoreInfo: boolean;
-  smoothScroll: ScrollBehavior;
   bookmarks: number[];
   nextPage: () => void;
   prevPage: () => void;
@@ -34,7 +33,6 @@ type Params = {
   setDoublePage: Dispatch<SetStateAction<boolean>>;
   setRtl: Dispatch<SetStateAction<boolean>>;
   setShowGap: Dispatch<SetStateAction<boolean>>;
-  setSmoothScroll: Dispatch<SetStateAction<ScrollBehavior>>;
   setZoom: Dispatch<SetStateAction<number>>;
   setShowMoreInfo: Dispatch<SetStateAction<boolean>>;
   setShowOverlay: Dispatch<SetStateAction<boolean>>;
@@ -53,7 +51,6 @@ export function useReaderShortcuts(params: Params) {
     cascadeMode,
     rtl,
     showMoreInfo,
-    smoothScroll,
     bookmarks,
     nextPage,
     prevPage,
@@ -64,7 +61,6 @@ export function useReaderShortcuts(params: Params) {
     setDoublePage,
     setRtl,
     setShowGap,
-    setSmoothScroll,
     setZoom,
     setShowMoreInfo,
     setShowOverlay,
@@ -73,7 +69,7 @@ export function useReaderShortcuts(params: Params) {
     scheduleHide,
   } = params;
 
-  const { scrollByPage, stopPageScroll } = usePageScroll();
+  const scrollByPage = usePageScroll();
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
@@ -150,7 +146,7 @@ export function useReaderShortcuts(params: Params) {
         case "PageDown": {
           e.preventDefault();
           if (container) {
-            if (isAtBottom(container) && !cascadeMode) { stopPageScroll(); nextPage(); }
+            if (isAtBottom(container) && !cascadeMode) nextPage();
             else scrollByPage(container, 1, e.repeat);
           }
           break;
@@ -158,7 +154,7 @@ export function useReaderShortcuts(params: Params) {
         case "PageUp": {
           e.preventDefault();
           if (container) {
-            if (isAtTop(container) && !cascadeMode) { stopPageScroll(); prevPage(); }
+            if (isAtTop(container) && !cascadeMode) prevPage();
             else scrollByPage(container, -1, e.repeat);
           }
           break;
@@ -194,10 +190,6 @@ export function useReaderShortcuts(params: Params) {
         case "g":
         case "G":
           setShowGap((g) => !g);
-          break;
-        case "j":
-        case "J":
-          setSmoothScroll(smoothScroll === "smooth" ? "instant" : "smooth");
           break;
         case "Home":
           if (!cascadeMode) {
@@ -235,10 +227,10 @@ export function useReaderShortcuts(params: Params) {
     },
     [
       containerRef, overlayTimerRef, filePath, pagesLength,
-      pageIndex, cascadeMode, rtl, showMoreInfo, smoothScroll,
+      pageIndex, cascadeMode, rtl, showMoreInfo,
       bookmarks,
-      nextPage, prevPage, onClose, scrollByPage, stopPageScroll,
-      setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
+      nextPage, prevPage, onClose, scrollByPage,
+      setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator, setBookmarks,
       scheduleHide,
     ]

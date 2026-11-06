@@ -143,13 +143,13 @@ src/
                                   "pdf": cascade/scale), last-used and auto-saved to .settings.dat. Applies the saved
                                   style on mount and returns `loaded` (Reader gates its content on it). No-op when the
                                   file has no library. Used by Reader and PDFReader.
-    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/J/+/-/Home/End/Escape/X; F/F11 fullscreen is global in App.tsx)
+    useReaderShortcuts.ts       Owns the keyboard switch for Reader (Ctrl+Arrow, W/C/D/S/G/I/P/+/-/Home/End/Escape/X; F/F11 fullscreen is global in App.tsx)
     usePageScroll.ts            PageUp/PageDown scrolling: one rAF loop per container, a critically damped spring following a
                                   target. Presses move the target (capped at MAX_QUEUED_PAGE_SCROLLS steps ahead); a held key
                                   (e.repeat) moves it at HELD_PAGE_SCROLL_SCREENS_PER_SEC until keyup/blur. Velocity carries
                                   across retargets, unlike a native smooth scrollTo, which restarts from zero speed on each
                                   call. Anything else moving scrollTop (wheel, page turn, zoom) ends the loop. Used by Reader
-                                  and PDFReader; Reader calls stopPageScroll before a PageUp/PageDown page turn.
+                                  and PDFReader.
     useOverlayAutoHide.ts       Shared overlay visibility: shows on mousemove, hides after 1.5s (suppressed while info is pinned). Used by Reader and PDFReader.
     usePinPageIndicator.ts      Shared pin-page-indicator state, persisted to .settings.dat. Used by Reader and PDFReader.
   loaders/
@@ -498,7 +498,6 @@ KReader runs as a **single process** with potentially multiple windows, via `tau
 | `S` | Toggle RTL reading direction |
 | `G` | Toggle gap between pages |
 | `+` / `-` | Zoom in/out |
-| `J` | Toggle smooth scroll |
 | `I` | Toggle info overlay |
 | `P` | Pin/unpin page number (persists globally) |
 | `Escape` | Close reader, return to home screen |

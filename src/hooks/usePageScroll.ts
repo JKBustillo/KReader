@@ -109,7 +109,7 @@ export function usePageScroll() {
     return created;
   }, [stopPageScroll]);
 
-  const scrollByPage = useCallback((el: HTMLElement, direction: 1 | -1, held: boolean) => {
+  return useCallback((el: HTMLElement, direction: 1 | -1, held: boolean) => {
     const scroll = scrollFor(el);
     if (held) {
       scroll.heldDirection = direction;
@@ -122,6 +122,4 @@ export function usePageScroll() {
     const next = scroll.target + direction * step;
     scroll.target = direction > 0 ? Math.min(next, el.scrollTop + lead) : Math.max(next, el.scrollTop - lead);
   }, [scrollFor]);
-
-  return { scrollByPage, stopPageScroll };
 }

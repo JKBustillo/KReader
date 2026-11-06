@@ -91,7 +91,6 @@ A built-in collection manager for browsing large libraries:
 | `S` | Toggle RTL reading direction |
 | `G` | Toggle gap between pages |
 | `+` / `-` | Zoom in / out |
-| `J` | Toggle smooth scroll |
 | `I` | Toggle info overlay |
 | `P` | Pin / unpin page number permanently |
 | `Escape` | Close reader, return to home screen |

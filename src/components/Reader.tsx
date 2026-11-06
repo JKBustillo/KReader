@@ -44,7 +44,6 @@ function Reader({
   const [rtl, setRtl] = useState(false);
   const [showGap, setShowGap] = useState(true);
   const [showMoreInfo, setShowMoreInfo] = useState(false);
-  const [smoothScroll, setSmoothScroll] = useState<ScrollBehavior>('instant');
   const [isTallerThanViewport, setIsTallerThanViewport] = useState(false);
 
   const applyStyle = useCallback((saved: ImageReaderStyle) => {
@@ -178,11 +177,11 @@ function Reader({
           container.scrollTo({ top: targetTop - containerTop + container.scrollTop, behavior: 'instant' });
         }
       } else {
-        container.scrollTo({ top: 0, behavior: smoothScroll });
+        container.scrollTo({ top: 0, behavior: 'instant' });
       }
       setPositioned(true);
     })();
-  }, [pageIndex, cascadeMode, webtoonMode, smoothScroll, loaded]);
+  }, [pageIndex, cascadeMode, webtoonMode, loaded]);
 
   // Cascade mode: reflect the page crossing the viewport's center line in pageIndex.
   useEffect(() => {
@@ -297,7 +296,6 @@ function Reader({
     webtoonMode,
     rtl,
     showMoreInfo,
-    smoothScroll,
     bookmarks,
     nextPage,
     prevPage,
@@ -308,7 +306,6 @@ function Reader({
     setDoublePage,
     setRtl,
     setShowGap,
-    setSmoothScroll,
     setZoom,
     setShowMoreInfo,
     setShowOverlay,
