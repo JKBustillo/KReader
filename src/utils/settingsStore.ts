@@ -224,6 +224,19 @@ export async function saveFavoritesRespectFolders(value: boolean): Promise<void>
   await store.save();
 }
 
+const KEY_SHOW_MISSING_FILES = "show-missing-files";
+
+export async function getShowMissingFiles(): Promise<boolean> {
+  const store = await getStore();
+  return (await store.get<boolean>(KEY_SHOW_MISSING_FILES)) ?? false;
+}
+
+export async function saveShowMissingFiles(value: boolean): Promise<void> {
+  const store = await getStore();
+  await store.set(KEY_SHOW_MISSING_FILES, value);
+  await store.save();
+}
+
 const favoritesFilterKey = (libraryId: string) => `favorites-filter:${libraryId}`;
 
 export async function getFavoritesFilter(libraryId: string): Promise<boolean> {

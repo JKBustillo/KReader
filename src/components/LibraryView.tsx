@@ -432,6 +432,7 @@ function LibraryView({
   showProgressBar,
   showPageCount,
   favoritesRespectFolders,
+  showMissingFiles,
   refreshTrigger,
   active = true,
 }: {
@@ -442,6 +443,9 @@ function LibraryView({
   // filter (shows favorites from every folder); when true, favorites are
   // intersected with the folder filter.
   favoritesRespectFolders: boolean;
+  // When false, entries whose file is gone from disk stay stored (so they come
+  // back with all their data if the file reappears) but aren't listed.
+  showMissingFiles: boolean;
   refreshTrigger: number;
   // Whether the library is the currently visible view. LibraryView stays
   // mounted across reader sessions; this flips false while reading and back to
@@ -1310,10 +1314,15 @@ function LibraryView({
   const sortIndicator = (field: SortField) =>
     sortField !== field ? null : (sortDir === "asc" ? " ↑" : " ↓");
 
+  const visibleEntries = useMemo(
+    () => (showMissingFiles ? entries : entries.filter((e) => !notFoundIds.has(e.id))),
+    [entries, notFoundIds, showMissingFiles],
+  );
+
   // All tags across the library with their entry counts.
   const allTags = useMemo(() => {
     const map = new Map<string, { tag: Tag; count: number }>();
-    for (const entry of entries) {
+    for (const entry of visibleEntries) {
       for (const tag of [...entry.autoTags, ...entry.customTags]) {
         const existing = map.get(tag.value);
         if (existing) {
@@ -1330,14 +1339,14 @@ function LibraryView({
       if (aSelected !== bSelected) return aSelected ? -1 : 1;
       return b.count - a.count;
     });
-  }, [entries, selectedTags]);
+  }, [visibleEntries, selectedTags]);
 
   const allTagValues = useMemo(() => allTags.map(({ tag }) => tag.value), [allTags]);
 
   const allFolders = useMemo(() => {
     const rootPath = activeLib?.rootPath ?? "";
     const set = new Set<string>();
-    for (const entry of entries) {
+    for (const entry of visibleEntries) {
       set.add(getRelativeFolder(entry.currentPath, rootPath));
     }
     return Array.from(set).sort((a, b) => {
@@ -1345,7 +1354,7 @@ function LibraryView({
       if (b === "/") return 1;
       return a.localeCompare(b);
     });
-  }, [entries, activeLib]);
+  }, [visibleEntries, activeLib]);
 
   // When the favorites filter is active and favorites are set to ignore folders
   // (toggle off), skip the folder filter so favorites from every folder show.
@@ -1355,8 +1364,8 @@ function LibraryView({
   const hasActiveFilters = showFavoritesOnly || selectedTags.size > 0 || selectedFolders.size > 0;
   const bypassFilters = searchAllLibrary && searchQuery !== "";
   const searchMatches = searchQuery === ""
-    ? entries
-    : entries.filter((e) => e.filename.toLowerCase().includes(searchQuery));
+    ? visibleEntries
+    : visibleEntries.filter((e) => e.filename.toLowerCase().includes(searchQuery));
 
   const filtered = bypassFilters ? searchMatches : searchMatches.filter((e) => {
     if (showFavoritesOnly && !e.isFavorite) return false;

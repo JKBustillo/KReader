@@ -138,6 +138,7 @@
     "progressBar": "Reading progress",
     "pageCount": "Page count on card",
     "favoritesRespectFolders": "Favorites respect folder filter",
+    "showMissingFiles": "Show files not found on disk",
     "autoBackup": "Automatic backup",
     "keepDataOnRemove": "Keep data when removing a library",
     "refreshMetadata": "Refresh metadata",

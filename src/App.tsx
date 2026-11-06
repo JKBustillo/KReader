@@ -16,7 +16,7 @@ import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
 import { applyAccent, getAccent, type AccentId } from "./utils/accent";
-import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup, getKeepDataOnRemove, saveKeepDataOnRemove, getFavoritesRespectFolders, saveFavoritesRespectFolders } from "./utils/settingsStore";
+import { getLastAppView, saveLastAppView, getShowProgressBar, saveShowProgressBar, getShowPageCount, saveShowPageCount, getAutoBackup, saveAutoBackup, getKeepDataOnRemove, saveKeepDataOnRemove, getFavoritesRespectFolders, saveFavoritesRespectFolders, getShowMissingFiles, saveShowMissingFiles } from "./utils/settingsStore";
 import { runAutoBackupIfDue } from "./utils/backup";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { basename } from "./utils/folderUtils";
@@ -60,6 +60,7 @@ function App() {
   const [autoBackup, setAutoBackup] = useState(false);
   const [keepDataOnRemove, setKeepDataOnRemove] = useState(true);
   const [favoritesRespectFolders, setFavoritesRespectFolders] = useState(false);
+  const [showMissingFiles, setShowMissingFiles] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   // Once the library has been visited it stays mounted (hidden via CSS when not
   // active) for the rest of the session, so its state, scroll position and warm
@@ -114,6 +115,7 @@ function App() {
     getAutoBackup().then(setAutoBackup);
     getKeepDataOnRemove().then(setKeepDataOnRemove);
     getFavoritesRespectFolders().then(setFavoritesRespectFolders);
+    getShowMissingFiles().then(setShowMissingFiles);
     if (getCurrentWindow().label === MAIN_WINDOW_LABEL) {
       runAutoBackupIfDue();
       flushPendingSyncs().catch(console.error);
@@ -181,6 +183,14 @@ function App() {
     setFavoritesRespectFolders((prev) => {
       const next = !prev;
       saveFavoritesRespectFolders(next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const handleToggleShowMissingFiles = useCallback(() => {
+    setShowMissingFiles((prev) => {
+      const next = !prev;
+      saveShowMissingFiles(next).catch(console.error);
       return next;
     });
   }, []);
@@ -403,6 +413,7 @@ function App() {
                 showProgressBar={showProgressBar}
                 showPageCount={showPageCount}
                 favoritesRespectFolders={favoritesRespectFolders}
+                showMissingFiles={showMissingFiles}
                 refreshTrigger={refreshTrigger}
                 onOpen={(path, onComplete, onPagesLoaded, libraryId) => {
                   activeLibraryIdRef.current = libraryId ?? null;
@@ -530,6 +541,8 @@ function App() {
         onToggleKeepDataOnRemove={handleToggleKeepDataOnRemove}
         favoritesRespectFolders={favoritesRespectFolders}
         onToggleFavoritesRespectFolders={handleToggleFavoritesRespectFolders}
+        showMissingFiles={showMissingFiles}
+        onToggleShowMissingFiles={handleToggleShowMissingFiles}
         onRefreshMetadata={handleRefreshMetadata}
       />
 

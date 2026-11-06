@@ -273,6 +273,7 @@ fetches only pay off because the responses are cacheable.
   - `favorites-filter:<libraryId>` — boolean, persisted "show favorites only" filter per library (default false).
   - `anilist-panel:<libraryId>` — `string | null`, folder name of the AniList series sidebar left open in that library (restored on library load, hidden if no longer linked).
   - `favorites-respect-folders` — boolean, whether the favorites filter is intersected with the folder filter; when false the favorites filter ignores folders (default false).
+  - `show-missing-files` — boolean, list entries whose file is gone from disk (marked not found, purgeable); when false they stay stored but hidden (default false).
   - `show-progress-bar` — boolean, show reading progress bar in library cards and rows (default false).
   - `show-page-count` — boolean, show page count on library cards (default false).
   - `auto-backup` — boolean, enable automatic library backups on startup (default false).
@@ -315,6 +316,8 @@ fetches only pay off because the responses are cacheable.
 - `scanGenRef` is bumped by every scan that starts; a scan only sets React state (entries, missing/ambiguous, queues, spinner) while it is still the latest, so switching libraries mid-scan can't render the previous library's entries (its disk writes still complete — they're valid for that library). The initial scan always runs on a library switch; `scanRef` only keeps the background re-scan from overlapping one in flight; `scanAbortRef` (set by `handleOpen`) makes a scan drop its results if the user opens a file mid-scan, avoiding store-write contention with file loading.
 
 **Mounting model:** `App.tsx` keeps the home/library chrome mounted and renders the Reader/PDFReader and the loading spinner as **overlays** (the chrome gets `hidden` while `view === "reader"`, not unmounted). Once visited, `LibraryView` stays mounted for the session (`libraryMounted`), so its state, scroll position and warm in-memory thumbnail cache survive entering/leaving the reader — opening a comic and returning is instant. The `active` prop (`view === "library"`) tells `LibraryView` when it's the visible view (drives the background re-scan above).
+
+**Missing files ("ghosts"):** entries absent from the scan go into `notFoundIds` but are never deleted automatically, so a file that comes back (same path, or relocated by filename+size) keeps everything, including `lastOpenedAt`/`addedAt` and the path-keyed page. Unless `show-missing-files` is on, `visibleEntries` drops them before search, filters and the tag/folder dropdowns; the purge-ghosts button follows the visible list, so it only appears while they're shown.
 
 **Entry identity:** `id = "{filename}::{sizeBytes}"`. This means an *external* rename is treated as a new file; moving within the library root is auto-resolved on next scan.
 
