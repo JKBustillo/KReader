@@ -358,8 +358,8 @@ fetches only pay off because the responses are cacheable.
 
 **Continue reading:** `pickContinueTarget` over the entries present on disk drives the toolbar `ContinueButton`
 and Enter (ignored with a selection, on a focused control, or while an `aria-modal` dialog / `role="menu"` is open;
-modal shells carry those attributes for this). Both are off until something in the library has been started
-(`hasStartedReading`: an entry with `lastOpenedAt` or not `unread`); the AniList panel's button has no such gate. It relies on `lastOpenedAt` being fresh, so the background re-scan
+modal shells carry those attributes for this). Both are off when the target is a `start` in a folder with no AniList link
+(`isUntrackedStart`); the AniList panel's button has no such gate. It relies on `lastOpenedAt` being fresh, so the background re-scan
 merges `lastOpenedAt`/`totalPages` from the store into its live baseline (sibling nav and other windows only write
 the store).
 

@@ -1130,14 +1130,10 @@ function LibraryView({
     () => entries.filter((e) => !notFoundIds.has(e.id) && !ambiguousCandidates.has(e.id)),
     [entries, notFoundIds, ambiguousCandidates],
   );
-  const hasStartedReading = useMemo(
-    () => presentEntries.some((e) => e.lastOpenedAt !== undefined || e.readingState !== "unread"),
-    [presentEntries],
-  );
-  const continueTarget = useMemo(
-    () => hasStartedReading ? pickContinueTarget(presentEntries) : null,
-    [presentEntries, hasStartedReading],
-  );
+  const libraryTarget = useMemo(() => pickContinueTarget(presentEntries), [presentEntries]);
+  const isUntrackedStart = libraryTarget?.mode === "start"
+    && !seriesLinks[seriesFolderName(libraryTarget.entry.currentPath)];
+  const continueTarget = isUntrackedStart ? null : libraryTarget;
   const panelSeriesEntries = useMemo(
     () => aniListPanelFolder === null
       ? []
@@ -1465,7 +1461,7 @@ function LibraryView({
         )}
 
         <div className="ml-auto flex items-center gap-2 min-w-0">
-          {hasStartedReading && (
+          {entries.length > 0 && !isUntrackedStart && (
             <ContinueButton
               target={continueTarget}
               currentPage={continueTarget ? pageMap.get(continueTarget.entry.id) : undefined}
