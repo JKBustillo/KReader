@@ -1,87 +1,127 @@
 import { useCallback, useEffect, useRef } from "react";
 import {
   HELD_PAGE_SCROLL_SCREENS_PER_SEC,
-  MAX_HELD_SCROLL_FRAME_MS,
   MAX_QUEUED_PAGE_SCROLLS,
+  MAX_SCROLL_FRAME_MS,
   PAGE_SCROLL_FRACTION,
+  PAGE_SCROLL_SETTLE_PX,
+  PAGE_SCROLL_SETTLE_SPEED,
+  PAGE_SCROLL_SPRING_RATE,
 } from "../utils/scroll";
 
-type HeldScroll = { el: HTMLElement; direction: 1 | -1; top: number; last: number; frame: number };
+type PageScroll = {
+  el: HTMLElement;
+  target: number;
+  // Tracked as a float: per-frame steps would be lost to scrollTop rounding.
+  top: number;
+  velocity: number;
+  heldDirection: 1 | -1 | null;
+  // What scrollTop read back after our last write, to notice anything else moving it.
+  written: number;
+  last: number;
+  frame: number;
+};
+
+const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 /**
- * PageUp/PageDown scrolling for Reader and PDFReader. A smooth scroll restarts
- * slowly every time it is retargeted, so:
- * - separate presses chain from where the running smooth scroll is headed;
- * - a held key (key repeat) switches to a constant-speed scroll until keyup.
+ * PageUp/PageDown scrolling for Reader and PDFReader. A native smooth scroll restarts
+ * from zero speed every time it is retargeted, so one spring-driven loop per container
+ * follows a target instead: presses move the target, a held key (key repeat) moves it
+ * at constant speed until keyup, and the velocity carries across both.
  */
 export function usePageScroll() {
-  // Keyed by element: PDFReader swaps its scroll container when toggling cascade.
-  const targetRef = useRef<{ el: HTMLElement; top: number } | null>(null);
-  const heldRef = useRef<HeldScroll | null>(null);
+  const scrollRef = useRef<PageScroll | null>(null);
 
-  const stopHeld = useCallback(() => {
-    if (heldRef.current) cancelAnimationFrame(heldRef.current.frame);
-    heldRef.current = null;
+  const stopPageScroll = useCallback(() => {
+    if (scrollRef.current) cancelAnimationFrame(scrollRef.current.frame);
+    scrollRef.current = null;
   }, []);
 
   useEffect(() => {
+    const releaseHeld = () => {
+      if (scrollRef.current) scrollRef.current.heldDirection = null;
+    };
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "PageDown" || e.key === "PageUp") stopHeld();
+      if (e.key === "PageDown" || e.key === "PageUp") releaseHeld();
     };
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", stopHeld);
+    window.addEventListener("blur", releaseHeld);
     return () => {
       window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", stopHeld);
-      stopHeld();
+      window.removeEventListener("blur", releaseHeld);
+      stopPageScroll();
     };
-  }, [stopHeld]);
+  }, [stopPageScroll]);
 
-  const startHeld = useCallback((el: HTMLElement, direction: 1 | -1) => {
-    const running = heldRef.current;
-    if (running?.el === el && running.direction === direction) return;
-    stopHeld();
-    targetRef.current = null;
+  // PDFReader swaps its scroll container when toggling cascade, hence the check on el.
+  const scrollFor = useCallback((el: HTMLElement): PageScroll => {
+    const running = scrollRef.current;
+    if (running?.el === el) return running;
+    stopPageScroll();
 
     const tick = (now: number) => {
-      const held = heldRef.current;
-      if (!held) return;
-      const dt = Math.min(now - held.last, MAX_HELD_SCROLL_FRAME_MS) / 1000;
-      held.last = now;
+      const scroll = scrollRef.current;
+      if (!scroll) return;
+      // Wheel, page turns and zoom take over: fighting them would snap the view back.
+      if (el.scrollTop !== scroll.written) {
+        stopPageScroll();
+        return;
+      }
+      // rAF's timestamp is the frame start, so the first one can predate scroll.last.
+      const dt = clamp(now - scroll.last, 0, MAX_SCROLL_FRAME_MS) / 1000;
+      scroll.last = now;
       const maxTop = el.scrollHeight - el.clientHeight;
-      // Tracked as a float: per-frame steps would be lost to scrollTop rounding.
-      held.top = Math.min(Math.max(held.top + direction * el.clientHeight * HELD_PAGE_SCROLL_SCREENS_PER_SEC * dt, 0), maxTop);
+      if (scroll.heldDirection) {
+        scroll.target += scroll.heldDirection * el.clientHeight * HELD_PAGE_SCROLL_SCREENS_PER_SEC * dt;
+      }
+      scroll.target = clamp(scroll.target, 0, maxTop);
+
+      // Closed form of a critically damped spring: stable at any dt, never oscillates.
+      const offset = scroll.top - scroll.target;
+      const decay = Math.exp(-PAGE_SCROLL_SPRING_RATE * dt);
+      const impulse = (scroll.velocity + PAGE_SCROLL_SPRING_RATE * offset) * dt;
+      const nextOffset = (offset + impulse) * decay;
+      scroll.velocity = (scroll.velocity - impulse * PAGE_SCROLL_SPRING_RATE) * decay;
+      scroll.top = clamp(scroll.target + nextOffset, 0, maxTop);
+
+      const settled = !scroll.heldDirection
+        && Math.abs(nextOffset) < PAGE_SCROLL_SETTLE_PX
+        && Math.abs(scroll.velocity) < PAGE_SCROLL_SETTLE_SPEED;
       // "instant" overrides the container's CSS scroll-behavior: smooth.
-      el.scrollTo({ top: held.top, behavior: "instant" });
-      held.frame = requestAnimationFrame(tick);
+      el.scrollTo({ top: settled ? scroll.target : scroll.top, behavior: "instant" });
+      scroll.written = el.scrollTop;
+      if (settled) scrollRef.current = null;
+      else scroll.frame = requestAnimationFrame(tick);
     };
-    heldRef.current = { el, direction, top: el.scrollTop, last: performance.now(), frame: requestAnimationFrame(tick) };
-  }, [stopHeld]);
 
-  const stepScroll = useCallback((el: HTMLElement, direction: 1 | -1) => {
-    stopHeld();
-    const step = el.clientHeight * PAGE_SCROLL_FRACTION;
-    const maxTop = el.scrollHeight - el.clientHeight;
-    const pending = targetRef.current?.el === el ? targetRef.current.top : null;
-    let top = Math.min(Math.max((pending ?? el.scrollTop) + direction * step, 0), maxTop);
-    // Capped lead so fast presses don't keep scrolling for several screens afterwards.
-    const lead = MAX_QUEUED_PAGE_SCROLLS * step;
-    top = direction > 0 ? Math.min(top, el.scrollTop + lead) : Math.max(top, el.scrollTop - lead);
+    const created: PageScroll = {
+      el,
+      target: el.scrollTop,
+      top: el.scrollTop,
+      velocity: 0,
+      heldDirection: null,
+      written: el.scrollTop,
+      last: performance.now(),
+      frame: requestAnimationFrame(tick),
+    };
+    scrollRef.current = created;
+    return created;
+  }, [stopPageScroll]);
 
-    // No movement means no scrollend to clear the target, so don't record one.
-    if (Math.abs(top - el.scrollTop) < 1) {
-      targetRef.current = null;
+  const scrollByPage = useCallback((el: HTMLElement, direction: 1 | -1, held: boolean) => {
+    const scroll = scrollFor(el);
+    if (held) {
+      scroll.heldDirection = direction;
       return;
     }
-    if (pending === null) {
-      el.addEventListener("scrollend", () => { targetRef.current = null; }, { once: true });
-    }
-    targetRef.current = { el, top };
-    el.scrollTo({ top, behavior: "smooth" });
-  }, [stopHeld]);
+    scroll.heldDirection = null;
+    const step = el.clientHeight * PAGE_SCROLL_FRACTION;
+    // Capped lead so fast presses don't keep scrolling for several screens afterwards.
+    const lead = MAX_QUEUED_PAGE_SCROLLS * step;
+    const next = scroll.target + direction * step;
+    scroll.target = direction > 0 ? Math.min(next, el.scrollTop + lead) : Math.max(next, el.scrollTop - lead);
+  }, [scrollFor]);
 
-  return useCallback((el: HTMLElement, direction: 1 | -1, held: boolean) => {
-    if (held) startHeld(el, direction);
-    else stepScroll(el, direction);
-  }, [startHeld, stepScroll]);
+  return { scrollByPage, stopPageScroll };
 }

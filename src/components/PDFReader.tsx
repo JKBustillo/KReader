@@ -249,7 +249,7 @@ function PDFReader({
     };
   }, [pdf, pageNum, scale, cascadeMode]);
 
-  const scrollByPage = usePageScroll();
+  const { scrollByPage } = usePageScroll();
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {

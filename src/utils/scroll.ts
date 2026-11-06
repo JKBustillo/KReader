@@ -8,8 +8,14 @@ export const PAGE_SCROLL_FRACTION = 0.9;
 export const MAX_QUEUED_PAGE_SCROLLS = 2;
 /** Scroll speed, in viewport heights per second, while PageUp/PageDown is held. */
 export const HELD_PAGE_SCROLL_SCREENS_PER_SEC = 5;
-/** Longest frame step (ms) the held scroll accepts, so a stalled frame doesn't jump. */
-export const MAX_HELD_SCROLL_FRAME_MS = 50;
+/** Longest frame step (ms) the page scroll accepts, so a stalled frame doesn't jump. */
+export const MAX_SCROLL_FRAME_MS = 50;
+/** Stiffness (1/s) of the PageUp/PageDown spring: higher reaches the target sooner. */
+export const PAGE_SCROLL_SPRING_RATE = 18;
+/** Distance (px) from the target under which the page scroll may end. */
+export const PAGE_SCROLL_SETTLE_PX = 0.5;
+/** Speed (px/s) under which the page scroll may end. */
+export const PAGE_SCROLL_SETTLE_SPEED = 20;
 
 /**
  * rootMargin for a thin band across the scroller's vertical center: the page crossing

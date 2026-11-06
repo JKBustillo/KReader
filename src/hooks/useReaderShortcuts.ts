@@ -73,7 +73,7 @@ export function useReaderShortcuts(params: Params) {
     scheduleHide,
   } = params;
 
-  const scrollByPage = usePageScroll();
+  const { scrollByPage, stopPageScroll } = usePageScroll();
 
   const handleKeyDown = useCallback(
     async (e: KeyboardEvent) => {
@@ -150,7 +150,7 @@ export function useReaderShortcuts(params: Params) {
         case "PageDown": {
           e.preventDefault();
           if (container) {
-            if (isAtBottom(container) && !cascadeMode) nextPage();
+            if (isAtBottom(container) && !cascadeMode) { stopPageScroll(); nextPage(); }
             else scrollByPage(container, 1, e.repeat);
           }
           break;
@@ -158,7 +158,7 @@ export function useReaderShortcuts(params: Params) {
         case "PageUp": {
           e.preventDefault();
           if (container) {
-            if (isAtTop(container) && !cascadeMode) prevPage();
+            if (isAtTop(container) && !cascadeMode) { stopPageScroll(); prevPage(); }
             else scrollByPage(container, -1, e.repeat);
           }
           break;
@@ -237,7 +237,7 @@ export function useReaderShortcuts(params: Params) {
       containerRef, overlayTimerRef, filePath, pagesLength,
       pageIndex, cascadeMode, rtl, showMoreInfo, smoothScroll,
       bookmarks,
-      nextPage, prevPage, onClose, scrollByPage,
+      nextPage, prevPage, onClose, scrollByPage, stopPageScroll,
       setPageIndex, setWebtoonMode, setCascadeMode, setDoublePage, setRtl, setShowGap, setSmoothScroll,
       setZoom, setShowMoreInfo, setShowOverlay, setPinPageIndicator, setBookmarks,
       scheduleHide,
