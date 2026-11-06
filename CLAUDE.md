@@ -121,6 +121,9 @@ src/
                                   Undo for synced updates. Once it hides, a marker colored by the result stays at the
                                   bottom-center edge; hovering it recalls the last notice. Mounted once in App.tsx, above the reader overlay, keyed by the open
                                   file so opening another one drops the previous notice.
+    FileOpenedToast.tsx         Top-center notice with the opened file's name (~2.5s). Mounted in App.tsx while
+                                  the reader is shown and not loading, keyed by currentPath, so every open (incl.
+                                  Ctrl+Arrow sibling nav) shows it again. pointer-events-none.
     AniListBadge.tsx            "AL" badge on LibraryCard/LibraryDetailsRow when the entry's folder is linked. Clicking it
                                   opens the series panel (stops propagation so the entry isn't selected/opened).
     ContextMenu.tsx             Library right-click menu: positioned + own dismiss (click-outside/Escape).

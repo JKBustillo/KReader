@@ -11,6 +11,7 @@ import NavBar from "./components/NavBar";
 import LibraryView from "./components/LibraryView";
 import SettingsModal from "./components/SettingsModal";
 import AniListToast from "./components/AniListToast";
+import FileOpenedToast from "./components/FileOpenedToast";
 import Button from "./components/Button";
 import { getRecentFiles, saveRecentFiles, addRecentFile } from "./utils/recentFiles";
 import { applyTheme, getTheme, type Theme } from "./utils/theme";
@@ -495,6 +496,10 @@ function App() {
       )}
       {view === "reader" && pdfSrc === null && pages.length > 0 && (
         <Reader pages={pages} onClose={handleClose} filePath={currentPath} libraryId={readerLibraryId} startPage={startPage} pageNames={pageNames} onLastPage={handleLastPage} />
+      )}
+
+      {view === "reader" && !loading && currentPath && (
+        <FileOpenedToast key={currentPath} name={basename(currentPath)} />
       )}
 
       {/* Loading overlay — above everything, dims whatever is underneath. */}
