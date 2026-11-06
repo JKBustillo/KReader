@@ -510,7 +510,7 @@ function App() {
       )}
 
       {view === "reader" && !loading && currentPath && (
-        <FileOpenedToast key={currentPath} name={basename(currentPath)} />
+        <FileOpenedToast key={`file-opened:${currentPath}`} name={basename(currentPath)} />
       )}
 
       {/* Loading overlay — above everything, dims whatever is underneath. */}
@@ -547,7 +547,7 @@ function App() {
       />
 
       {/* Opening another file is a new context: the previous file's notice (and its Undo) is dropped. */}
-      <AniListToast key={currentPath} />
+      <AniListToast key={`anilist:${currentPath}`} />
     </>
   );
 }
